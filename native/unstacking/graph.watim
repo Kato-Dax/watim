@@ -184,7 +184,7 @@ fn graph-source(grapher: .Grapher, source: .Source) {
                     $grapher &source.token graph-token $grapher.fmt " -> " Fmt:write
                     $grapher $source.b graph-maybe-source
                 }
-                case FromIntrinsic.Ge -> {
+                case FromIntrinsic.Cmp -> {
                     @source
                     $grapher &source.token graph-token $grapher.fmt "\n" Fmt:write
 
@@ -418,7 +418,10 @@ fn graph-node(grapher: .Grapher, node-index: i32, return-index: i32) { block {
 
             $node-at-least-partially-graphed not if {
                 $grapher.fmt " -> " Fmt:write
-                $grapher &source.condition graph-source
+                &source.condition match {
+                    case None -> {}
+                    case Some -> { $grapher flip graph-source }
+                }
             } else { $grapher.fmt "\n" Fmt:write }
 
             $grapher.fmt $node $return-index graph-node-name $grapher.fmt " -> " Fmt:write

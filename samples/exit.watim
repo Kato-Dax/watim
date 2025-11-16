@@ -29,11 +29,18 @@ fn read(file: i32, buf-addr: .i8, buf-size: i32) -> i32 {
     $nread
 }
 
+struct Buf {
+    a: i64
+    b: i64
+    c: i64
+    d: i64
+}
+
 fn print(n: i32) {
     // Watim doesn't (yet?) have arrays, so to allocate 32 bytes on the stack
-    // we can take the pointer of an unitialized tuple with four i64s.
-    uninit<[i64, i64, i64, i64]> @buf &buf !.i8 @buf
-    uninit<[i64, i64, i64, i64]> @buf-reversed &buf-reversed !.i8 @buf-reversed
+    // we can take the pointer of an unitialized struct with four i64-fields.
+    uninit<Buf> @buf &buf !.i8 @buf
+    uninit<Buf> @buf-reversed &buf-reversed !.i8 @buf-reversed
     0 @l
     $n 0 = if {
         1 #l // length = 1
@@ -91,7 +98,7 @@ fn parse(pt: .i8, len: i32) -> i32 {
 fn dup<T>(a: T) -> T, T { $a $a }
 
 fn main "_start" () {
-    uninit<[i64, i64, i64, i64]> @buf &buf !.i8 @buf
+    uninit<Buf> @buf &buf !.i8 @buf
     0 $buf 32 read @nread
     $nread 0 /= if {
         $buf $nread 1 - + ~ "\n" drop ~ = if { $nread 1 - #nread }

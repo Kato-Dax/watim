@@ -1,7 +1,7 @@
-from typing import List
 from dataclasses import dataclass
 
-from format import Formattable, FormatInstr, unnamed_record
+import format
+from format import Formattable, Formatter
 from parsing.types import I8, I32, I64, PrimitiveType
 from resolving.types import PtrType, Type
 from lexer import Token
@@ -10,9 +10,9 @@ from lexer import Token
 class IntrinsicAdd(Formattable):
     token: Token
     taip: PtrType | I8 | I32 | I64
-    def format_instrs(self) -> List[FormatInstr]:
-        return unnamed_record("Intrinsic", [
-            self.token, unnamed_record("Add", [self.taip])])
+    def format(self, fmt: Formatter):
+        fmt.unnamed_record("Intrinsic", [
+            self.token, format.UnnamedRecord("Add", [self.taip])])
 
 @dataclass
 class IntrinsicSub(Formattable):
@@ -23,17 +23,17 @@ class IntrinsicSub(Formattable):
 class IntrinsicDrop(Formattable):
     token: Token
     taip: Type
-    def format_instrs(self) -> List[FormatInstr]:
-        return unnamed_record("Intrinsic", [
-            self.token, unnamed_record("Drop", [self.taip])])
+    def format(self, fmt: Formatter):
+        fmt.unnamed_record("Intrinsic", [
+            self.token, format.UnnamedRecord("Drop", [self.taip])])
 
 @dataclass
 class IntrinsicMod(Formattable):
     token: Token
     taip: I32 | I64
-    def format_instrs(self) -> List[FormatInstr]:
-        return unnamed_record("Intrinsic", [
-            self.token, unnamed_record("Mod", [self.taip])])
+    def format(self, fmt: Formatter):
+        fmt.unnamed_record("Intrinsic", [
+            self.token, format.UnnamedRecord("Mod", [self.taip])])
 
 @dataclass
 class IntrinsicMul(Formattable):
@@ -107,10 +107,10 @@ class IntrinsicMemFill(Formattable):
 class IntrinsicEqual(Formattable):
     token: Token
     taip: Type
-    def format_instrs(self) -> List[FormatInstr]:
-        return unnamed_record("Intrinsic", [
+    def format(self, fmt: Formatter):
+        fmt.unnamed_record("Intrinsic", [
             self.token,
-            unnamed_record("Eq", [self.taip])])
+            format.UnnamedRecord("Eq", [self.taip])])
 
 @dataclass
 class IntrinsicNotEqual(Formattable):

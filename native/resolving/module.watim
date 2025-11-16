@@ -89,6 +89,10 @@ fn Module-format(fmt: .Formatter, self: .Module) {
     $fmt Fmt:write-indent
     $fmt "functions=" Fmt:write
     $fmt \ByteSlice-format \FunctionOrExtern-format &self.functions Map:format-multi-line<ByteSlice, FunctionOrExtern>
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "static-data=" Fmt:write
+    $fmt &self.static-data ByteSlice-format
     $fmt ")" Fmt:write
     $fmt Fmt:dedent
 }

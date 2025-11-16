@@ -5,7 +5,7 @@ from indexed_dict import IndexedDict
 from lexer import Token
 import parsing.parser as parsed
 from parsing.types import I8, I32, I64, Bool, GenericType, HoleType
-from resolving.types import Type, NamedType, PtrType, FunctionType, TupleType, CustomTypeType, CustomTypeHandle
+from resolving.types import Type, NamedType, PtrType, FunctionType, CustomTypeType, CustomTypeHandle
 from resolving.top_items import Import, TypeDefinition, Struct, Variant
 from resolving.module import Module, ResolveException
 
@@ -48,8 +48,6 @@ class TypeLookup:
             return s
         if isinstance(taip, FunctionType):
             return f"({self.types_pretty(taip.parameters)} -> {self.types_pretty(taip.returns)})"
-        if isinstance(taip, TupleType):
-            return self.types_pretty_bracketed(taip.items)
         if isinstance(taip, GenericType):
             return taip.token.lexeme
         if isinstance(taip, HoleType):
@@ -105,10 +103,6 @@ class TypeResolver:
                 self.resolve_types(taip.parameters),
                 self.resolve_types(taip.returns),
             )
-        if isinstance(taip, parsed.TupleType):
-            return TupleType(
-                taip.token,
-                self.resolve_types(taip.items))
         return taip
 
     def resolve_types(self, types: Sequence[parsed.Type]) -> Tuple[Type, ...]:

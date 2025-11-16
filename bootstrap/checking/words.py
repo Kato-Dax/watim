@@ -1,13 +1,13 @@
 from typing import List, Tuple
 from dataclasses import dataclass
 
-from format import Formattable, FormatInstr, unnamed_record, format_seq, named_record, format_optional, format_list
-from lexer import Token
+import format
+from format import Formattable, Formatter
 
+from lexer import Token
 from parsing.words import BreakWord, NumberWord
-from resolving.types import CustomTypeType, PtrType, Type, FunctionType, TupleType
-from resolving.words import MatchVoidWord
-from resolving.words import ScopeId, LocalId, GlobalId, FunctionHandle
+from resolving.types import CustomTypeType, PtrType, Type, FunctionType
+from resolving.words import ScopeId, LocalId, GlobalId, FunctionHandle, MatchVoidWord, StringWord
 from checking import intrinsics as intrinsics
 from checking.intrinsics import IntrinsicWord
 
@@ -15,8 +15,8 @@ from checking.intrinsics import IntrinsicWord
 class Scope(Formattable):
     id: ScopeId
     words: List['Word']
-    def format_instrs(self) -> List[FormatInstr]:
-        return unnamed_record("Scope", [self.id, format_seq(self.words, multi_line=True)])
+    def format(self, fmt: Formatter):
+        fmt.unnamed_record("Scope", [self.id, format.Seq(self.words, multi_line=True)])
 
 @dataclass
 class FieldAccess(Formattable):
@@ -24,15 +24,9 @@ class FieldAccess(Formattable):
     source_taip: CustomTypeType | PtrType
     target_taip: Type
     field_index: int
-    def format_instrs(self) -> List[FormatInstr]:
-        return unnamed_record("FieldAccess", [
+    def format(self, fmt: Formatter):
+        fmt.unnamed_record("FieldAccess", [
             self.name, self.source_taip, self.target_taip, self.field_index])
-
-@dataclass
-class StringWord(Formattable):
-    token: Token
-    offset: int
-    len: int
 
 @dataclass
 class LoadWord(Formattable):
@@ -46,27 +40,27 @@ class InitWord(Formattable):
     taip: Type
 
 @dataclass
-class GetWord(Formattable):
-    token: Token
+class GetLocal(Formattable):
+    name: Token
     local_id: LocalId | GlobalId
     var_taip: Type
     fields: Tuple[FieldAccess, ...]
     taip: Type
-    def format_instrs(self) -> List[FormatInstr]:
-        return unnamed_record("GetLocal", [
-            self.token,
+    def format(self, fmt: Formatter):
+        fmt.unnamed_record("GetLocal", [
+            self.name,
             self.local_id,
             self.var_taip,
             self.taip,
-            format_seq(self.fields, multi_line=True)])
+            format.Seq(self.fields, multi_line=True)])
 
 @dataclass
 class RefWord(Formattable):
     token: Token
     local_id: LocalId | GlobalId
     fields: Tuple[FieldAccess, ...]
-    def format_instrs(self) -> List[FormatInstr]:
-        return unnamed_record("RefLocal", [self.token, self.local_id, format_seq(self.fields, multi_line=True)])
+    def format(self, fmt: Formatter):
+        fmt.unnamed_record("RefLocal", [self.token, self.local_id, format.Seq(self.fields, multi_line=True)])
 
 @dataclass
 class SetWord(Formattable):
@@ -85,28 +79,28 @@ class CallWord(Formattable):
     name: Token
     function: FunctionHandle
     generic_arguments: Tuple[Type, ...]
-    def format_instrs(self) -> List[FormatInstr]:
-        return unnamed_record("Call", [self.name, self.function, format_seq(self.generic_arguments)])
+    def format(self, fmt: Formatter):
+        fmt.unnamed_record("Call", [self.name, self.function, format.Seq(self.generic_arguments)])
 
 @dataclass
 class FunRefWord(Formattable):
     call: CallWord
-    def format_instrs(self) -> List[FormatInstr]:
-        return unnamed_record("FunRef", [self.call])
+    def format(self, fmt: Formatter):
+        fmt.unnamed_record("FunRef", [self.call])
 
 @dataclass
 class IfWord(Formattable):
     token: Token
-    parameters: List[Type]
-    returns: List[Type] | None
+    parameters: Tuple[Type, ...]
+    returns: Tuple[Type, ...] | None
     true_branch: Scope
     false_branch: Scope
     diverges: bool
-    def format_instrs(self) -> List[FormatInstr]:
-        return named_record("If", [
+    def format(self, fmt: Formatter):
+        fmt.named_record("If", [
             ("token", self.token),
-            ("parameters", format_seq(self.parameters)),
-            ("returns", format_optional(self.returns, format_list)),
+            ("parameters", self.parameters),
+            ("returns", format.Optional(self.returns)),
             ("true-branch", self.true_branch),
             ("false-branch", self.false_branch)])
 
@@ -117,11 +111,11 @@ class LoopWord(Formattable):
     parameters: Tuple[Type, ...]
     returns: Tuple[Type, ...]
     diverges: bool
-    def format_instrs(self) -> List[FormatInstr]:
-        return named_record("Loop", [
+    def format(self, fmt: Formatter):
+        fmt.named_record("Loop", [
             ("token", self.token),
-            ("parameters", format_seq(self.parameters)),
-            ("returns", format_optional(None if self.diverges else self.returns, format_seq)),
+            ("parameters", self.parameters),
+            ("returns", format.Optional(None if self.diverges else self.returns)),
             ("body", self.body)])
 
 
@@ -153,8 +147,8 @@ class GetFieldWord(Formattable):
 class IndirectCallWord(Formattable):
     token: Token
     taip: FunctionType
-    def format_instrs(self) -> List[FormatInstr]:
-        return unnamed_record("IndirectCall", [self.token, self.taip])
+    def format(self, fmt: Formatter):
+        fmt.unnamed_record("IndirectCall", [self.token, self.taip])
 
 @dataclass
 class StructFieldInitWord(Formattable):
@@ -166,8 +160,8 @@ class StructWord(Formattable):
     token: Token
     taip: CustomTypeType
     body: Scope
-    def format_instrs(self) -> List[FormatInstr]:
-        return named_record("StructWordNamed", [
+    def format(self, fmt: Formatter):
+        fmt.named_record("StructWordNamed", [
             ("token", self.token),
             ("type", self.taip),
             ("body", self.body)])
@@ -176,8 +170,8 @@ class StructWord(Formattable):
 class UnnamedStructWord(Formattable):
     token: Token
     taip: CustomTypeType
-    def format_instrs(self) -> List[FormatInstr]:
-        return named_record("StructWord", [
+    def format(self, fmt: Formatter):
+        fmt.named_record("StructWord", [
             ("token", self.token),
             ("type", self.taip)])
 
@@ -186,8 +180,8 @@ class VariantWord(Formattable):
     token: Token
     tag: int
     variant: CustomTypeType
-    def format_instrs(self) -> List[FormatInstr]:
-        return named_record("VariantWord", [
+    def format(self, fmt: Formatter):
+        fmt.named_record("VariantWord", [
             ("token", self.token),
             ("tag", self.tag),
             ("type", self.variant)])
@@ -197,8 +191,8 @@ class MatchCase(Formattable):
     taip: Type | None
     tag: int
     body: Scope
-    def format_instrs(self) -> List[FormatInstr]:
-        return unnamed_record("MatchCase", [format_optional(self.taip), self.tag, self.body])
+    def format(self, fmt: Formatter):
+        fmt.unnamed_record("MatchCase", [format.Optional(self.taip), self.tag, self.body])
 
 @dataclass
 class MatchWord(Formattable):
@@ -209,31 +203,21 @@ class MatchWord(Formattable):
     default: Scope | None
     parameters: Tuple[Type, ...]
     returns: Tuple[Type, ...] | None
-    def format_instrs(self) -> List[FormatInstr]:
-        return named_record("Match", [
+    def format(self, fmt: Formatter):
+        fmt.named_record("Match", [
             ("token", self.token),
             ("variant", self.variant),
             ("by-ref", self.by_ref),
-            ("cases", format_seq(self.cases, multi_line=True)),
-            ("default", format_optional(self.default)),
-            ("parameters", format_seq(self.parameters)),
-            ("returns", format_optional(self.returns, format_seq))])
-
-@dataclass
-class TupleMakeWord(Formattable):
-    token: Token
-    taip: TupleType
-
-@dataclass
-class TupleUnpackWord(Formattable):
-    token: Token
-    items: TupleType
+            ("cases", format.Seq(self.cases, multi_line=True)),
+            ("default", format.Optional(self.default)),
+            ("parameters", format.Seq(self.parameters)),
+            ("returns", format.Optional(self.returns))])
 
 type Word = (
       NumberWord
     | StringWord
     | CallWord
-    | GetWord
+    | GetLocal
     | RefWord
     | SetWord
     | StoreWord
@@ -255,6 +239,4 @@ type Word = (
     | VariantWord
     | MatchWord
     | MatchVoidWord
-    | TupleMakeWord
-    | TupleUnpackWord
 )

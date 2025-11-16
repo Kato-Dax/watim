@@ -12,7 +12,7 @@ import resolving.words as resolved
 from resolving.intrinsics import INTRINSICS
 from resolving.types import with_generics
 from resolving.type_resolver import TypeResolver, TypeLookup
-from resolving.top_items import Import, Local, LocalName, CustomTypeHandle, Variant, Struct, Global, LocalId, FunctionSignature, VariantImport
+from resolving.top_items import Import, Local, SyntheticName, FromSource, CustomTypeHandle, Variant, Struct, Global, LocalId, FunctionSignature, VariantImport
 from resolving.env import Env
 
 @dataclass
@@ -39,6 +39,7 @@ class WordResolver:
     modules: IndexedDict[str, Module]
     type_lookup: TypeLookup
     env: Env
+    static_data: bytearray
     struct_literal_env: StructLiteralEnv | None = None
 
     def abort(self, token: Token, message: str) -> NoReturn:
@@ -59,6 +60,13 @@ class WordResolver:
         self.struct_literal_env = None
         return self
 
+    def allocate_static_data(self, data: bytes) -> int:
+        offset = self.static_data.find(data)
+        if offset == -1:
+            offset = len(self.static_data)
+            self.static_data.extend(data)
+        return offset
+
     def resolve_words(self, words: Sequence[parsing.Word]) -> Tuple[Word, ...]:
         return tuple(resolved_word for word in words for resolved_word in self.resolve_word(word))
 
@@ -67,7 +75,8 @@ class WordResolver:
             case parsing.NumberWord():
                 return word,
             case parsing.StringWord():
-                return word,
+                offset = self.allocate_static_data(bytes(word.data))
+                return resolved.StringWord(word.token, offset, len(word.data)),
             case parsing.BreakWord():
                 return word,
             case parsing.CallWord():
@@ -87,11 +96,11 @@ class WordResolver:
             case parsing.InitWord():
                 return self.resolve_init_local(word),
             case parsing.GetWord():
-                return resolved.GetWord(word.ident, self.lookup_variable(word.ident), word.fields),
+                return resolved.GetLocal(word.ident, self.lookup_variable(word.ident), word.fields),
             case parsing.SetWord():
-                return resolved.SetWord(word.ident, self.lookup_variable(word.ident), word.fields),
+                return resolved.SetLocal(word.ident, self.lookup_variable(word.ident), word.fields),
             case parsing.RefWord():
-                return resolved.RefWord(word.ident, self.lookup_variable(word.ident), word.fields),
+                return resolved.RefLocal(word.ident, self.lookup_variable(word.ident), word.fields),
             case parsing.StoreWord():
                 return self.resolve_store_local(word),
             case parsing.LoadWord():
@@ -110,18 +119,14 @@ class WordResolver:
                 if call is None:
                     self.abort(word.call.ident, f"function `{word.call.ident.lexeme}` not found")
                 return resolved.FunRefWord(call),
-            case parsing.MakeTupleWord():
-                return word,
             case parsing.GetFieldWord():
-                return word,
-            case parsing.TupleUnpackWord():
                 return word,
             case parsing.InlineRefWord():
                 return self.resolve_inline_ref_word(word)
             case parsing.StackAnnotation():
                 return resolved.StackAnnotation(word.token, self.type_resolver.resolve_types(word.types)),
             case parsing.StructWord():
-                return resolved.StructWord(word.token, self.type_resolver.resolve_custom_type(word.taip)),
+                return resolved.StructWord(word.token, word.name, self.type_resolver.resolve_custom_type(word.taip)),
             case parsing.StructWordNamed():
                 return self.resolve_struct_word_named(word),
             case parsing.MatchWord():
@@ -141,9 +146,9 @@ class WordResolver:
                     self.resolve_block_annotation(word.annotation)),
 
     def resolve_inline_ref_word(self, word: parsing.InlineRefWord) -> Sequence[resolved.Word]:
-        local = Local(LocalName("synth:ref"), None)
+        local = Local(SyntheticName(word.token, "synth:ref"), None)
         local_id = self.env.insert(local)
-        return (resolved.InitWord(word.token, local_id), resolved.RefWord(word.token, local_id, ()))
+        return (resolved.InitLocal(word.token, local_id), resolved.RefLocal(word.token, local_id, ()))
 
     def resolve_call(self, word: parsing.CallWord | parsing.ForeignCallWord) -> resolved.CallWord | None:
         if isinstance(word, parsing.ForeignCallWord):
@@ -180,18 +185,18 @@ class WordResolver:
         if local_id is not None:
             return local_id
         if name.lexeme in self.globals:
-            return GlobalId(self.module_id, self.globals.index_of(name.lexeme))
+            return GlobalId(name, self.module_id, self.globals.index_of(name.lexeme))
         self.abort(name, "variable not found")
 
-    def resolve_init_local(self, word: parsing.InitWord) -> resolved.InitWord | resolved.StructFieldInitWord:
+    def resolve_init_local(self, word: parsing.InitWord) -> resolved.InitLocal | resolved.StructFieldInitWord:
         if self.struct_literal_env is not None:
             field_name = word.ident.lexeme
             if field_name in self.struct_literal_env.all_fields:
                 del self.struct_literal_env.remaining_fields[field_name]
                 field_index = self.struct_literal_env.all_fields[field_name]
-                return resolved.StructFieldInitWord(word.token, self.struct_literal_env.struct, field_index)
-        local_id = self.env.insert(Local(LocalName(word.ident), None))
-        return resolved.InitWord(word.ident, local_id)
+                return resolved.StructFieldInitWord(word.ident, self.struct_literal_env.struct, field_index)
+        local_id = self.env.insert(Local(FromSource(word.ident), None))
+        return resolved.InitLocal(word.ident, local_id)
 
     def resolve_scope(self, parsed_words: Tuple[parsing.Word, ...], keep_struct_literal_env=False) -> resolved.Scope:
         env = self.env.child()
@@ -326,6 +331,7 @@ class WordResolver:
             self.abort(word.token, error_message)
         return resolved.StructWordNamed(
             word.token,
+            word.name,
             taip,
             words)
 

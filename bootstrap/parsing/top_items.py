@@ -1,7 +1,8 @@
 from typing import List, Tuple
 from dataclasses import dataclass
 
-from format import Formattable, FormatInstr, unnamed_record, format_seq, format_optional, named_record
+import format
+from format import Formattable, Formatter
 from lexer import Token
 from parsing.words import Word
 from parsing.types import Type, NamedType
@@ -14,9 +15,9 @@ type TopItem = Import | TypeDefinition | Global | Function | Extern
 class VariantImport(Formattable):
     name: Token
     constructors: Tuple[Token, ...]
-    def format_instrs(self) -> List[FormatInstr]:
-        return unnamed_record("VariantImport", [
-            self.name, format_seq(self.constructors)])
+    def format(self, fmt: Formatter):
+        fmt.unnamed_record("VariantImport", [
+            self.name, format.Seq(self.constructors)])
 
 type ImportItem = Token | VariantImport
 
@@ -26,12 +27,12 @@ class Import(Formattable):
     file_path: Token
     qualifier: Token
     items: Tuple[ImportItem, ...]
-    def format_instrs(self) -> List[FormatInstr]:
-        return named_record("Import", [
+    def format(self, fmt: Formatter):
+        fmt.named_record("Import", [
             ("start", self.token),
             ("path", self.file_path),
             ("qualifier", self.qualifier),
-            ("items", format_seq(self.items))])
+            ("items", format.Seq(self.items))])
 
 @dataclass
 class FunctionSignature(Formattable):
@@ -40,11 +41,11 @@ class FunctionSignature(Formattable):
     generic_parameters: Tuple[Token, ...]
     parameters: Tuple[NamedType, ...]
     returns: Tuple[Type, ...]
-    def format_instrs(self) -> List[FormatInstr]:
-        return named_record("Signature", [
-            ("generic-parameters", format_seq(self.generic_parameters)),
-            ("parameters", format_seq(self.parameters, multi_line=True)),
-            ("returns", format_seq(self.returns, multi_line=True))])
+    def format(self, fmt: Formatter):
+        fmt.named_record("Signature", [
+            ("generic-parameters", format.Seq(self.generic_parameters)),
+            ("parameters", format.Seq(self.parameters, multi_line=True)),
+            ("returns", format.Seq(self.returns, multi_line=True))])
 
 @dataclass
 class Extern(Formattable):
@@ -52,8 +53,8 @@ class Extern(Formattable):
     module: Token
     name: Token
     signature: FunctionSignature
-    def format_instrs(self) -> List[FormatInstr]:
-        return named_record("Extern", [
+    def format(self, fmt: Formatter):
+        fmt.named_record("Extern", [
             ("start", self.start),
             ("export-module", self.module),
             ("export-name", self.name),
@@ -71,13 +72,13 @@ class Function(Formattable):
     start: Token
     signature: FunctionSignature
     body: Tuple[Word, ...]
-    def format_instrs(self) -> List[FormatInstr]:
-        return named_record("Function", [
+    def format(self, fmt: Formatter):
+        fmt.named_record("Function", [
             ("start", self.start),
             ("name", self.signature.name),
-            ("export-name", format_optional(self.signature.export_name)),
+            ("export-name", format.Optional(self.signature.export_name)),
             ("signature", self.signature),
-            ("body", format_seq(self.body, multi_line=True))])
+            ("body", format.Seq(self.body, multi_line=True))])
 
 @dataclass
 class Struct(Formattable):
@@ -85,12 +86,12 @@ class Struct(Formattable):
     name: Token
     fields: Tuple[NamedType, ...]
     generic_parameters: Tuple[Token, ...]
-    def format_instrs(self) -> List[FormatInstr]:
-        return unnamed_record("Struct", [
+    def format(self, fmt: Formatter):
+        fmt.unnamed_record("Struct", [
             self.token,
             self.name,
-            format_seq(self.generic_parameters),
-            format_seq(self.fields, multi_line=True)])
+            format.Seq(self.generic_parameters),
+            format.Seq(self.fields, multi_line=True)])
 
 @dataclass
 class VariantCase:

@@ -27,7 +27,7 @@ import "../resolving/module.watim" as Resolved
 
 import "../unstacking/source.watim" as Source (
     Source(FromIntrinsic), Source-token, Source-format,
-    FromIntrinsic(Add, Uninit, Eq, Mul, Ge, And, MemGrow, Not),
+    FromIntrinsic(Add, Uninit, Eq, Mul, Cmp, And, MemGrow, Not),
     MultiReturnNode(
         Call, IndirectCall, PlaceHolder, StackAnnotation,
         IfEntry, IfExit, BlockEntry, BlockExit,
@@ -991,12 +991,12 @@ fn check(ctx: .Ctx, source: .Source, known: .Type) -> Maybe<InferenceError> { bl
                             }
                         }
                     }
-                    case Ge -> {
+                    case Cmp -> {
                         @source
                         $known match {
                             case Type.Bool -> {}
                             case _ -> {
-                                drop &source.token "check FromGe: TODO" error make Maybe<InferenceError>.Some break
+                                drop &source.token "check FromCmp: TODO" error make Maybe<InferenceError>.Some break
                             }
                         }
                         $source.a match {
@@ -1516,7 +1516,12 @@ fn check-from-node(ctx: .Ctx, source: .Source:FromNode, known: .Type) -> Maybe<I
                 case _ -> { break }
             }
 
-            $ctx &source.condition make Type.Bool & check break
+            &source.condition match {
+                case None -> { &source.token "If is missing condition" error make Maybe<InferenceError>.Some break }
+                case Some -> {}
+            } @condition
+
+            $ctx $condition make Type.Bool & check break
         }
         case IfExit -> {
             @source
@@ -1563,7 +1568,12 @@ fn check-from-node(ctx: .Ctx, source: .Source:FromNode, known: .Type) -> Maybe<I
                 }
             }
 
-            $ctx &source.condition make Type.Bool & check match {
+            &source.condition match {
+                case None -> { &source.token "If is missing condition" error make Maybe<InferenceError>.Some break }
+                case Some -> {}
+            } @condition
+
+            $ctx $condition make Type.Bool & check match {
                 case None -> {}
                 case _ -> { break }
             }
@@ -2410,7 +2420,7 @@ fn infer(ctx: .Ctx, source: .Source) -> Result<Maybe<Type>, InferenceError> {
                             $ctx $source.type &a fill-hole
                             make Type.Bool make Maybe<Type:Type>.Some make Result<Maybe<Type:Type>, InferenceError>.Success
                         }
-                        case Ge -> {
+                        case Cmp -> {
                             @source
                             $source.a match {
                                 case None -> { &source.token "expected two items" error make Result<Maybe<Type>, InferenceError>.Error break }
@@ -2462,7 +2472,7 @@ fn infer(ctx: .Ctx, source: .Source) -> Result<Maybe<Type>, InferenceError> {
                                 }
                             } @a @b
                             &a &b Type:eq not if {
-                                &source.token "FromGe expected two items of same type" error make Result<Maybe<Type>, InferenceError>.Error break
+                                &source.token "FromCmp expected two items of same type" error make Result<Maybe<Type>, InferenceError>.Error break
                             }
                             $ctx $source.type &a fill-hole
                             make Type.Bool make Maybe<Type:Type>.Some make Result<Maybe<Type:Type>, InferenceError>.Success
@@ -2598,7 +2608,12 @@ fn infer(ctx: .Ctx, source: .Source) -> Result<Maybe<Type>, InferenceError> {
                             } @type
                             $ctx &source.parameters $return-index Array:get<_> ~ &type fill-hole
 
-                            $ctx &source.condition make Type.Bool & check match {
+                            &source.condition match {
+                                case None -> { &source.token "If is missing condition" error make Result<Maybe<Type>, InferenceError>.Error break }
+                                case Some -> {}
+                            } @condition
+
+                            $ctx $condition make Type.Bool & check match {
                                 case None -> {}
                                 case Some -> { make Result<Maybe<Type>, InferenceError>.Error break }
                             }
@@ -3177,7 +3192,13 @@ fn infer-block-exit(ctx: .Ctx, source: .Source:FromBlockExit, return-depth: i32)
 
 fn infer-if-exit(ctx: .Ctx, source: .Source:FromIfExit, return-depth: i32) -> Result<Maybe<Type>, InferenceError> { block {
     $source.return-types.len $return-depth - 1 - @return-index
-    $ctx &source.condition make Type.Bool & check match {
+
+    &source.condition match {
+        case None -> { &source.token "If is missing condition" error make Result<Maybe<Type>, InferenceError>.Error break }
+        case Some -> {}
+    } @condition
+
+    $ctx $condition make Type.Bool & check match {
         case Some -> { make Result<Maybe<Type>, InferenceError>.Error break }
         case None -> {}
     }
@@ -3722,7 +3743,7 @@ fn fill-holes-word(ctx: .Ctx, word: .Unstacked:Word) -> Checked:Word {
         case Unstacked:Word.FunRef -> {
             @word
             make Checked:Call {
-                $word.name @name
+                $word.token @name
                 $word.function @function
                 $ctx &word.generic-arguments fill-holes @generic-arguments
             } make Checked:FunRef make Checked:Word.FunRef

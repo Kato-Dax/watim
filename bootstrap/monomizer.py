@@ -4,12 +4,13 @@ import unittest
 import copy
 
 from util import Ref, Lazy, intercalate, align_to
-from format import Formattable, FormatInstr, unnamed_record, named_record
+from format import Formattable, Formatter
 from indexed_dict import IndexedDict
 from lexer import Token
 from parsing.types import I8, I32, I64, Bool, PrimitiveType
 from parsing.parser import NumberWord, BreakWord
 import resolving.resolver as resolver
+import resolving.type_without_holes as without_holes
 from resolving import LocalName, ScopeId, GlobalId, LocalId
 from checking.intrinsics import IntrinsicDrop, IntrinsicMemCopy, IntrinsicMemFill, IntrinsicMemGrow, IntrinsicSetStackSize
 from checking.words import MatchVoidWord as MatchVoidWord
@@ -31,8 +32,8 @@ class PtrType(Formattable):
 class NamedType(Formattable):
     name: Token
     taip: 'Type'
-    def format_instrs(self) -> List[FormatInstr]:
-        return unnamed_record("NamedType", [self.name, self.taip])
+    def format(self, fmt: Formatter):
+        fmt.unnamed_record("NamedType", [self.name, self.taip])
 
 @dataclass
 class FunctionType(Formattable):
@@ -105,8 +106,8 @@ class CustomTypeType(Formattable):
     name: Token
     struct: CustomTypeHandle
     _size: Lazy[int]
-    def format_instrs(self) -> List[FormatInstr]:
-        return named_record("StructType", [
+    def format(self, fmt: Formatter):
+        fmt.named_record("StructType", [
             ("name", self.name),
             ("struct", self.struct)])
 
@@ -705,7 +706,7 @@ class Monomizer:
             if isinstance(f, resolver.Extern)
         }
         self.globals = {
-            GlobalId(m, i): self.monomize_global(globl)
+            GlobalId(globl.name, m, i): self.monomize_global(globl)
             for m,module in self.modules.indexed_values()
             for i,globl in enumerate(module.globals.values())
         }
@@ -795,12 +796,12 @@ class Monomizer:
         return concrete_function
 
     def monomize_signature(self, signature: checked.FunctionSignature, generics: List[Type]) -> FunctionSignature:
-        parameters = list(map(lambda t: self.monomize_named_type(t, generics), signature.parameters))
-        returns = list(map(lambda t: self.monomize_type(t, generics), signature.returns))
+        parameters = list(map(lambda t: self.monomize_named_type(without_holes.named_type_with_holes(t), generics), signature.parameters))
+        returns = list(map(lambda t: self.monomize_type(without_holes.with_holes(t), generics), signature.returns))
         return FunctionSignature(generics, parameters, returns)
 
     def monomize_global(self, globl: checked.Global) -> Global:
-        return Global(globl.name, self.monomize_type(globl.taip, []), globl.was_reffed)
+        return Global(globl.name, self.monomize_type(without_holes.with_holes(globl.taip), []), globl.was_reffed)
 
     def monomize_scope(self, scope: checked.Scope, generics: List[Type], copy_space_offset: Ref[int], max_struct_ret_count: Ref[int], locals: Dict[LocalId, Local], struct_space: int | None) -> Scope:
         return Scope(scope.id, self.monomize_words(scope.words, generics, copy_space_offset, max_struct_ret_count, locals, struct_space))
@@ -824,7 +825,7 @@ class Monomizer:
                 if copy_space != 0:
                     max_struct_ret_count.value = max(max_struct_ret_count.value, len(monomized_function_taip.returns))
                 return IndirectCallWord(token, monomized_function_taip, local_copy_space_offset)
-            case checked.words.GetWord(token, local_id, var_taip, resolved_fields, taip):
+            case checked.words.GetLocal(token, local_id, var_taip, resolved_fields, taip):
                 fields = self.monomize_field_accesses(resolved_fields, generics)
                 monomized_taip = self.monomize_type(taip, generics)
                 if not monomized_taip.can_live_in_reg():
@@ -1013,18 +1014,6 @@ class Monomizer:
                 parameters = list(map(lambda t: self.monomize_type(t, generics), resolved_parameters))
                 returns = None if resolved_returns is None else list(map(lambda t: self.monomize_type(t, generics), resolved_returns))
                 return MatchWord(token, monomized_variant, by_ref, monomized_cases, monomized_default_case, parameters, returns)
-            case checked.words.TupleMakeWord(token, tupl):
-                offset = copy_space_offset.value
-                mono_tupl = TupleType(tupl.token, list(map(lambda t: self.monomize_type(t, generics), tupl.items)))
-                offset = copy_space_offset.value
-                if mono_tupl.size() > 4:
-                    copy_space_offset.value += mono_tupl.size()
-                return TupleMakeWord(token, mono_tupl, offset)
-            case checked.words.TupleUnpackWord(token, checked.words.TupleType(_, items)):
-                offset = copy_space_offset.value
-                mono_items = list(map(lambda t: self.monomize_type(t, generics), items))
-                copy_space_offset.value += sum(item.size() for item in mono_items if not item.can_live_in_reg())
-                return TupleUnpackWord(token, mono_items, offset)
 
     def lookup_var_taip(self, local_id: LocalId | GlobalId, locals: Dict[LocalId, Local]) -> Type:
         if isinstance(local_id, LocalId):
@@ -1140,8 +1129,6 @@ class Monomizer:
                 return self.monomize_struct_type(taip, generics)
             case checked.FunctionType():
                 return self.monomize_function_type(taip, generics)
-            case checked.TupleType(token, items):
-                return TupleType(token, list(map(lambda item: self.monomize_type(item, generics), items)))
             case checked.HoleType():
                 assert(False)
             case other:

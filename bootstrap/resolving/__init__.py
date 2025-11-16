@@ -19,7 +19,6 @@ from resolving.types import (
         NamedType as NamedType,
         CustomTypeType as CustomTypeType,
         FunctionType as FunctionType,
-        TupleType as TupleType,
         GenericType as GenericType,
         PtrType as PtrType,
         HoleType as HoleType,

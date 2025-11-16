@@ -35,4 +35,5 @@ resolve
               (Break (BREAK break 3 11)),
               (Number (NUMBER 1 4 9))]),
             annotation=None),
-          (Intrinsic (IDENT + 5 7) Add [])])))))
+          (Intrinsic (IDENT + 5 7) Add [])]))),
+    static-data=""))

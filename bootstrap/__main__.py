@@ -1,15 +1,16 @@
 #!/usr/bin/env python
 from dataclasses import dataclass
-from typing import List, Dict, Literal
+from typing import List, Dict
 import sys
 import os
 import unittest
+
+import format
 
 from parsing.parser import ParseException
 import parsing.parser as parser
 from util import sys_stdin
 from indexed_dict import IndexedDict
-from format import format_str, format
 
 from lexer import TokenLocation, Lexer
 
@@ -18,6 +19,7 @@ from resolving import ModuleResolver, ResolveException
 
 from checking import determine_compilation_order, CheckCtx, CheckException
 import checking as checked
+import unstacking as unstacking
 
 from monomizer import Monomizer, merge_locals_module, DetermineLoadsToValueTests
 from wat_generator import WatGenerator
@@ -82,8 +84,7 @@ def check_modules(resolved_modules: IndexedDict[str, resolved.Module]) -> Indexe
                 [f.signature for f in module.functions.values()],
                 module.globals,
                 type_lookup,
-                id,
-                bytearray())
+                id)
         for handle in type_lookup.find_directly_recursive_types():
             token = type_lookup.lookup(handle).name
             raise CheckException(module_path, token, "structs and variants cannot be recursive")
@@ -94,51 +95,124 @@ def check_modules(resolved_modules: IndexedDict[str, resolved.Module]) -> Indexe
                 module.type_definitions,
                 module.globals,
                 ctx.check_functions(),
-                bytes(ctx.static_data))
+                bytes(module.static_data))
     return checked_modules
 
-Mode = Literal["lex"] | Literal["parse"] | Literal["resolve"] | Literal["check"] | Literal["monomize"] | Literal["compile"] | Literal["inference-tree"]
+@dataclass
+class Lex:
+    path: str
 
-def run(path: str, mode: Mode, guard_stack: bool, stdin: str | None = None) -> str:
+@dataclass
+class Parse:
+    path: str
+
+@dataclass
+class Resolve:
+    path: str
+
+@dataclass
+class Unstack:
+    path: str
+    function: str
+
+@dataclass
+class Check:
+    path: str
+
+@dataclass
+class Monomize:
+    path: str
+
+@dataclass
+class Compile:
+    path: str
+
+type Cmd = Lex | Parse | Resolve | Unstack | Check | Monomize | Compile
+
+def read_path(path: str, stdin: str | None = None) -> str:
     if path == "-":
-        file = stdin if stdin is not None else sys_stdin.get()
+        return stdin if stdin is not None else sys_stdin.get()
     else:
         with open(path, 'r') as reader:
-            file = reader.read()
-    tokens = Lexer(file).lex()
-    if mode == "lex":
-        return "\n".join([format(token.format_instrs()) for token in tokens])
-    if mode == "parse":
-        module = parser.Parser(path, file, tokens).parse()
-        return format(module.format_instrs())
-    modules: Dict[str, parser.Module] = {}
-    load_recursive(modules, os.path.normpath(path), None, stdin)
-    resolved_modules = resolve_modules(modules)
-    if mode == "resolve":
-        return format(resolved_modules.format_instrs(format_str))
-    checked_modules = check_modules(resolved_modules)
-    if mode == "check":
-        return format(checked_modules.format_instrs(format_str))
-    function_table, mono_modules = Monomizer(checked_modules).monomize()
-    if mode == "monomize":
-        return "TODO"
-    if mode == "inference-tree":
-        return ""
-    for mono_module in mono_modules.values():
-        merge_locals_module(mono_module)
-    return WatGenerator(mono_modules, function_table, guard_stack).write_wat_module()
+            return reader.read()
+
+def run(cmd: Cmd, guard_stack: bool, stdin: str | None = None) -> str:
+    match cmd:
+        case Lex(path):
+            tokens = Lexer(read_path(path, stdin)).lex()
+            return "\n".join([str(token) for token in tokens])
+        case Parse(path):
+            file_content = read_path(path, stdin)
+            tokens = Lexer(file_content).lex()
+            module = parser.Parser(path, file_content, tokens).parse()
+            return str(module)
+        case Resolve(path):
+            modules: Dict[str, parser.Module] = {}
+            load_recursive(modules, os.path.normpath(path), None, stdin)
+            resolved_modules = resolve_modules(modules)
+            return str(resolved_modules.formattable(format.Str, lambda x: x))
+        case Unstack(path, function_name):
+            modules = {}
+            load_recursive(modules, os.path.normpath(path), None, stdin)
+            resolved_modules = resolve_modules(modules)
+
+            f = resolved_modules.index(len(resolved_modules) - 1).functions[function_name]
+            if isinstance(f, resolved.Extern):
+                return "TODO"
+            unstacked = unstacking.unstack_function(list(resolved_modules.values()), f)
+            return str(unstacked)
+        case Check(path):
+            modules = {}
+            load_recursive(modules, os.path.normpath(path), None, stdin)
+            resolved_modules = resolve_modules(modules)
+            checked_modules = check_modules(resolved_modules)
+            return str(checked_modules.formattable(format.Str, lambda x: x))
+        case Monomize(path):
+            return "TODO"
+        case Compile(path):
+            modules = {}
+            load_recursive(modules, os.path.normpath(path), None, stdin)
+            resolved_modules = resolve_modules(modules)
+            checked_modules = check_modules(resolved_modules)
+            function_table, mono_modules = Monomizer(checked_modules).monomize()
+            for mono_module in mono_modules.values():
+                merge_locals_module(mono_module)
+            return WatGenerator(mono_modules, function_table, guard_stack).write_wat_module()
 
 help = """The native Watim compiler
 
 Usage: watim <command> <watim-source-file> [options]
 Commands:
-  lex       [path]   Lex code and print the Tokens.
-  parse     [path]   Parse code and print the AST
-  resolve   [path]   resolve all identifiers
-  check     [path]   run type inference and type checking
-  monomize  [path]   monomorphize all generic functions
-  optimize  [path]   run optimization passes
-  compile   [path]   compile to webassembly text format
+  lex       Lex code and print the Tokens.
+    <path>
+
+  parse     Parse code and print the AST
+    <path>
+
+  resolve   resolve all identifiers
+    <path>
+
+  unstack   run unstacker for a function
+    <path> <function>
+
+  graph     generate graph from unstacked function
+    <path> <function>
+
+  infer     run type inference for function
+    <path> <function> [log-level]
+    log-level = 0 | 1 | 2
+
+  check     unstack and infer everything
+    <path>
+
+  monomize  monomorphize all generic functions
+    <path>
+
+  optimize  run optimization passes
+    <path>
+
+  compile   compile to webassembly text format
+    <path>
 Options:
   -q, --quiet  Don't print any logs to stderr
 """
@@ -161,31 +235,32 @@ def main(argv: List[str], stdin: str | None = None) -> str:
         runner = unittest.TextTestRunner()
         runner.run(suite)
         return ""
-    mode: Mode = "compile"
+    cmd: Cmd
     if len(argv) >= 2 and argv[1] == "lex":
-        mode = "lex"
         path = argv[2] if len(argv) > 2 else "-"
+        cmd = Lex(path)
     elif len(argv) >= 2 and argv[1] == "parse":
-        mode = "parse"
         path = argv[2] if len(argv) > 2 else "-"
+        cmd = Parse(path)
     elif len(argv) >= 2 and argv[1] == "resolve":
-        mode = "resolve"
         path = argv[2] if len(argv) > 2 else "-"
+        cmd = Resolve(path)
+    elif len(argv) >= 2 and argv[1] == "unstack":
+        if len(argv) < 4:
+            raise CliArgException(help)
+        cmd = Unstack(argv[2], argv[3])
     elif len(argv) > 2 and argv[1] == "check":
-        mode = "check"
-        path = argv[2]
+        path = argv[2] if len(argv) > 2 else "-"
+        cmd = Check(path)
     elif len(argv) > 2 and argv[1] == "monomize":
-        mode = "monomize"
-        path = argv[2]
+        path = argv[2] if len(argv) > 2 else "-"
+        cmd = Monomize(path)
     elif len(argv) > 2 and argv[1] == "compile":
-        mode = "compile"
-        path = argv[2]
-    elif len(argv) > 2 and argv[1] == "inference-tree":
-        mode = "inference-tree"
-        path = argv[2]
+        path = argv[2] if len(argv) > 2 else "-"
+        cmd = Compile(path)
     else:
-        path = argv[1]
-    return run(path, mode, "--guard-stack" in argv, stdin)
+        raise CliArgException(help)
+    return run(cmd, "--guard-stack" in argv, stdin)
 
 if __name__ == "__main__":
     try:

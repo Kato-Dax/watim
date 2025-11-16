@@ -1,7 +1,8 @@
 from typing import List, Sequence
 from dataclasses import dataclass
 
-from format import Formattable, FormatInstr, named_record, format_seq
+import format
+from format import Formattable, Formatter
 from resolving.types import Type
 
 @dataclass
@@ -94,9 +95,9 @@ class Stack(Formattable):
         assert(self.parent is not None)
         return self.parent[index + len(self.stack)]
 
-    def format_instrs(self) -> List[FormatInstr]:
-        return named_record("Stack", [
+    def format(self, fmt: Formatter):
+        fmt.named_record("Stack", [
             ("parent", self.parent),
-            ("stack", format_seq(self.stack)),
-            ("negative", format_seq(self.negative))])
+            ("stack", format.Seq(self.stack)),
+            ("negative", format.Seq(self.negative))])
 

@@ -5,19 +5,21 @@ import copy
 import sys
 
 from util import seq_eq
-from format import Formattable, FormatInstr, named_record, format_seq, format_str, format_dict, unnamed_record, format_optional
+import format
+from format import Formattable, Formatter
 from indexed_dict import IndexedDict
 from lexer import Token
 from parsing.types import I8, I32, I64, Bool
 import resolving as resolved
-from resolving.top_items import LocalName, FunctionSignature, Import, Extern, TypeDefinition, Struct, Variant, Global
-from resolving.types import GenericType, HoleType, NamedType, Type, PtrType, CustomTypeType, FunctionType, TupleType, with_generics
+from resolving.top_items import LocalName, FromSource, FunctionSignature, Import, Extern, TypeDefinition, Struct, Variant, Global
+from resolving.types import GenericType, HoleType, NamedType, Type, PtrType, CustomTypeType, FunctionType, with_generics
 from resolving.type_resolver import TypeLookup
 from resolving.words import NumberWord, BreakWord, ROOT_SCOPE, IntrinsicType
 from resolving.intrinsics import INTRINSIC_TO_LEXEME
+import resolving.type_without_holes as without_holes
 import parsing.parser as parser
 from checking.intrinsics import IntrinsicShr, IntrinsicEqual, IntrinsicStore, IntrinsicNot, IntrinsicUninit, IntrinsicSetStackSize, IntrinsicRotr, IntrinsicGreater, IntrinsicGreaterEq, IntrinsicLess, IntrinsicLessEq, IntrinsicNotEqual, IntrinsicFlip, IntrinsicMemFill, IntrinsicAdd, IntrinsicSub, IntrinsicDiv, IntrinsicDrop, IntrinsicMemGrow, IntrinsicMod, IntrinsicMul, IntrinsicAnd, IntrinsicOr, IntrinsicShl, IntrinsicWord, IntrinsicRotl, IntrinsicMemCopy
-from checking.words import Word, FunctionHandle, StringWord, InitWord, RefWord, GetWord, CallWord, SizeofWord, UnnamedStructWord, StructWord, FunRefWord, StoreWord, LoadWord, MatchCase, MatchWord, VariantWord, LoopWord, CastWord, TupleMakeWord, TupleUnpackWord, GetFieldWord, IfWord, SetWord, BlockWord, IndirectCallWord, FieldAccess, Scope, ScopeId, GlobalId, LocalId, StructFieldInitWord
+from checking.words import Word, FunctionHandle, InitWord, RefWord, GetLocal, CallWord, SizeofWord, UnnamedStructWord, StructWord, FunRefWord, StoreWord, LoadWord, MatchCase, MatchWord, VariantWord, LoopWord, CastWord, GetFieldWord, IfWord, SetWord, BlockWord, IndirectCallWord, FieldAccess, Scope, ScopeId, GlobalId, LocalId, StructFieldInitWord
 from checking.stack import Stack
 
 @dataclass
@@ -26,8 +28,8 @@ class Local(Formattable):
     taip: Type
     is_parameter: bool
     was_reffed: bool = False
-    def format_instrs(self) -> List[FormatInstr]:
-        return unnamed_record("Local", [self.name, self.taip, self.is_parameter])
+    def format(self, fmt: Formatter):
+        fmt.unnamed_record("Local", [self.name, self.taip, self.is_parameter])
 
 @dataclass
 class Function(Formattable):
@@ -36,12 +38,12 @@ class Function(Formattable):
     signature: FunctionSignature
     body: Scope
     locals: Dict[LocalId, Local]
-    def format_instrs(self) -> List[FormatInstr]:
-        return named_record("Function", [
+    def format(self, fmt: Formatter):
+        fmt.named_record("Function", [
             ("name", self.name),
-            ("export", format_optional(self.export_name)),
+            ("export", format.Optional(self.export_name)),
             ("signature", self.signature),
-            ("locals", format_dict(self.locals)),
+            ("locals", format.Dict(dict((k,v) for k,v in self.locals.items()))),
             ("body", self.body)])
 
 
@@ -66,12 +68,12 @@ class Module(Formattable):
     functions: IndexedDict[str, Function | Extern]
     data: bytes
 
-    def format_instrs(self) -> List[FormatInstr]:
-        return named_record("Module", [
-            ("imports", format_dict(self.imports, format_str, format_seq)),
-            ("type-definitions", format_seq(list(self.type_definitions.values()), multi_line=True)),
-            ("globals", format_seq(list(self.globals.values()), multi_line=True)),
-            ("functions", format_seq(list(self.functions.values()), multi_line=True))])
+    def format(self, fmt: Formatter):
+        fmt.named_record("Module", [
+            ("imports", format.Dict(dict((format.Str(k),v) for k,v in self.imports.items()))),
+            ("type-definitions", format.Seq(list(self.type_definitions.values()), multi_line=True)),
+            ("globals", format.Seq(list(self.globals.values()), multi_line=True)),
+            ("functions", format.Seq(list(self.functions.values()), multi_line=True))])
 
 def determine_compilation_order(modules: Dict[str, parser.Module]) -> IndexedDict[str, parser.Module]:
     unprocessed: IndexedDict[str, parser.Module] = IndexedDict.from_items(modules.items())
@@ -101,10 +103,10 @@ class BreakStack(Formattable):
     token: Token
     types: Tuple[Type, ...]
     reachable: bool
-    def format_instrs(self) -> List[FormatInstr]:
-        return named_record("BreakStack", [
+    def format(self, fmt: Formatter):
+        fmt.named_record("BreakStack", [
             ("token", self.token),
-            ("types", format_seq(self.types, True)),
+            ("types", format.Seq(self.types, True)),
             ("reachable", self.reachable)])
 
 @dataclass
@@ -120,7 +122,6 @@ class CheckCtx:
     globals: IndexedDict[str, resolved.Global]
     type_lookup: TypeLookup
     module_id: int
-    static_data: bytearray
 
     def abort(self, token: Token, message: str) -> NoReturn:
         raise CheckException(self.resolved_modules.index_key(self.module_id), token, message)
@@ -141,7 +142,7 @@ class CheckCtx:
                 signature = function.signature
                 stack = Stack.empty()
                 locals = {
-                    local_id: Local(local.name, local.parameter, True, False)
+                    local_id: Local(local.name, without_holes.with_holes(local.parameter), True, False)
                     for local_id,local in function.locals.items()
                     if local.parameter is not None
                 }
@@ -153,9 +154,9 @@ class CheckCtx:
                     self.globals,
                 )
                 words, diverges = ctx.check_words(stack, function.body.id, list(function.body.words))
-                if not diverges and not seq_eq(stack.stack, signature.returns):
+                if not diverges and not seq_eq(stack.stack, without_holes.types_with_holes(signature.returns)):
                     msg  = "unexpected return values:\n\texpected: "
-                    msg += self.type_lookup.types_pretty_bracketed(signature.returns)
+                    msg += self.type_lookup.types_pretty_bracketed(without_holes.types_with_holes(signature.returns))
                     msg += "\n\tactual:   "
                     msg += self.type_lookup.types_pretty_bracketed(stack.stack)
                     self.abort(function.name, msg)
@@ -171,13 +172,6 @@ class CheckCtx:
                 functions[function.name.lexeme] = function
                 continue
         return functions
-
-    def allocate_static_data(self, data: bytes) -> int:
-        offset = self.static_data.find(data)
-        if offset == -1:
-            offset = len(self.static_data)
-            self.static_data.extend(data)
-        return offset
 
 type Env = Dict[LocalId, Local]
 
@@ -235,13 +229,12 @@ class WordCtx:
         if isinstance(word, resolved.words.StringWord):
             stack.push(PtrType(I8()))
             stack.push(I32())
-            offset = self.ctx.allocate_static_data(bytes(word.data))
-            return ([StringWord(word.token, offset, len(word.data))], False)
-        if isinstance(word, resolved.words.GetWord):
+            return ([word], False)
+        if isinstance(word, resolved.words.GetLocal):
             return self.check_get_local(stack, word)
-        if isinstance(word, resolved.words.RefWord):
+        if isinstance(word, resolved.words.RefLocal):
             return self.check_ref_local(stack, word)
-        if isinstance(word, resolved.words.InitWord):
+        if isinstance(word, resolved.words.InitLocal):
             return self.check_init_local(stack, word)
         if isinstance(word, resolved.words.CallWord):
             return self.check_call(stack, word)
@@ -261,7 +254,7 @@ class WordCtx:
             return self.check_loop(stack, word)
         if isinstance(word, BreakWord):
             return self.check_break(stack, word.token)
-        if isinstance(word, resolved.words.SetWord):
+        if isinstance(word, resolved.words.SetLocal):
             return self.check_set_local(stack, word)
         if isinstance(word, resolved.words.BlockWord):
             return self.check_block(stack, word)
@@ -279,10 +272,6 @@ class WordCtx:
             return self.check_make_variant(stack, word)
         if isinstance(word, resolved.words.GetFieldWord):
             return self.check_get_field(stack, word)
-        if isinstance(word, resolved.words.MakeTupleWord):
-            return self.check_make_tuple(stack, word)
-        if isinstance(word, resolved.words.TupleUnpackWord):
-            return self.check_unpack_tuple(stack, word)
         if isinstance(word, resolved.words.StackAnnotation):
             self.check_stack_annotation(stack, word)
             return None
@@ -290,28 +279,28 @@ class WordCtx:
             return ([self.check_intrinsic(word.token, stack, word.ty, word.generic_arguments)], False)
         if isinstance(word, resolved.words.StructFieldInitWord):
             assert(self.struct_literal_ctx is not None)
-            self.expect(stack, word.token, (self.struct_literal_ctx[word.field_index],))
-            return ([StructFieldInitWord(word.token, word.field_index)], False)
+            self.expect(stack, word.name, (self.struct_literal_ctx[word.field_index],))
+            return ([StructFieldInitWord(word.name, word.field_index)], False)
         assert_never(word)
 
-    def check_get_local(self, stack: Stack, word: resolved.words.GetWord) -> Tuple[List[Word], bool]:
-        if isinstance(word.local_id, resolved.GlobalId):
-            taip = self.globals.index(word.local_id.index).taip
+    def check_get_local(self, stack: Stack, word: resolved.words.GetLocal) -> Tuple[List[Word], bool]:
+        if isinstance(word.var, resolved.GlobalId):
+            taip = without_holes.with_holes(self.globals.index(word.var.index).taip)
         else:
-            taip = self.env[word.local_id].taip
+            taip = self.env[word.var].taip
         fields = self.resolve_field_accesses(taip, word.fields)
         resolved_type = taip if len(fields) == 0 else fields[-1].target_taip
         stack.push(resolved_type)
-        return ([GetWord(word.token, word.local_id, taip, fields, resolved_type)], False)
+        return ([GetLocal(word.name, word.var, taip, fields, resolved_type)], False)
 
-    def check_ref_local(self, stack: Stack, word: resolved.words.RefWord) -> Tuple[List[Word], bool]:
-        if isinstance(word.local_id, resolved.GlobalId):
-            globl = self.globals.index(word.local_id.index)
+    def check_ref_local(self, stack: Stack, word: resolved.words.RefLocal) -> Tuple[List[Word], bool]:
+        if isinstance(word.var, resolved.GlobalId):
+            globl = self.globals.index(word.var.index)
             def set_reffed():
                 globl.was_reffed = True
-            taip = globl.taip
+            taip = without_holes.with_holes(globl.taip)
         else:
-            local = self.env[word.local_id]
+            local = self.env[word.var]
             def set_reffed():
                 local.was_reffed = True
             taip = local.taip
@@ -328,25 +317,25 @@ class WordCtx:
 
         result_type = taip if len(fields) == 0 else fields[-1].target_taip
         stack.push(PtrType(result_type))
-        return ([RefWord(word.token, word.local_id, fields)], False)
+        return ([RefWord(word.name, word.var, fields)], False)
 
-    def check_init_local(self, stack: Stack, word: resolved.words.InitWord) -> Tuple[List[Word], bool]:
+    def check_init_local(self, stack: Stack, word: resolved.words.InitLocal) -> Tuple[List[Word], bool]:
         taip = stack.pop()
         if taip is None:
-            print(word.token, file=sys.stderr)
+            print(word.name, file=sys.stderr)
         assert(taip is not None)
-        self.env[word.local_id] = Local(LocalName(word.local_id.name), taip, False, False)
-        return ([InitWord(word.token, word.local_id, taip)], False)
+        self.env[word.local_id] = Local(FromSource(word.name), taip, False, False)
+        return ([InitWord(word.name, word.local_id, taip)], False)
 
     def check_call(self, stack: Stack, word: resolved.words.CallWord) -> Tuple[List[Word], bool]:
         checked_word = self.check_call_word(word)
         signature = self.lookup_signature(word.function)
         args = stack.pop_n(len(signature.parameters))
-        generic_arguments = self.infer_generic_arguments_from_args(word.name, args, signature.parameters, checked_word.generic_arguments)
+        generic_arguments = self.infer_generic_arguments_from_args(word.name, args, without_holes.named_types_with_holes(signature.parameters), checked_word.generic_arguments)
         if generic_arguments is None:
             self.abort(word.name, "failed to infer generic arguments")
         checked_word.generic_arguments = generic_arguments
-        self.push_returns(stack, signature.returns, checked_word.generic_arguments)
+        self.push_returns(stack, without_holes.types_with_holes(signature.returns), checked_word.generic_arguments)
         return ([checked_word], False)
 
     def parameter_argument_mismatch_error(self, token: Token, arguments: Sequence[Type], parameters: Sequence[NamedType], generic_arguments: Sequence[Type]) -> NoReturn:
@@ -395,10 +384,6 @@ class WordCtx:
                 if not isinstance(actual, PtrType):
                     return False
                 return self.infer_holes(mapping, token, actual.child, holey)
-            case TupleType(_, holey_items):
-                if not isinstance(actual, TupleType):
-                    return False
-                return self.infer_holes_all(mapping, token, actual.items, holey_items)
             case FunctionType():
                 if not isinstance(actual, FunctionType):
                     return False
@@ -426,8 +411,6 @@ class WordCtx:
                 return mapping[hole]
             case PtrType(child):
                 return PtrType(self.fill_holes(mapping, child))
-            case TupleType(token, items):
-                return TupleType(token, tuple(self.fill_holes(mapping, t) for t in items))
             case FunctionType(token, parameters, returns):
                 return FunctionType(
                     token,
@@ -455,8 +438,8 @@ class WordCtx:
         src = stack.pop()
         if src is None:
             self.abort(word.token, "cast expected a value, got []")
-        stack.push(word.taip)
-        return ([CastWord(word.token, src, word.taip)], False)
+        stack.push(word.dst)
+        return ([CastWord(word.token, src, word.dst)], False)
 
     def check_sizeof(self, stack: Stack, word: resolved.words.SizeofWord) -> Tuple[List[Word], bool]:
         stack.push(I32())
@@ -485,8 +468,8 @@ class WordCtx:
     def check_fun_ref(self, stack: Stack, word: resolved.words.FunRefWord) -> Tuple[List[Word], bool]:
         call = self.check_call_word(word.call)
         signature = self.lookup_signature(call.function)
-        parameters = tuple(with_generics(param.taip, word.call.generic_arguments) for param in signature.parameters)
-        returns = tuple(with_generics(ret, word.call.generic_arguments) for ret in signature.returns)
+        parameters = tuple(with_generics(without_holes.with_holes(param.taip), word.call.generic_arguments) for param in signature.parameters)
+        returns = tuple(with_generics(without_holes.with_holes(ret), word.call.generic_arguments) for ret in signature.returns)
         stack.push(FunctionType(call.name, parameters, returns))
         return ([FunRefWord(call)], False)
 
@@ -513,8 +496,8 @@ class WordCtx:
             diverges = remaining_words_diverge
             return ([IfWord(
                 word.token,
-                list(remaining_stack.negative),
-                None if diverges else list(remaining_stack.stack),
+                tuple(remaining_stack.negative),
+                None if diverges else tuple(remaining_stack.stack),
                 Scope(word.true_branch.id, true_words),
                 Scope(word.false_branch.id, checked_remaining_words),
                 diverges)], diverges)
@@ -537,9 +520,9 @@ class WordCtx:
         parameters.reverse()
 
         if not true_words_diverge:
-            returns = true_stack.stack
+            returns = tuple(true_stack.stack)
         elif not false_words_diverge:
-            returns = false_stack.stack
+            returns = tuple(false_stack.stack)
         else:
             returns = None
 
@@ -554,7 +537,7 @@ class WordCtx:
         diverges = true_words_diverge and false_words_diverge
         return ([IfWord(
             word.token,
-            parameters,
+            tuple(parameters),
             returns,
             Scope(word.true_branch.id, true_words),
             Scope(word.false_branch.id, false_words),
@@ -608,19 +591,19 @@ class WordCtx:
         self.break_stacks.append(BreakStack(token, tuple(dump), self.reachable))
         return ([BreakWord(token)], True)
 
-    def check_set_local(self, stack: Stack, word: resolved.words.SetWord) -> Tuple[List[Word], bool]:
-        if isinstance(word.local_id, GlobalId):
-            taip = self.globals.index(word.local_id.index).taip
+    def check_set_local(self, stack: Stack, word: resolved.words.SetLocal) -> Tuple[List[Word], bool]:
+        if isinstance(word.var, GlobalId):
+            taip = without_holes.with_holes(self.globals.index(word.var.index).taip)
         else:
-            local = self.env[word.local_id]
+            local = self.env[word.var]
             taip = local.taip
         fields = self.resolve_field_accesses(taip, word.fields)
         if len(fields) == 0:
             resolved_type = taip
         else:
             resolved_type = fields[-1].target_taip
-        self.expect(stack, word.token, [resolved_type])
-        return ([SetWord(word.token, word.local_id, fields)], False)
+        self.expect(stack, word.name, [resolved_type])
+        return ([SetWord(word.name, word.var, fields)], False)
 
     def check_block(self, stack: Stack, word: resolved.words.BlockWord) -> Tuple[List[Word], bool]:
         block_break_stacks: List[BreakStack] = []
@@ -674,19 +657,19 @@ class WordCtx:
         return ([IndirectCallWord(word.token, fun_type)], False)
 
     def check_store(self, stack: Stack, word: resolved.words.StoreWord) -> Tuple[List[Word], bool]:
-        if isinstance(word.local, GlobalId):
-            globl = self.globals.index(word.local.index)
-            taip = globl.taip
+        if isinstance(word.var, GlobalId):
+            globl = self.globals.index(word.var.index)
+            taip = without_holes.with_holes(globl.taip)
         else:
-            local = self.env[word.local]
+            local = self.env[word.var]
             taip = local.taip
         fields = self.resolve_field_accesses(taip, word.fields)
         expected_type = taip if len(fields) == 0 else fields[-1].target_taip
         if not isinstance(expected_type, PtrType):
-            self.abort(word.token, "`=>` can only store into ptr types")
+            self.abort(word.name, "`=>` can only store into ptr types")
         expected_type = expected_type.child
-        self.expect(stack, word.token, [expected_type])
-        return ([StoreWord(word.token, word.local, fields)], False)
+        self.expect(stack, word.name, [expected_type])
+        return ([StoreWord(word.name, word.var, fields)], False)
 
     def check_load(self, stack: Stack, word: resolved.words.LoadWord) -> Tuple[List[Word], bool]:
         taip = stack.pop()
@@ -853,26 +836,6 @@ class WordCtx:
         taip = PtrType(taip) if on_ptr else taip
         stack.push(taip)
         return ([GetFieldWord(word.token, fields, on_ptr)], False)
-
-    def check_make_tuple(self, stack: Stack, word: parser.MakeTupleWord) -> Tuple[List[Word], bool]:
-        num_items = int(word.items.lexeme)
-        items: List[Type] = []
-        for _ in range(num_items):
-            item = stack.pop()
-            if item is None:
-                self.abort(word.token, "expected more")
-            items.append(item)
-        items.reverse()
-        taip = TupleType(word.token, tuple(items))
-        stack.push(taip)
-        return ([TupleMakeWord(word.token, taip)], False)
-
-    def check_unpack_tuple(self, stack: Stack, word: parser.TupleUnpackWord) -> Tuple[List[Word], bool]:
-        taip = stack.pop()
-        if taip is None or not isinstance(taip, TupleType):
-            self.abort(word.token, "expected a tuple on the stack")
-        stack.push_many(taip.items)
-        return ([TupleUnpackWord(word.token, taip)], False)
 
     def stack_annotation_mismatch(self, stack: Stack, annotation: resolved.words.StackAnnotation) -> NoReturn:
         expected = annotation.types
@@ -1167,11 +1130,6 @@ class WordCtx:
                 taip.token,
                 self.insert_generic_arguments_all(generics, taip.parameters),
                 self.insert_generic_arguments_all(generics, taip.returns),
-            )
-        if isinstance(taip, TupleType):
-            return TupleType(
-                taip.token,
-                self.insert_generic_arguments_all(generics, taip.items),
             )
         if isinstance(taip, GenericType):
             return generics[taip.generic_index]

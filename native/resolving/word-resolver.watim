@@ -372,48 +372,10 @@ fn resolve-word(ctx: .WordCtx, word: .P:Word) -> Result<OneOrMany<Word>, Resolve
             } make MakeStruct make Word.MakeStruct
         }
         case P:Word.MakeStructNamed -> {
-            @word
-            $ctx.type-resolver $ctx.arena &word.type TypeResolver:resolve-custom-type match {
+            $ctx flip resolve-make-struct-named match {
+                case Success -> {}
                 case Error -> { make Result<OneOrMany<Word>, ResolveError>.Error break }
-                case Success -> {}
-            } @type
-            $ctx.type-lookup &type.type-definition TypeLookup:lookup match {
-                case Variant -> { $ctx &word.token "expected struct" abort<OneOrMany<Word>> break }
-                case Struct -> {}
-            } @struc
-            $ctx.arena Arena:temp @temp @save
-            $temp $struc $type.type-definition StructLiteralEnv-of-struc @struc-literal-env
-            $ctx &struc-literal-env with-struc-literal-env @ctx
-
-            &ctx &word.body.words resolve-scope-keep-struc-literal-env match {
-                case Error -> {
-                    $temp $save Arena:restore
-                    make Result<OneOrMany<Word>, ResolveError>.Error break
-                }
-                case Success -> {}
-            } @words
-
-            $struc-literal-env.remaining-fields.values.len 0 /= if {
-                $ctx.arena Fmt:into-new-string @buf @fmt
-                &fmt "missing fields in struct literal:" Fmt:write
-                0 @i
-                loop {
-                    $i $struc-literal-env.remaining-fields.values.len = if { break }
-                    &struc-literal-env.remaining-fields.values $i Array:get<_> ~ @field-index
-                    &struc-literal-env.remaining-fields.keys   $i Array:get<_> @name
-                    &struc.fields $field-index Array:get<_> .type
-                    $temp flip WithoutHoles:with-holes &
-                    $temp flip &type.generic-arguments with-generics @type
-                    &fmt "\n\t" Fmt:write &fmt $name ~ ByteSlice:unpack Fmt:write
-                    &fmt ": " Fmt:write
-                    &fmt $ctx.type-lookup &type TypeLookup:pretty
-                    $i 1 + #i
-                }
-                &ctx &word.token $buf Array:unpack<_> abort<OneOrMany<Word>> break
             }
-
-            $word.token $word.name $type $words make MakeStructNamed make Word.MakeStructNamed
-            $temp $save Arena:restore
         }
         case P:Word.MakeTuple -> { ~ make Word.MakeTuple }
         case P:Word.GetField -> { ~ make Word.GetField }
@@ -559,6 +521,51 @@ fn resolve-generic-arguments(ctx: .WordCtx, token: .Token, generic-arguments: .M
         }
     }
     $generic-arguments make Result<Maybe<Array<Type>>, ResolveError>.Success
+} }
+
+fn resolve-make-struct-named(ctx: .WordCtx, word: .P:MakeStructNamed) -> Result<Word, ResolveError> {
+    block (-> Result<Word, ResolveError>) {
+    $ctx.type-resolver $ctx.arena &word.type TypeResolver:resolve-custom-type match {
+        case Error -> { make Result<Word, ResolveError>.Error break }
+        case Success -> {}
+    } @type
+    $ctx.type-lookup &type.type-definition TypeLookup:lookup match {
+        case Variant -> { $ctx &word.token "named `make` can only be used for structs" abort<Word> break }
+        case Struct -> {}
+    } @struc
+    $ctx.arena Arena:temp @temp @save
+    $temp $struc $type.type-definition StructLiteralEnv-of-struc @struc-literal-env
+    $ctx &struc-literal-env with-struc-literal-env @ctx
+
+    &ctx &word.body.words resolve-scope-keep-struc-literal-env match {
+        case Error -> {
+            $temp $save Arena:restore
+            make Result<Word, ResolveError>.Error break
+        }
+        case Success -> {}
+    } @words
+
+    $struc-literal-env.remaining-fields.values.len 0 /= if {
+        $ctx.arena Fmt:into-new-string @buf @fmt
+        &fmt "missing fields in struct literal:" Fmt:write
+        0 loop {
+            @i $i $struc-literal-env.remaining-fields.values.len = if { break }
+            &struc-literal-env.remaining-fields.values $i Array:get<_> ~ @field-index
+            &struc-literal-env.remaining-fields.keys   $i Array:get<_> @name
+            &struc.fields $field-index Array:get<_> .type
+            $temp flip WithoutHoles:with-holes &
+            $temp flip &type.generic-arguments with-generics @type
+            &fmt "\n\t" Fmt:write &fmt $name ~ ByteSlice:unpack Fmt:write
+            &fmt ": " Fmt:write
+            &fmt $ctx.type-lookup &type TypeLookup:pretty
+            $i 1 +
+        }
+        &ctx &word.token $buf Array:unpack<_> abort<Word> break
+    }
+
+    $word.token $word.name $type $words make MakeStructNamed make Word.MakeStructNamed
+    make Result<Word, ResolveError>.Success
+    $temp $save Arena:restore
 } }
 
 fn resolve-call(ctx: .WordCtx, call: .P:Call) -> Result<Maybe<Call>, ResolveError> { block (-> Result<Maybe<Call>, ResolveError>) {

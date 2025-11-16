@@ -66,7 +66,7 @@ class WatGenerator:
                 self.write_extern(module.id, extern)
                 self.write("\n")
             for i, globl in enumerate(module.globals):
-                self.globals[GlobalId(module.id, i)] = globl
+                self.globals[GlobalId(globl.name, module.id, i)] = globl
 
         self.write_line("(memory 1 65536)")
         self.write_line("(export \"memory\" (memory 0))")

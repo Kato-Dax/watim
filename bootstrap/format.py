@@ -1,127 +1,138 @@
-from typing import List, Callable, Sequence, Tuple, Any, Protocol, runtime_checkable, assert_never
+from typing import List, Callable, Tuple, Protocol, runtime_checkable, Iterable
 from dataclasses import dataclass
 
-from util import intersperse
-
-class Indent:
-    pass
+type Writable = None | str | int | bool | Tuple[Formattable, ...] | Formattable
 
 @dataclass
-class For[T]:
-    items: Sequence[T]
-    body: Callable[[T], List['FormatInstr']]
+class Formatter:
+    indentation: str
+    indentation_level: int
+    splits: List[str]
 
-class WriteIndent:
-    pass
+    def indent(self):
+        self.indentation_level += 1
+    def dedent(self):
+        self.indentation_level -= 1
+    def indented(self, body: Callable):
+        self.indent()
+        try:
+            body()
+        finally:
+            self.dedent()
+    def write_indent(self):
+        self.splits.extend(self.indentation for _ in range(self.indentation_level))
 
-type FormatInstr = None | bool | str | int | List[FormatInstr] | Indent | WriteIndent | For | Formattable
+    def write(self, *values: Writable) -> 'Formatter':
+        for value in values:
+            if isinstance(value, str):
+                self.splits.append(value)
+                continue
+            if isinstance(value, bool):
+                self.write("True" if value else "False")
+                continue
+            if isinstance(value, int):
+                self.write(str(value))
+                continue
+            if value is None:
+                self.write("None")
+                continue
+            if isinstance(value, tuple):
+                Seq(value).format(self)
+                continue
+            value.format(self)
+        return self
+
+    def to_string(self) -> str:
+        return "".join(self.splits)
+
+    def unnamed_record(self, name: str, fields: List[Writable]):
+        self.write("(", name)
+        for field in fields:
+            self.write(" ", field)
+        self.write(")")
+
+    def named_record(self, name: str, fields: List[Tuple[str, Writable]]):
+        if len(fields) == 0:
+            return self.write("(", name, ")")
+        self.write("(", name, "\n")
+        self.indent()
+        for i,(name,value) in enumerate(fields):
+            self.write_indent()
+            self.write(name, "=", value)
+            if i + 1 == len(fields):
+                break
+            self.write(",\n")
+        self.dedent()
+        self.write(")")
 
 @runtime_checkable
 class Formattable(Protocol):
-    def format_instrs(self) -> List[FormatInstr]:
-        return [type(self).__name__]
+    def format(self, fmt: Formatter) -> None:
+        fmt.write(type(self).__name__)
     def __str__(self) -> str:
-        return format(self.format_instrs())
+        return Formatter("  ", 0, []).write(self).to_string()
 
-@dataclass
-class Instrs(Formattable):
-    instrs: List[FormatInstr]
-    def format_instrs(self) -> List[FormatInstr]:
-        return self.instrs
+@dataclass(frozen=True)
+class Seq(Formattable):
+    seq: Iterable[Writable]
+    multi_line: bool = False
 
-def format_instrs(item: Any) -> List[FormatInstr]:
-    if isinstance(item, Formattable):
-        return item.format_instrs()
-    return [str(item)]
+    def format(self, fmt: Formatter):
+        fmt.write("[")
+        i = 0
+        for value in self.seq:
+            if self.multi_line:
+                if i == 0:
+                    fmt.indent()
+                    fmt.write("\n").write_indent()
+                else:
+                    fmt.write(",\n").write_indent()
+            elif i != 0:
+                fmt.write(", ")
+            fmt.write(value)
+            i += 1
+        if self.multi_line and i != 0:
+            fmt.dedent()
+        fmt.write("]")
 
-def unnamed_record(name: str, fields: List[FormatInstr]) -> List[FormatInstr]:
-    return ["(", name, For(fields, lambda field: [" ", field]), ")"]
+@dataclass(frozen=True)
+class Dict(Formattable):
+    dict: dict[Writable, Writable]
+    def format(self, fmt: Formatter):
+        if len(self.dict) == 0:
+            fmt.write("(Map)")
+            return
+        fmt.write("(Map\n")
+        try:
+            fmt.indent()
+            for i,(k,v) in enumerate(self.dict.items()):
+                fmt.write_indent()
+                fmt.write(k, "=", v)
+                if i + 1 != len(self.dict):
+                    fmt.write(",\n")
+        finally:
+            fmt.dedent()
+            fmt.write(")")
 
-def named_record(name: str, fields: List[Tuple[str, FormatInstr]]) -> List[FormatInstr]:
-    if len(fields) == 0:
-        return ["(", name, ")"]
-    return ["(", name, "\n",
-            Indent(),
-            list(intersperse(
-                [",\n"],
-                ([WriteIndent(), name, "=", value] for name,value in fields))),
-            ")"]
+@dataclass(frozen=True)
+class Str:
+    value: str
+    def format(self, fmt: Formatter):
+        fmt.write("\"", self.value, "\"")
 
-def format_seq(elems: Sequence['Formattable'], multi_line=False) -> List[FormatInstr]:
-    if len(elems) == 0:
-        return ["[]"]
-    return [
-        "[",
-        Indent() if multi_line else [],
-        ["\n", WriteIndent()] if multi_line else [],
-        elems[0],
-        For(elems[1:], lambda elem: [",\n", WriteIndent(), elem.format_instrs()] if multi_line else [", ", elem]),
-        "]"
-    ]
-def format_list[T: Formattable](elems: List[T], multi_line=False) -> List[FormatInstr]:
-    return format_seq(elems, multi_line)
+@dataclass(frozen=True)
+class Optional(Formattable):
+    value: Writable | None
+    def format(self, fmt: Formatter):
+        if self.value is None:
+            fmt.write("None")
+            return
+        fmt.write("(Some ", self.value, ")")
 
-def format_dict[K, V](
-        dictionary: dict,
-        format_key: Callable[[K], List[FormatInstr]] = format_instrs,
-        format_value: Callable[[V], List[FormatInstr]] = format_instrs) -> List[FormatInstr]:
-    if len(dictionary) == 0:
-        return ["(Map)"]
+@dataclass(frozen=True)
+class UnnamedRecord(Formattable):
+    name: str
+    fields: List[Writable]
+    def format(self, fmt: Formatter):
+        fmt.unnamed_record(self.name, self.fields)
 
-    return [
-        "(Map\n",
-        [
-            Indent(),
-            list(intersperse([",\n"], ([WriteIndent(), format_key(k), "=", format_value(v)] for k,v in dictionary.items()))),
-        ],
-        ")"
-    ]
-
-def format_str(s: str) -> List[FormatInstr]:
-    return ["\"", s, "\""]
-
-def format_optional[T](item: T | None, format_item: Callable[[T], List[FormatInstr]] = format_instrs) -> List[FormatInstr]:
-    if item is None:
-        return ["None"]
-    return ["(Some ", format_item(item), ")"]
-
-def format(instrs: List[FormatInstr], indent="  ") -> str:
-    s = []
-    level = 0
-    def format(instrs: List[FormatInstr]) -> None:
-        nonlocal level
-        for instr in instrs:
-            if isinstance(instr, str):
-                s.append(instr)
-                continue
-            if isinstance(instr, int):
-                s.append(str(instr))
-                continue
-            if isinstance(instr, bool):
-                s.append(str(instr))
-                continue
-            if isinstance(instr, list):
-                prev_level = level
-                format(instr)
-                level = prev_level
-                continue
-            if isinstance(instr, Formattable):
-                format([instr.format_instrs()])
-                continue
-            if instr is None:
-                s.append("None")
-                continue
-            if isinstance(instr, Indent):
-                level += 1
-                continue
-            if isinstance(instr, WriteIndent):
-                for i in range(level):
-                    s.append(indent)
-                continue
-            if isinstance(instr, For):
-                for item in instr.items:
-                    format(instr.body(item))
-                continue
-            assert_never(instr)
-    format(instrs)
-    return ''.join(s)

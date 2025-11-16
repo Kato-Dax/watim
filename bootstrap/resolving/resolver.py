@@ -12,6 +12,8 @@ from resolving.env import Env
 from resolving.word_resolver import WordResolver
 from resolving.type_resolver import TypeResolver, TypeLookup
 from resolving.module import Module, ResolveException
+from resolving.types import Type, NamedType
+import resolving.type_without_holes as without_holes
 
 class ModuleResolver:
     module_id: int
@@ -47,22 +49,33 @@ class ModuleResolver:
             for function in module.functions
         )
 
-        function_resolver = FunctionResolver(resolver, imports, globals, type_definitions, signatures)
+        static_data = bytearray()
+
+        function_resolver = FunctionResolver(resolver, imports, globals, type_definitions, signatures, static_data)
         functions: IndexedDict[str, Function | Extern] = IndexedDict.from_items(
             (fun.signature.name.lexeme, function_resolver.resolve_function(fun))
             for fun in module.functions
         )
 
-        return Module(module.path, id, imports, type_definitions, globals, functions)
+        return Module(module.path, id, imports, type_definitions, globals, functions, bytes(static_data))
+
+    def forbid_holes(self, taip: Type) -> without_holes.Type:
+        without = without_holes.without_holes(taip)
+        if isinstance(without, Token):
+            self.abort(without, "hole not allowed here")
+        return without
+
+    def forbid_holes_named(self, taip: NamedType) -> without_holes.NamedType:
+        return without_holes.NamedType(taip.name, self.forbid_holes(taip.taip))
 
     def resolve_global(self, globl: parser.Global) -> Global:
-        return Global(globl.name, self.type_resolver.resolve_type(globl.taip), False)
+        return Global(globl.name, self.forbid_holes(self.type_resolver.resolve_type(globl.taip)), False)
 
     def resolve_signature(self, signature: parser.FunctionSignature) -> FunctionSignature:
         return FunctionSignature(
             signature.generic_parameters,
-            tuple(self.type_resolver.resolve_named_type(param) for param in signature.parameters),
-            tuple(self.type_resolver.resolve_type(ret) for ret in signature.returns))
+            tuple(self.forbid_holes_named(self.type_resolver.resolve_named_type(param)) for param in signature.parameters),
+            tuple(self.forbid_holes(self.type_resolver.resolve_type(ret)) for ret in signature.returns))
 
     @staticmethod
     def resolve_import(modules: IndexedDict[str, Module], importing_module_path: str, imp: parser.Import) -> Import:
@@ -123,6 +136,7 @@ class FunctionResolver:
     globals: IndexedDict[str, Global]
     type_definitions: IndexedDict[str, TypeDefinition]
     signatures: IndexedDict[str, FunctionSignature]
+    static_data: bytearray
 
     @property
     def module_id(self) -> int:
@@ -157,7 +171,7 @@ class FunctionResolver:
         resolver = WordResolver(
             self.module_id, self.module_path, self.imports, self.globals,
             self.signatures, self.type_resolver, self.modules,
-            type_lookup, env)
+            type_lookup, env, self.static_data)
         words = resolver.resolve_words(function.body)
         scope = Scope(env.scope_id, words)
         vars = env.vars_by_id

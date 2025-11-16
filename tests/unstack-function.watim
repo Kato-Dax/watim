@@ -1,0 +1,147 @@
+[== Stdin Compiler ==]
+global A: i32
+fn main(a: i32) -> i32 {
+    $a 1 + @b
+    &b drop
+    &A drop
+    $b 0 = if {
+        1
+    } else {
+        2
+    }
+}
+[== Args Compiler ==]
+unstack
+-
+main
+--quiet
+[== Status Compiler ==]
+0
+[== Stdout Compiler ==]
+(Function
+  name=(IDENT main 2 4),
+  export=None,
+  signature=(Signature
+    generic-parameters=[],
+    parameters=[(NamedType (IDENT a 2 9) I32)],
+    returns=[I32]),
+  locals=(Map
+    (LocalId "a" 0 0)=(Local
+      name=(IDENT a 2 9),
+      type=(InferenceHole (IDENT a 2 9) 0),
+      parameter=(Some I32),
+      reffed=False,
+      assignments=[],
+      assignments-checked=False),
+    (LocalId "b" 0 0)=(Local
+      name=(IDENT b 3 13),
+      type=(InferenceHole (IDENT b 3 13) 1),
+      parameter=None,
+      reffed=True,
+      assignments=[
+        (Assignment
+          token=(IDENT b 3 13),
+          source=(Some (FromAdd
+            token=(IDENT + 3 10),
+            base=(Some (FromLocal
+              token=(IDENT a 3 6),
+              var=(LocalId "a" 0 0),
+              type=(InferenceHole (IDENT a 2 9) 0),
+              fields=[],
+              result-type=(InferenceHole (IDENT a 3 6) 2),
+              by-reference=False)),
+            addition=(Some (FromNumber (NUMBER 1 3 8))),
+            type=(InferenceHole (IDENT + 3 10) 3))),
+          fields=[],
+          type=(InferenceHole (IDENT b 3 13) 1),
+          is-store=False)],
+      assignments-checked=False)),
+  voids=[
+    (NonSpecificVoid
+      token=(IDENT drop 4 8),
+      type=(Some (InferenceHole (IDENT drop 4 8) 5)),
+      source=(Some (FromLocal
+        token=(IDENT b 4 6),
+        var=(LocalId "b" 0 0),
+        type=(InferenceHole (IDENT b 3 13) 1),
+        fields=[],
+        result-type=(InferenceHole (IDENT b 4 6) 4),
+        by-reference=True)),
+      known=None),
+    (NonSpecificVoid
+      token=(IDENT drop 5 8),
+      type=(Some (InferenceHole (IDENT drop 5 8) 8)),
+      source=(Some (FromGlobal
+        token=(IDENT A 5 6),
+        var=(GlobalId (IDENT A 5 6) 0 0),
+        type=I32,
+        fields=[],
+        result-type=(InferenceHole (IDENT A 5 6) 7),
+        by-reference=True)),
+      known=None)],
+  holes=(Holes
+    0=None,
+    1=None,
+    2=None,
+    3=None,
+    4=None,
+    5=None,
+    6=(Some I32)),
+  nodes=[
+    (FromIfEntry
+      token=(IF if 6 12),
+      condition=(Some (FromEq
+        token=(IDENT = 6 10),
+        type=(InferenceHole (IDENT = 6 10) 10),
+        a=(Some (FromNumber (NUMBER 0 6 8))),
+        b=(Some (FromLocal
+          token=(IDENT b 6 6),
+          var=(LocalId "b" 0 0),
+          type=(InferenceHole (IDENT b 3 13) 1),
+          fields=[],
+          result-type=(InferenceHole (IDENT b 6 6) 9),
+          by-reference=False)))),
+      parameters=[],
+      arguments=[]),
+    (FromIfExit
+      token=(IF if 6 12),
+      condition=(Some (FromEq
+        token=(IDENT = 6 10),
+        type=(InferenceHole (IDENT = 6 10) 10),
+        a=(Some (FromNumber (NUMBER 0 6 8))),
+        b=(Some (FromLocal
+          token=(IDENT b 6 6),
+          var=(LocalId "b" 0 0),
+          type=(InferenceHole (IDENT b 3 13) 1),
+          fields=[],
+          result-type=(InferenceHole (IDENT b 6 6) 9),
+          by-reference=False)))),
+      return-types=[
+        (InferenceHole (IF if 6 12) 11)],
+      true-branch-returns=(Some [
+        (FromNumber (NUMBER 1 7 9))]),
+      false-branch-returns=[
+        (FromNumber (NUMBER 2 9 9))])],
+  body=(Scope 0 [
+    (GetLocal (IDENT a 3 6) (LocalId "a" 0 0) (InferenceHole (IDENT a 2 9) 0) (InferenceHole (IDENT a 3 6) 2) []),
+    (Number (NUMBER 1 3 8)),
+    (Add (IDENT + 3 10) (InferenceHole (IDENT + 3 10) 3)),
+    (InitLocal (IDENT b 3 13) (LocalId "b" 0 0)),
+    (RefLocal (IDENT b 4 6) (LocalId "b" 0 0) (InferenceHole (IDENT b 3 13) 1) (InferenceHole (IDENT b 4 6) 4) []),
+    (Drop (IDENT drop 4 8) (InferenceHole (IDENT drop 4 8) 5)),
+    (RefLocal (IDENT A 5 6) (GlobalId (IDENT A 5 6) 0 0) (InferenceHole (IDENT A 5 6) 6) (InferenceHole (IDENT A 5 6) 7) []),
+    (Drop (IDENT drop 5 8) (InferenceHole (IDENT drop 5 8) 8)),
+    (GetLocal (IDENT b 6 6) (LocalId "b" 0 0) (InferenceHole (IDENT b 3 13) 1) (InferenceHole (IDENT b 6 6) 9) []),
+    (Number (NUMBER 0 6 8)),
+    (Eq (IDENT = 6 10) (InferenceHole (IDENT = 6 10) 10)),
+    (If
+      token=(IF if 6 12),
+      parameters=[],
+      returns=(Some [
+        (InferenceHole (IF if 6 12) 11)]),
+      true-branch=(Scope 1 [
+        (Number (NUMBER 1 7 9))]),
+      false-branch=(Scope 2 [
+        (Number (NUMBER 2 9 9))]))]),
+  returns=(Some [
+    (FromNode (IF if 6 12) 1 0)]))

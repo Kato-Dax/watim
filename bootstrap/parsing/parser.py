@@ -1,10 +1,11 @@
 from typing import List, Tuple, NoReturn, TypeGuard, Callable
 from dataclasses import dataclass
 
-from format import Formattable, FormatInstr, format_seq, named_record
+import format
+from format import Formattable, Formatter
 from lexer import Token, TokenType, TokenLocation
-from parsing.types import Type, ForeignType, CustomTypeType, NamedType, I8, I32, I64, Bool, PtrType, GenericType, FunctionType, TupleType, HoleType
-from parsing.words import Word, Words, IfWord, NumberWord, StringWord, InlineRefWord, GetWord, RefWord, LoadWord, BlockAnnotation, BlockWord, StructWord, VariantWord, CastWord, SetWord, StoreWord, InitWord, IndirectCallWord, SizeofWord, GetFieldWord, MakeTupleWord, TupleUnpackWord, ForeignCallWord, FunRefWord, LoopWord, MatchCase, MatchWord, CallWord, BreakWord, StackAnnotation, StructWordNamed
+from parsing.types import Type, ForeignType, CustomTypeType, NamedType, I8, I32, I64, Bool, PtrType, GenericType, FunctionType, HoleType
+from parsing.words import Word, Words, IfWord, NumberWord, StringWord, InlineRefWord, GetWord, RefWord, LoadWord, BlockAnnotation, BlockWord, StructWord, VariantWord, CastWord, SetWord, StoreWord, InitWord, IndirectCallWord, SizeofWord, GetFieldWord, ForeignCallWord, FunRefWord, LoopWord, MatchCase, MatchWord, CallWord, BreakWord, StackAnnotation, StructWordNamed
 from parsing.top_items import Struct, Variant, Function, Extern, Global, TypeDefinition, Import, VariantCase, FunctionSignature, VariantImport
 
 @dataclass
@@ -35,12 +36,12 @@ class Module(Formattable):
     type_definitions: List[TypeDefinition]
     globals: List[Global]
     functions: List[Function | Extern]
-    def format_instrs(self) -> List[FormatInstr]:
-        return named_record("Module", [
-            ("imports", format_seq(self.imports, multi_line=True)),
-            ("type-definitions", format_seq(self.type_definitions, multi_line=True)),
-            ("globals", format_seq(self.globals, multi_line=True)),
-            ("functions", format_seq(self.functions, multi_line=True))])
+    def format(self, fmt: Formatter):
+        fmt.named_record("Module", [
+            ("imports", format.Seq(self.imports, multi_line=True)),
+            ("type-definitions", format.Seq(self.type_definitions, multi_line=True)),
+            ("globals", format.Seq(self.globals, multi_line=True)),
+            ("functions", format.Seq(self.functions, multi_line=True))])
 
 @dataclass
 class Parser:
@@ -413,8 +414,8 @@ class Parser:
             if brace is not None and brace.ty == TokenType.LEFT_BRACE:
                 brace = self.advance(skip_ws=True)
                 words = self.parse_words(generic_parameters)
-                return StructWordNamed(token, taip, words.words)
-            return StructWord(token, taip)
+                return StructWordNamed(token, taip.name, taip, words.words)
+            return StructWord(token, taip.name, taip)
         if token.ty == TokenType.MATCH:
             brace = self.advance(skip_ws=True)
             if brace is None or brace.ty != TokenType.LEFT_BRACE:
@@ -462,19 +463,6 @@ class Parser:
                         self.abort("Expected `}`")
                     return MatchWord(token, tuple(cases), MatchCase(cays, None, None, case_name, words.words))
                 cases.append(MatchCase(cays, module_name, variant_name, case_name, words.words))
-        if token.ty == TokenType.LEFT_BRACKET:
-            comma = self.advance(skip_ws=True)
-            if comma is None or comma.ty != TokenType.COMMA:
-                self.abort("Expected `,`")
-            number_or_close = self.advance(skip_ws=True)
-            if number_or_close is None or (number_or_close.ty != TokenType.NUMBER and number_or_close.ty != TokenType.RIGHT_BRACKET):
-                self.abort("Expected `,` or `]`")
-            if number_or_close.ty == TokenType.RIGHT_BRACKET:
-                return TupleUnpackWord(token)
-            close = self.advance(skip_ws=True)
-            if close is None or close.ty != TokenType.RIGHT_BRACKET:
-                self.abort("Expected `]`")
-            return MakeTupleWord(token, number_or_close)
         if token.ty == TokenType.COLON:
             next = self.advance(skip_ws=True)
             if next is None or next.ty != TokenType.LEFT_PAREN:
@@ -658,21 +646,6 @@ class Parser:
             return self.parse_struct_type(token, generic_parameters)
         if token.ty == TokenType.LEFT_PAREN:
             return self.parse_fun_type(generic_parameters, token)
-        if token.ty == TokenType.LEFT_BRACKET:
-            items = []
-            while True:
-                next = self.peek(skip_ws=True)
-                if next is not None and next.ty == TokenType.RIGHT_BRACKET:
-                    self.advance(skip_ws=True) # skip `]`
-                    break
-                items.append(self.parse_type(generic_parameters))
-                next = self.advance(skip_ws=True)
-                if next is None or next.ty == TokenType.RIGHT_BRACKET:
-                    break
-                comma = next
-                if comma is None or comma.ty != TokenType.COMMA:
-                    self.abort("Expected `,` in tuple type.")
-            return TupleType(token, tuple(items))
         self.abort("Expected type")
 
     def parse_fun_type(self, generic_parameters: Tuple[Token, ...], token: Token) -> FunctionType:

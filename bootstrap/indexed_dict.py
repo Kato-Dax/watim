@@ -1,9 +1,9 @@
 from typing import Dict, Tuple, List, Iterable, Callable
 
-from util import Ref, intersperse
-from format import Formattable, FormatInstr, format_instrs, Indent, WriteIndent, format
+from util import Ref
+import format
 
-class IndexedDict[K, V](Formattable):
+class IndexedDict[K, V]:
     inner: Dict[K, Ref[Tuple[V, int]]]
     pairs: List[Tuple[K, Ref[Tuple[V, int]]]]
 
@@ -72,20 +72,5 @@ class IndexedDict[K, V](Formattable):
     def delete(self, index: int):
         del self.inner[self.pairs.pop(index)[0]]
 
-    def __str__(self) -> str:
-        return format(self.format_instrs())
-
-    def format_instrs(
-            self,
-            format_key: Callable[[K], List[FormatInstr]] = format_instrs,
-            format_value: Callable[[V], List[FormatInstr]] = format_instrs) -> List[FormatInstr]:
-        if len(self.pairs) == 0:
-            return ["(Map)"]
-        return [
-            "(Map\n",
-            [
-                Indent(),
-                list(intersperse([",\n"], ([WriteIndent(), format_key(key), "=", format_value(item)] for key,item in self.items())))
-            ],
-            ")",
-        ]
+    def formattable(self, format_key: Callable[[K], format.Writable], format_value: Callable[[V], format.Writable]) -> format.Formattable:
+        return format.Dict(dict((format_key(k), format_value(v)) for k,v in self.items()))

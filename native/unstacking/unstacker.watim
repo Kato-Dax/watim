@@ -89,24 +89,23 @@ fn Local-format(fmt: .Formatter, self: .Local) {
     $fmt Fmt:write-indent
     $fmt "name=" Fmt:write
     $fmt &self.name Resolved:LocalName-format
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "type=" Fmt:write
     $fmt &self.type InferenceHole-format
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "parameter=" Fmt:write
     $fmt \Type:format &self.parameter Maybe:format<_>
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "reffed=" Fmt:write
     $fmt $self.reffed bool-format
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "assignments=" Fmt:write
     $fmt \Assignment-format &self.assignments Array:format-multi-line<_>
-    $fmt $self.reffed bool-format
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "assignments-checked=" Fmt:write
     $fmt $self.assignments-checked bool-format
@@ -126,15 +125,15 @@ fn IndirectCallVoid-format(fmt: .Formatter, self: .IndirectCallVoid) {
     $fmt Fmt:write-indent
     $fmt "token=" Fmt:write
     $fmt &self.token Token-format
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "parameters=" Fmt:write
     $fmt \InferenceHole-format &self.parameters Array:format-multi-line<_>
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "returns=" Fmt:write
     $fmt \InferenceHole-format &self.returns Array:format-multi-line<_>
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "function=" Fmt:write
     $fmt \Source-format &self.function Maybe:format<_>
@@ -147,15 +146,15 @@ fn IndirectCallVoid-format-shallow(fmt: .Formatter, self: .IndirectCallVoid) {
     $fmt Fmt:write-indent
     $fmt "token=" Fmt:write
     $fmt &self.token Token-format
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "parameters=" Fmt:write
     $fmt \InferenceHole-format &self.parameters Array:format-multi-line<_>
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "returns=" Fmt:write
     $fmt \InferenceHole-format &self.returns Array:format-multi-line<_>
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "function=" Fmt:write
     $fmt \Source-format-shallow &self.function Maybe:format<_>
@@ -382,16 +381,16 @@ fn NonSpecificVoid-format(fmt: .Formatter, self: .NonSpecificVoid) {
     $fmt &self.token Token-format
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
+    $fmt "type=" Fmt:write
+    $fmt \InferenceHole-format &self.type Maybe:format<_>
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
     $fmt "source=" Fmt:write
     $fmt \Source-format &self.source Maybe:format<_>
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "known=" Fmt:write
     $fmt \Type:format &self.known Maybe:format<_>
-    $fmt ",\n" Fmt:write
-    $fmt Fmt:write-indent
-    $fmt "type=" Fmt:write
-    $fmt \InferenceHole-format &self.type Maybe:format<_>
     $fmt Fmt:dedent
     $fmt ")" Fmt:write
 }
@@ -434,35 +433,35 @@ fn Function-format(fmt: .Formatter, self: .Function) {
     $fmt Fmt:write-indent
     $fmt "name=" Fmt:write
     $fmt &self.name Token-format
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "export=" Fmt:write
     $fmt \Token-format &self.export Maybe:format<_>
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "signature=" Fmt:write
     $fmt &self.signature Signature-format
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "locals=" Fmt:write
     $fmt \LocalId-format \Local-format &self.locals Map:format-multi-line<_, _>
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "voids=" Fmt:write
     $fmt \StackVoid-format &self.voids Array:format-multi-line<_>
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "holes=" Fmt:write
     $fmt &self.holes Holes-format
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "nodes=" Fmt:write
     $fmt \Source:MultiReturnNode-format &self.nodes Array:format-multi-line<_>
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "body=" Fmt:write
     $fmt &self.body Scope-format
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "returns=" Fmt:write
     $fmt \ArraySource-format &self.returns Maybe:format<_>
@@ -743,7 +742,6 @@ fn unstack-word(unstacker: .Unstacker, stack: .Stack, word: .Resolved:Word, rema
             make Word:MakeStruct {
                 $word.token @token
                 $word.type.type-definition @struc
-                $arguments @arguments
                 $type @type
             } make Word:Word.MakeStruct
         }
@@ -990,7 +988,8 @@ fn unstack-word(unstacker: .Unstacker, stack: .Stack, word: .Resolved:Word, rema
             @word
 
             $unstacker.arena $stack Stack:pop @source
-            $unstacker.arena $unstacker.struct-field-init-arguments make Maybe<Source>.None $word.field-index $source Array:extending-set<_>
+            $unstacker.arena $unstacker.struct-field-init-arguments
+            make Maybe<Source>.None $word.field-index $source Array:extending-set<_>
 
             $word.name
             $unstacker.struct-init-type Maybe:assert-some<_>
@@ -1195,7 +1194,7 @@ fn unstack-match(unstacker: .Unstacker, stack: .Stack, word: .Resolved:Match) ->
     //       case None -> { break }
     //       case Some -> {}
     //   } drop
-    // because of the stack-dumping match, the number of
+    // because of the stack-dumping break, the number of
     // parameters of this match is correctly inferred to be 1.
     // But the stack of the Some case is (->).
     // So if we only determine the number of return values by looking at non-diverging
@@ -1204,7 +1203,7 @@ fn unstack-match(unstacker: .Unstacker, stack: .Stack, word: .Resolved:Match) ->
     // The solution is to make sure, that every case-stack has the right number of parameters,
     // after doing so, the stack of the Some case would be (i32 -> i32).
     //
-    // The history type checker (before it was replaced by the unstacking and inference phases)
+    // The historic type checker (before it was replaced by the unstacking and inference phases)
     // used a different approach in this scenario: https://github.com/Blugatroff/watim/blob/76c2d97ef64ba62269106f07ae6ac35fdc83fa38/native/checking/checker.watim#L1614
     // Because the return sources of every case need to be gathered in the unstacker, that
     // approach does not work in the unstacker.
@@ -1383,33 +1382,15 @@ fn unstack-loop(unstacker: .Unstacker, stack: .Stack, word: .Resolved:Loop) -> W
 
         $word.token $parameters $return-types make Maybe<Array<InferenceHole>>.Some $body make Word:Loop
 
-        $return-types.len 0 = if {
-            0 loop (i32 ->) {
-                @i $i $arguments.len = if { break }
-                &arguments $i Array:get<_> @argument
-                &parameters $i Array:get<_> @parameter
-
-                $arguments.len $i - 1 - @return-depth
-
-                $loop-unstacker.arena $loop-unstacker.voids
-                make NonSpecificVoid {
-                    $word.token @token
-                    $word.token $entry-node $return-depth make Source:FromNode make Source.FromNode make Maybe<Source>.Some @source
-                    make Maybe<Type:Type>.None @known
-                    $parameter ~ make Maybe<InferenceHole>.Some @type
-                } make StackVoid.NonSpecific
-                Array:push<_>
-                $i 1 +
-            }
-        }
+        $return-types.len 0 =
     } else {
         $word.token $parameters make Maybe<Array<InferenceHole>>.None $body make Word:Loop
         0 1 = #unstacker.reachable
-
+        0 1 =
+    } if {
         0 loop (i32 ->) {
             @i $i $arguments.len = if { break }
 
-            &arguments $i Array:get<_> @argument
             &parameters $i Array:get<_> @parameter
 
             $arguments.len $i - 1 - @return-depth
@@ -1430,7 +1411,7 @@ fn unstack-loop(unstacker: .Unstacker, stack: .Stack, word: .Resolved:Loop) -> W
 fn unstack-if(unstacker: .Unstacker, stack: .Stack, remaining: .Array<Resolved:Word>, word: .Resolved:If) -> Word:If {
     $unstacker pre-add-node @entry-node
 
-    $unstacker.arena $stack Stack:pop Maybe:assert-some<_> @condition
+    $unstacker.arena $stack Stack:pop @condition
 
     $unstacker.arena $stack Stack:clone & $entry-node $word.token Stack:child @true-stack
 
@@ -1472,13 +1453,17 @@ fn unstack-if(unstacker: .Unstacker, stack: .Stack, remaining: .Array<Resolved:W
 
         &return-types match {
             case None -> { 1 1 = }
+            case Some -> { .len ~ 0 = }
+        } @feeds-into-void
+
+        &return-types match {
+            case None -> {}
             case Some -> {
                 @return-types
                 $return-types.len 0 /= if {
                     $unstacker make Source:FromIfExit {
                         $word.token @token
                         $condition @condition
-                        $arguments @arguments
                         $return-types ~ @return-types
                         make Maybe<Array<Source>>.None @true-branch-returns
                         $remaining-stack.positive @false-branch-returns
@@ -1494,15 +1479,12 @@ fn unstack-if(unstacker: .Unstacker, stack: .Stack, remaining: .Array<Resolved:W
                         Stack:push
                         $i 1 +
                     }
-                    0 1 =
-                } else {
-                    1 1 =
                 }
             }
-        } if {
+        }
+        $feeds-into-void if {
             0 loop (i32 ->) {
-                @i $i $arguments.len = if { break }
-                &arguments $i Array:get<_> @argument
+                @i $i $parameters.len = if { break }
                 &parameters $i Array:get<_> @parameter
 
                 $parameters.len $i - 1 - @return-depth
@@ -1520,7 +1502,7 @@ fn unstack-if(unstacker: .Unstacker, stack: .Stack, remaining: .Array<Resolved:W
             $unstacker.arena $unstacker.voids
             make NonSpecificVoid {
                 $word.token @token
-                $condition make Maybe<Source>.Some @source
+                $condition @source
                 make Type:Type.Bool make Maybe<Type:Type>.Some @known
                 make Maybe<InferenceHole>.None @type
             } make StackVoid.NonSpecific Array:push<_>
@@ -1547,7 +1529,7 @@ fn unstack-if(unstacker: .Unstacker, stack: .Stack, remaining: .Array<Resolved:W
         $arguments.len 0 = $return-types.len 0 = and if {
             $unstacker.arena $unstacker.voids
             $word.token
-            $condition make Maybe<Source>.Some
+            $condition
             make Type:Type.Bool make Maybe<Type:Type>.Some
             make Maybe<InferenceHole>.None
             make NonSpecificVoid
@@ -1557,7 +1539,6 @@ fn unstack-if(unstacker: .Unstacker, stack: .Stack, remaining: .Array<Resolved:W
             $unstacker make Source:FromIfExit {
                 $word.token @token
                 $condition @condition
-                $arguments @arguments
                 $return-types @return-types
                 $unstacker.arena &true-stack $return-types.len Stack:pop-n make Maybe<Array<Source>>.Some @true-branch-returns
                 $unstacker.arena &false-stack $return-types.len Stack:pop-n @false-branch-returns
@@ -1592,7 +1573,6 @@ fn unstack-store-local(unstacker: .Unstacker, stack: .Stack, word: .Resolved:Sto
             Array:push<_>
 
             make Word:StoreLocal {
-                $local-id @local
                 $local-id @var
                 $word.name @name
                 $fields @fields
@@ -1659,7 +1639,6 @@ fn unstack-call(unstacker: .Unstacker, stack: .Stack, word: .Resolved:Call) -> W
         $word.name @name
         $word.function @function
         $generic-arguments @generic-arguments
-        $arguments @arguments
     }
 }
 
@@ -1682,7 +1661,6 @@ fn unstack-set-local(unstacker: .Unstacker, stack: .Stack, word: .Resolved:SetLo
 
             make Word:SetLocal {
                 $local-id @local
-                $word.var @var
                 $word.name @name
                 $fields @fields
                 $field-type @field-type
@@ -2217,12 +2195,12 @@ fn unstack-intrinsic-eq/noteq(unstacker: .Unstacker, stack: .Stack, token: .Toke
 
 fn unstack-intrinsic-lt/gt/le/ge(unstacker: .Unstacker, stack: .Stack, token: .Token) -> InferenceHole {
     $unstacker $token ~ fresh-hole @type
-    $unstacker.arena $stack make Source:FromGe {
+    $unstacker.arena $stack make Source:FromCmp {
         $token ~ @token
-        $unstacker.arena $unstacker.arena $stack Stack:pop Arena:push<_> @a
         $unstacker.arena $unstacker.arena $stack Stack:pop Arena:push<_> @b
+        $unstacker.arena $unstacker.arena $stack Stack:pop Arena:push<_> @a
         $type @type
-    } make Source:FromIntrinsic.Ge make Source.FromIntrinsic Stack:push
+    } make Source:FromIntrinsic.Cmp make Source.FromIntrinsic Stack:push
     $type
 }
 
@@ -2230,8 +2208,8 @@ fn unstack-intrinsic-and/or(unstacker: .Unstacker, stack: .Stack, token: .Token)
     $unstacker $token ~ fresh-hole @type
     $unstacker.arena $stack make Source:FromAnd {
         $token ~ @token
-        $unstacker.arena $unstacker.arena $stack Stack:pop Arena:push<_> @a
         $unstacker.arena $unstacker.arena $stack Stack:pop Arena:push<_> @b
+        $unstacker.arena $unstacker.arena $stack Stack:pop Arena:push<_> @a
         $type @type
     } make Source:FromIntrinsic.And make Source.FromIntrinsic Stack:push
     $type

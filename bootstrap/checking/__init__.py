@@ -6,7 +6,7 @@ from resolving import (
         Struct as Struct,
         TypeDefinition as TypeDefinition,
         Type as Type, NamedType as NamedType,
-        PtrType as PtrType, TupleType as TupleType,
+        PtrType as PtrType,
         GenericType as GenericType, HoleType as HoleType,
         FunctionType as FunctionType,
         Extern as Extern,

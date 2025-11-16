@@ -32,23 +32,23 @@ fn FromLocal-format(fmt: .Formatter, self: .FromLocal) {
     $fmt Fmt:write-indent
     $fmt "token=" Fmt:write
     $fmt &self.token Token-format
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "var=" Fmt:write
     $fmt &self.var LocalId-format
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "type=" Fmt:write
     $fmt &self.type InferenceHole-format
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "fields=" Fmt:write
     $fmt \FieldAccess-format &self.fields Array:format-multi-line<_>
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "result-type=" Fmt:write
     $fmt &self.result-type InferenceHole-format
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "by-reference=" Fmt:write
     $fmt $self.by-reference bool-format
@@ -79,23 +79,23 @@ fn FromGlobal-format(fmt: .Formatter, self: .FromGlobal) {
     $fmt Fmt:write-indent
     $fmt "token=" Fmt:write
     $fmt &self.token Token-format
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "var=" Fmt:write
     $fmt &self.var GlobalId-format
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "type=" Fmt:write
     $fmt &self.type WithoutHoles:format
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "fields=" Fmt:write
     $fmt \FieldAccess-format &self.fields Array:format-multi-line<_>
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "result-type=" Fmt:write
     $fmt &self.result-type InferenceHole-format
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "by-reference=" Fmt:write
     $fmt $self.by-reference bool-format
@@ -115,15 +115,15 @@ fn FromAdd-format(fmt: .Formatter, self: .FromAdd) {
     $fmt Fmt:write-indent
     $fmt "token=" Fmt:write
     $fmt &self.token Token-format
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "base=" Fmt:write
     $fmt \Source-format $self.base Maybe:format<_>
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "addition=" Fmt:write
     $fmt \Source-format $self.addition Maybe:format<_>
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "type=" Fmt:write
     $fmt &self.type InferenceHole-format
@@ -143,46 +143,46 @@ fn FromMul-format(fmt: .Formatter, self: .FromMul) {
     $fmt Fmt:write-indent
     $fmt "token=" Fmt:write
     $fmt &self.token Token-format
-    $fmt "\n" Fmt:write
-    $fmt Fmt:write-indent
-    $fmt "a=" Fmt:write
-    $fmt \Source-format $self.a Maybe:format<_>
-    $fmt "\n" Fmt:write
-    $fmt Fmt:write-indent
-    $fmt "b=" Fmt:write
-    $fmt \Source-format $self.b Maybe:format<_>
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "type=" Fmt:write
     $fmt &self.type InferenceHole-format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "a=" Fmt:write
+    $fmt \Source-format $self.a Maybe:format<_>
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "b=" Fmt:write
+    $fmt \Source-format $self.b Maybe:format<_>
     $fmt Fmt:dedent
     $fmt ")" Fmt:write
 }
 
-struct FromGe {
+struct FromCmp {
     token: Token
     a: .Maybe<Source>
     b: .Maybe<Source>
     type: InferenceHole
 }
-fn FromGe-format(fmt: .Formatter, self: .FromGe) {
-    $fmt "(FromGe\n" Fmt:write
+fn FromCmp-format(fmt: .Formatter, self: .FromCmp) {
+    $fmt "(FromCmp\n" Fmt:write
     $fmt Fmt:indent
     $fmt Fmt:write-indent
     $fmt "token=" Fmt:write
     $fmt &self.token Token-format
-    $fmt "\n" Fmt:write
-    $fmt Fmt:write-indent
-    $fmt "a=" Fmt:write
-    $fmt \Source-format $self.a Maybe:format<_>
-    $fmt "\n" Fmt:write
-    $fmt Fmt:write-indent
-    $fmt "b=" Fmt:write
-    $fmt \Source-format $self.b Maybe:format<_>
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "type=" Fmt:write
     $fmt &self.type InferenceHole-format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "a=" Fmt:write
+    $fmt \Source-format $self.a Maybe:format<_>
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "b=" Fmt:write
+    $fmt \Source-format $self.b Maybe:format<_>
     $fmt Fmt:dedent
     $fmt ")" Fmt:write
 }
@@ -211,15 +211,15 @@ fn FromEq-format(fmt: .Formatter, self: .FromEq) {
     $fmt Fmt:write-indent
     $fmt "token=" Fmt:write
     $fmt &self.token Token-format
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "type=" Fmt:write
     $fmt &self.type InferenceHole-format
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "a=" Fmt:write
     $fmt \Source-format $self.a Maybe:format<_>
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "b=" Fmt:write
     $fmt \Source-format $self.b Maybe:format<_>
@@ -239,15 +239,15 @@ fn FromAnd-format(fmt: .Formatter, self: .FromAnd) {
     $fmt Fmt:write-indent
     $fmt "token=" Fmt:write
     $fmt &self.token Token-format
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "type=" Fmt:write
     $fmt &self.type InferenceHole-format
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "a=" Fmt:write
     $fmt \Source-format $self.a Maybe:format<_>
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "b=" Fmt:write
     $fmt \Source-format $self.b Maybe:format<_>
@@ -266,11 +266,11 @@ fn FromNot-format(fmt: .Formatter, self: .FromNot) {
     $fmt Fmt:write-indent
     $fmt "token=" Fmt:write
     $fmt &self.token Token-format
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "type=" Fmt:write
     $fmt &self.type InferenceHole-format
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "source=" Fmt:write
     $fmt \Source-format $self.source Maybe:format<_>
@@ -295,7 +295,7 @@ variant FromIntrinsic {
     case Mul -> FromMul
     case Uninit -> FromUninit
     case Eq -> FromEq
-    case Ge -> FromGe
+    case Cmp -> FromCmp
     case And -> FromAnd
     case MemGrow -> FromMemGrow
     case Not -> FromNot
@@ -306,7 +306,7 @@ fn FromIntrinsic-format(fmt: .Formatter, self: .FromIntrinsic) {
         case Mul -> { FromMul-format }
         case Uninit -> { FromUninit-format }
         case Eq -> { FromEq-format }
-        case Ge -> { FromGe-format }
+        case Cmp -> { FromCmp-format }
         case And -> { FromAnd-format }
         case MemGrow -> { FromMemGrow-format }
         case Not -> { FromNot-format }
@@ -318,7 +318,7 @@ fn FromIntrinsic-token(self: .FromIntrinsic) -> .Token {
         case Mul -> { .token }
         case Uninit -> { .token }
         case Eq -> { .token }
-        case Ge -> { .token }
+        case Cmp -> { .token }
         case And -> { .token }
         case MemGrow -> { .token }
         case Not -> { .token }
@@ -339,23 +339,23 @@ fn FromMakeStruct-format(fmt: .Formatter, self: .FromMakeStruct) {
     $fmt Fmt:write-indent
     $fmt "token=" Fmt:write
     $fmt &self.token Token-format
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "name=" Fmt:write
     $fmt &self.name Token-format
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "type-definition=" Fmt:write
     $fmt &self.type-definition CustomTypeHandle-format
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "generic-arguments=" Fmt:write
     $fmt \InferenceHole-format &self.generic-arguments Array:format-multi-line<_>
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "arguments=" Fmt:write
     $fmt \Source-format &self.arguments Array:format-multi-line<_>
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "type=" Fmt:write
     $fmt &self.type InferenceHole-format
@@ -393,7 +393,7 @@ fn FromMakeVariant-format(fmt: .Formatter, self: .FromMakeVariant) {
     $fmt Fmt:write-indent
     $fmt "generic-arguments=" Fmt:write
     $fmt \InferenceHole-format &self.generic-arguments Array:format-multi-line<_>
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "type=" Fmt:write
     $fmt &self.type InferenceHole-format
@@ -413,15 +413,15 @@ fn FromCall-format(fmt: .Formatter, self: .FromCall) {
     $fmt Fmt:write-indent
     $fmt "token=" Fmt:write
     $fmt &self.token Token-format
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "function=" Fmt:write
     $fmt &self.function FunctionHandle-format
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "generic-arguments=" Fmt:write
     $fmt \InferenceHole-format &self.generic-arguments Array:format<_>
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "arguments=" Fmt:write
     $fmt \Source-format &self.arguments Array:format-multi-line<_>
@@ -515,7 +515,7 @@ fn FromMatchEntry-format(fmt: .Formatter, self: .FromMatchEntry) {
 
 struct FromIfEntry {
     token: Token
-    condition: Source
+    condition: Maybe<Source>
     parameters: Array<InferenceHole>
     arguments: Array<Source>
 }
@@ -525,15 +525,15 @@ fn FromIfEntry-format(fmt: .Formatter, self: .FromIfEntry) {
     $fmt Fmt:write-indent
     $fmt "token=" Fmt:write
     $fmt &self.token Token-format
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "condition=" Fmt:write
-    $fmt &self.condition Source-format
-    $fmt "\n" Fmt:write
+    $fmt \Source-format &self.condition Maybe:format<_>
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "parameters=" Fmt:write
     $fmt \InferenceHole-format &self.parameters Array:format<_>
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "arguments=" Fmt:write
     $fmt \Source-format &self.arguments Array:format-multi-line<_>
@@ -543,7 +543,7 @@ fn FromIfEntry-format(fmt: .Formatter, self: .FromIfEntry) {
 
 struct FromIfExit {
     token: Token
-    condition: Source
+    condition: Maybe<Source>
     return-types: Array<InferenceHole>
     true-branch-returns: Maybe<Array<Source>>
     false-branch-returns: Array<Source>
@@ -554,19 +554,19 @@ fn FromIfExit-format(fmt: .Formatter, self: .FromIfExit) {
     $fmt Fmt:write-indent
     $fmt "token=" Fmt:write
     $fmt &self.token Token-format
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "condition=" Fmt:write
-    $fmt &self.condition Source-format
-    $fmt "\n" Fmt:write
+    $fmt \Source-format &self.condition Maybe:format<_>
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "return-types=" Fmt:write
     $fmt \InferenceHole-format &self.return-types Array:format-multi-line<_>
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "true-branch-returns=" Fmt:write
     $fmt \ArraySource-format &self.true-branch-returns Maybe:format<_>
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "false-branch-returns=" Fmt:write
     $fmt \Source-format &self.false-branch-returns Array:format-multi-line<_>
@@ -636,11 +636,11 @@ fn FromBlockExit-format(fmt: .Formatter, self: .FromBlockExit) {
     $fmt Fmt:write-indent
     $fmt "token=" Fmt:write
     $fmt &self.token Token-format
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "return-types=" Fmt:write
     $fmt \InferenceHole-format &self.return-types Array:format-multi-line<_>
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "break-returns=" Fmt:write
     $fmt \BreakReturns-format &self.break-returns Array:format-multi-line<_>
@@ -704,7 +704,7 @@ fn FromMatchExit-format(fmt: .Formatter, self: .FromMatchExit) {
     $fmt &self.token Token-format
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
-    $fmt "varint=" Fmt:write
+    $fmt "variant=" Fmt:write
     $fmt &self.varint CustomTypeHandle-format
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
@@ -852,11 +852,11 @@ fn FromCase-format(fmt: .Formatter, self: .FromCase) {
     $fmt Fmt:write-indent
     $fmt "token=" Fmt:write
     $fmt &self.token Token-format
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "variant=" Fmt:write
     $fmt &self.varint CustomTypeHandle-format
-    $fmt "\n" Fmt:write
+    $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "generic-arguments=" Fmt:write
     $fmt \InferenceHole-format &self.generic-arguments Array:format-multi-line<_>

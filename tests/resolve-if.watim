@@ -38,4 +38,5 @@ resolve
               (Number (NUMBER 9 3 9))]),
             false-branch=(Scope 2 [
               (Number (NUMBER 4 5 9))])),
-          (Intrinsic (IDENT + 6 7) Add [])])))))
+          (Intrinsic (IDENT + 6 7) Add [])]))),
+    static-data=""))

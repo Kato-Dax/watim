@@ -2,7 +2,7 @@ from typing import List
 from dataclasses import dataclass, field
 from enum import Enum
 
-from format import Formattable, FormatInstr
+from format import Formatter, Formattable
 
 class TokenType(str, Enum):
     NUMBER = "NUMBER"
@@ -80,8 +80,8 @@ class Token(Formattable):
     def dummy(lexeme: str) -> 'Token':
         return Token(TokenType.STRING, 0, 0, lexeme)
 
-    def format_instrs(self) -> List[FormatInstr]:
-        return ["(", self.ty.value, " ", self.lexeme, " ", self.line, " ", self.column, ")"]
+    def format(self, fmt: Formatter):
+        fmt.write("(", self.ty.value, " ", self.lexeme, " ", self.line, " ", self.column, ")")
 
 LEXEME_TYPE_DICT: dict[str, TokenType] = {
     "fn":     TokenType.FN,

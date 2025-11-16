@@ -1,7 +1,9 @@
-from typing import Dict, Tuple, List
+from typing import Dict, Tuple
 from dataclasses import dataclass
 
-from format import Formattable, FormatInstr, named_record, format_dict, format_str, format_seq
+import format
+from format import Formattable, Formatter
+
 from indexed_dict import IndexedDict
 from lexer import Token
 from resolving.top_items import Import, TypeDefinition, Function, Extern, Global, FunctionHandle, CustomTypeHandle
@@ -14,13 +16,14 @@ class Module(Formattable):
     type_definitions: IndexedDict[str, TypeDefinition]
     globals: IndexedDict[str, Global]
     functions: IndexedDict[str, Function | Extern]
+    static_data: bytes
 
-    def format_instrs(self) -> List[FormatInstr]:
-        return named_record("Module", [
-            ("imports", format_dict(self.imports, format_str, format_seq)),
-            ("type-definitions", self.type_definitions.format_instrs(format_str)),
-            ("globals", self.globals.format_instrs(format_str)),
-            ("functions", self.functions.format_instrs(format_str))])
+    def format(self, fmt: Formatter):
+        fmt.named_record("Module", [
+            ("imports", format.Dict(dict((format.Str(k),v) for k,v in self.imports.items()))),
+            ("type-definitions", self.type_definitions.formattable(format.Str, lambda x: x)),
+            ("globals", self.globals.formattable(format.Str, lambda x: x)),
+            ("functions", self.functions.formattable(format.Str, lambda x: x))])
 
     def lookup_item(self, name: Token) -> FunctionHandle | CustomTypeHandle | None:
         if name.lexeme in self.functions:

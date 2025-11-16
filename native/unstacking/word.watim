@@ -489,7 +489,7 @@ fn MakeStruct-format(fmt: .Formatter, self: .MakeStruct) {
     $fmt &self.token Token-format
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
-    $fmt "struc=" Fmt:write
+    $fmt "struct=" Fmt:write
     $fmt &self.struc CustomTypeHandle-format
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
@@ -733,7 +733,7 @@ fn Loop-format(fmt: .Formatter, self: .Loop) {
 }
 
 fn ArrayInferenceHole-format(fmt: .Formatter, self: .Array<InferenceHole>) {
-    $fmt \InferenceHole-format $self Array:format<_>
+    $fmt \InferenceHole-format $self Array:format-multi-line<_>
 }
 
 struct MakeVariant {
@@ -798,7 +798,7 @@ fn FieldInit-format(fmt: .Formatter, self: .FieldInit) {
 }
 
 struct FunRef {
-    name: Token
+    token: Token
     function: FunctionHandle
     generic-arguments: Array<InferenceHole>
 }
@@ -807,7 +807,7 @@ fn FunRef-format(fmt: .Formatter, self: .FunRef) {
     $fmt Fmt:indent
     $fmt Fmt:write-indent
     $fmt "token=" Fmt:write
-    $fmt &self.name Token-format
+    $fmt &self.token Token-format
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "function=" Fmt:write

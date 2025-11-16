@@ -27,4 +27,5 @@ resolve
           (LocalId "b" 0 0)=(Local (IDENT b 1 21) (Some (GenericType (IDENT B 1 24) 1)))),
         body=(Scope 0 [
           (GetLocal (IDENT b 2 6) (LocalId "b" 0 0) []),
-          (GetLocal (IDENT a 2 9) (LocalId "a" 0 0) [])])))))
+          (GetLocal (IDENT a 2 9) (LocalId "a" 0 0) [])]))),
+    static-data=""))
