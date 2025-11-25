@@ -68,6 +68,11 @@ class Holes(Formattable):
             self.holes.append(None)
         self.holes[hole.index] = known
 
+    def lookup(self, hole: InferenceHole) -> Type | None:
+        if hole.index >= len(self.holes):
+            return None
+        return self.holes[hole.index]
+
     def format(self, fmt: Formatter):
         if len(self.holes) == 0:
             fmt.write("(Holes)")
