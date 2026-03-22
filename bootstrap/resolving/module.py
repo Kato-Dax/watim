@@ -23,7 +23,8 @@ class Module(Formattable):
             ("imports", format.Dict(dict((format.Str(k),v) for k,v in self.imports.items()))),
             ("type-definitions", self.type_definitions.formattable(format.Str, lambda x: x)),
             ("globals", self.globals.formattable(format.Str, lambda x: x)),
-            ("functions", self.functions.formattable(format.Str, lambda x: x))])
+            ("functions", self.functions.formattable(format.Str, lambda x: x)),
+            ("static-data", format.Str(self.static_data.decode("utf-8")))])
 
     def lookup_item(self, name: Token) -> FunctionHandle | CustomTypeHandle | None:
         if name.lexeme in self.functions:

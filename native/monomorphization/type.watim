@@ -151,6 +151,7 @@ fn Struct-format(fmt: .Formatter, self: .Struct) {
     $fmt "fields=" Fmt:write
     $fmt \NamedTypeId-format &self.fields Array:format-multi-line<NamedTypeId>
     $fmt Fmt:dedent
+    $fmt ")" Fmt:write
 }
 
 struct VariantCase {
@@ -195,6 +196,7 @@ fn Variant-format(fmt: .Formatter, self: .Variant) {
     $fmt "cases=" Fmt:write
     $fmt \VariantCase-format &self.cases Array:format-multi-line<VariantCase>
     $fmt Fmt:dedent
+    $fmt ")" Fmt:write
 }
 
 struct FunType {

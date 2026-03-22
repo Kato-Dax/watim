@@ -1,0 +1,13 @@
+[== Stdin Compiler ==]
+fn without-fields() {
+    uninit @foo $foo drop
+}
+[== Args Compiler ==]
+infer
+-
+without-fields
+--quiet
+[== Status Compiler ==]
+1
+[== Stderr Compiler ==]
+-:2:22 failed to infer type of void

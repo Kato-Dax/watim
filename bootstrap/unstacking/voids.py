@@ -7,7 +7,7 @@ from format import Formattable, Formatter
 from lexer import Token
 
 from resolving.type_without_holes import Type
-from resolving import FunctionHandle
+from resolving import FunctionHandle, IntrinsicType
 
 from unstacking.word import FieldAccess
 from unstacking.source import InferenceHole, Source
@@ -41,7 +41,7 @@ class NonSpecificVoid(Formattable):
 @dataclass(frozen=True)
 class CallVoid(Formattable):
     token: Token
-    function: FunctionHandle
+    function: FunctionHandle | IntrinsicType
     arguments: Tuple[Source, ...]
     generic_arguments: Tuple[InferenceHole, ...]
     def format(self, fmt: Formatter):
@@ -79,5 +79,12 @@ class IndirectCallVoid(Formattable):
             ("returns", format.Seq(self.returns, multi_line=True)),
             ("function", format.Optional(self.function))])
 
-type StackVoid = StoreVoid | NonSpecificVoid | CallVoid | SetGlobalVoid | IndirectCallVoid
+@dataclass(frozen=True)
+class ImpossibleMatchVoid(Formattable):
+    token: Token
+    source: Source | None
+    def format(self, fmt: Formatter):
+        fmt.unnamed_record("ImpossibleMatchVoid", [self.token, self.source])
+
+type StackVoid = StoreVoid | NonSpecificVoid | CallVoid | SetGlobalVoid | IndirectCallVoid | ImpossibleMatchVoid
 

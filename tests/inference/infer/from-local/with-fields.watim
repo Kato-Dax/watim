@@ -1,0 +1,28 @@
+[== Stdin Compiler ==]
+struct Foo {
+    a: i32
+}
+fn with-fields(foo: Foo) {
+    $foo.a drop
+}
+[== Args Compiler ==]
+infer
+-
+with-fields
+--quiet
+[== Status Compiler ==]
+0
+[== Stdout Compiler ==]
+(Function
+  name=(IDENT with-fields 4 4),
+  export=None,
+  signature=(Signature
+    generic-parameters=[],
+    parameters=[(NamedType (IDENT foo 4 16) (CustomType 0 0 []))],
+    returns=[]),
+  locals=(Map
+    (LocalId "foo" 0 0)=(Local (IDENT foo 4 16) (CustomType 0 0 []) True)),
+  body=(Scope 0 [
+    (GetLocal (IDENT foo 5 6) (LocalId "foo" 0 0) (CustomType 0 0 []) I32 [
+      (FieldAccess (IDENT a 5 10) (CustomType 0 0 []) I32 0)]),
+    (Intrinsic (IDENT drop 5 12) (Drop I32))]))

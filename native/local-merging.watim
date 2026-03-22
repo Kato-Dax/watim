@@ -120,7 +120,7 @@ fn merge-locals-word(
             &disjoint.reused $outer-reused Array:truncate<LocalId>
             $arena &disjoint.scopes $word.body.id Array:push<ScopeId>
         }
-        case Word.StructNamed -> {
+        case Word.MakeStructNamed -> {
             @word
 
             $disjoint.reused.len @outer-reused

@@ -5,12 +5,12 @@ import format
 from format import Formattable, Formatter
 from lexer import Token
 
-from resolving.words import FunctionHandle, GlobalId, LocalId
+from resolving.words import FunctionHandle, GlobalId, LocalId, IntrinsicType
 from resolving.type_without_holes import Type, CustomTypeHandle
 import resolving.types as with_holes
 from unstacking.word import InferenceHole, FieldAccess
 
-type Source = 'FromNumber | FromLocal | FromGlobal | FromAdd | FromEq | FromNode | FromUninit | FromCase | FromProxied | FromCast | FromMemGrow | FromMul | FromString | FromGetField | FromCmp | FromLoad | FromMakeStruct | FromMakeVariant | FromAnd | FromFunRef | FromNot'
+type Source = FromNumber | FromLocal | FromGlobal | FromNode | FromCase | FromProxied | FromCast | FromString | FromGetField | FromLoad | FromMakeStruct | FromMakeVariant | FromFunRef | FromAdd
 
 @dataclass(frozen=True)
 class FromNumber(Formattable):
@@ -58,65 +58,6 @@ class FromGlobal(Formattable):
             ("result-type", self.result_type),
             ("by-reference", self.by_reference)])
 
-@dataclass(frozen=True)
-class FromAdd(Formattable):
-    token: Token
-    base: 'Source | None'
-    addition: 'Source | None'
-    taip: InferenceHole
-    def format(self, fmt: Formatter):
-        fmt.named_record("FromAdd", [
-            ("token", self.token),
-            ("base", format.Optional(self.base)),
-            ("addition", format.Optional(self.addition)),
-            ("type", self.taip)])
-
-@dataclass(frozen=True)
-class FromMemGrow(Formattable):
-    token: Token
-    source: Source | None
-    def format(self, fmt: Formatter):
-        fmt.unnamed_record("FromMemGrow", [self.token, format.Optional(self.source)])
-
-@dataclass(frozen=True)
-class FromEq(Formattable):
-    token: Token
-    taip: InferenceHole
-    a: 'Source | None'
-    b: 'Source | None'
-    def format(self, fmt: Formatter):
-        fmt.named_record("FromEq", [
-            ("token", self.token),
-            ("type", self.taip),
-            ("a", format.Optional(self.a)),
-            ("b", format.Optional(self.b))])
-
-@dataclass(frozen=True)
-class FromCmp(Formattable):
-    token: Token
-    taip: InferenceHole
-    a: 'Source | None'
-    b: 'Source | None'
-    def format(self, fmt: Formatter):
-        fmt.named_record("FromCmp", [
-            ("token", self.token),
-            ("type", self.taip),
-            ("a", format.Optional(self.a)),
-            ("b", format.Optional(self.b))])
-
-@dataclass(frozen=True)
-class FromMul(Formattable):
-    token: Token
-    taip: InferenceHole
-    a: 'Source | None'
-    b: 'Source | None'
-    def format(self, fmt: Formatter):
-        fmt.named_record("FromMul", [
-            ("token", self.token),
-            ("type", self.taip),
-            ("a", format.Optional(self.a)),
-            ("b", format.Optional(self.b))])
-
 
 @dataclass(frozen=True)
 class FromNode(Formattable):
@@ -125,13 +66,6 @@ class FromNode(Formattable):
     ret: int
     def format(self, fmt: Formatter):
         fmt.unnamed_record("FromNode", [self.token, self.index, self.ret])
-
-@dataclass(frozen=True)
-class FromUninit(Formattable):
-    token: Token
-    generic_arguments: Tuple[InferenceHole, ...]
-    def format(self, fmt: Formatter):
-        fmt.unnamed_record("FromUninit", [self.token, self.generic_arguments])
 
 @dataclass(frozen=True)
 class FromCase(Formattable):
@@ -154,6 +88,9 @@ class FromCase(Formattable):
 class FromProxied(Formattable):
     source: Source
     taip: InferenceHole
+    @property
+    def token(self):
+        return self.source.token
     def format(self, fmt: Formatter):
         fmt.unnamed_record("FromProxied", [self.source, self.taip])
 
@@ -216,22 +153,9 @@ class FromMakeVariant(Formattable):
             ("type", self.taip)])
 
 @dataclass(frozen=True)
-class FromAnd(Formattable):
-    token: Token
-    taip: InferenceHole
-    a: Source | None
-    b: Source | None
-    def format(self, fmt: Formatter):
-        fmt.named_record("FromAnd", [
-            ("token", self.token),
-            ("type", self.taip),
-            ("a", format.Optional(self.a)),
-            ("b", format.Optional(self.b))])
-
-@dataclass(frozen=True)
 class FromCall(Formattable):
     token: Token
-    function: FunctionHandle
+    function: FunctionHandle | IntrinsicType
     generic_arguments: Tuple[InferenceHole, ...]
     arguments: Tuple[Source, ...]
     def format(self, fmt: Formatter):
@@ -266,16 +190,17 @@ class FromFunRef(Formattable):
             ("generic-arguments", format.Seq(self.generic_arguments, multi_line=True))])
 
 @dataclass(frozen=True)
-class FromNot(Formattable):
+class FromAdd(Formattable):
     token: Token
+    base: Source | None
+    addition: Source | None
     taip: InferenceHole
-    source: Source | None
     def format(self, fmt: Formatter):
-        fmt.named_record("FromNot", [
+        fmt.named_record("FromAdd", [
             ("token", self.token),
-            ("type", self.taip),
-            ("source", format.Optional(self.source))])
-
+            ("base", format.Optional(self.base)),
+            ("addition", format.Optional(self.addition)),
+            ("type", self.taip)])
 
 type MultiReturnNode = 'PlaceHolder | FromIfEntry | FromIfExit | FromMatchEntry | FromMatchExit | FromCall | FromBlockEntry | FromBlockExit | FromLoopEntry | FromIndirectCall'
 

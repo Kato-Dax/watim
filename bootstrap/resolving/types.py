@@ -12,9 +12,8 @@ def with_generics(taip: Type, generics: Tuple[Type, ...]) -> Type:
     match taip:
         case PtrType(child):
             return PtrType(with_generics(child, generics))
-        case CustomTypeType(name, type_definition, generic_arguments):
+        case CustomTypeType(type_definition, generic_arguments):
             return CustomTypeType(
-                name,
                 type_definition,
                 tuple(with_generics(arg, generics) for arg in generic_arguments))
         case FunctionType(token, parameters, returns):
@@ -42,7 +41,6 @@ class CustomTypeHandle(Formattable):
 
 @dataclass(eq=True, frozen=True)
 class CustomTypeType(Formattable):
-    name: Token = field(compare=False)
     type_definition: CustomTypeHandle
     generic_arguments: Tuple[Type, ...]
     def format(self, fmt: Formatter):

@@ -34,7 +34,7 @@ check
         body=(Scope 0 [
           (Number (NUMBER 0 4 5)),
           (Number (NUMBER 1 4 7)),
-          (StructWord
+          (MakeStruct
             token=(MAKE make 4 9),
             type=(CustomType 0 0 [I32])),
           (Intrinsic (IDENT drop 4 21) (Drop (CustomType 0 0 [I32])))]))]))

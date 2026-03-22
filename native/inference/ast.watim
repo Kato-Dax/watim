@@ -109,9 +109,9 @@ fn SetLocal-format(fmt: .Formatter, self: .SetLocal) {
     $fmt " " Fmt:write
     $fmt &self.var VarId-format
     $fmt " " Fmt:write
-    $fmt \FieldAccess-format &self.fields Array:format-multi-line<FieldAccess>
-    $fmt " " Fmt:write
     $fmt &self.target-type Type:format
+    $fmt " " Fmt:write
+    $fmt \FieldAccess-format &self.fields Array:format-multi-line<FieldAccess>
     $fmt ")" Fmt:write
 }
 
@@ -261,13 +261,13 @@ fn FieldInit-format(fmt: .Formatter, self: .FieldInit) {
     $fmt ")" Fmt:write
 }
 
-struct StructWordNamed {
+struct MakeStructNamed {
     token: Token
     type: CustomTypeType
     body: Scope
 }
-fn StructWordNamed-format(fmt: .Formatter, self: .StructWordNamed) {
-    $fmt "(StructWordNamed\n" Fmt:write
+fn MakeStructNamed-format(fmt: .Formatter, self: .MakeStructNamed) {
+    $fmt "(MakeStructNamed\n" Fmt:write
     $fmt Fmt:indent
     $fmt Fmt:write-indent
     $fmt "token=" Fmt:write
@@ -284,12 +284,12 @@ fn StructWordNamed-format(fmt: .Formatter, self: .StructWordNamed) {
     $fmt Fmt:dedent
 }
 
-struct StructWord {
+struct MakeStruct {
     token: Token
     type: CustomTypeType
 }
-fn StructWord-format(fmt: .Formatter, self: .StructWord) {
-    $fmt "(StructWord\n" Fmt:write
+fn MakeStruct-format(fmt: .Formatter, self: .MakeStruct) {
+    $fmt "(MakeStruct\n" Fmt:write
     $fmt Fmt:indent
     $fmt Fmt:write-indent
     $fmt "token=" Fmt:write
@@ -424,11 +424,11 @@ struct Load {
     type: Type
 }
 fn Load-format(fmt: .Formatter, self: .Load) {
-    $fmt "(Load " Fmt:write
+    $fmt "(Intrinsic " Fmt:write
     $fmt &self.token Token-format
-    $fmt " " Fmt:write
+    $fmt " (Load " Fmt:write
     $fmt &self.type Type:format
-    $fmt ")" Fmt:write
+    $fmt "))" Fmt:write
 }
 
 struct MatchCase {
@@ -494,7 +494,7 @@ struct VariantWord {
     type: CustomTypeType
 }
 fn VariantWord-format(fmt: .Formatter, self: .VariantWord) {
-    $fmt "(VariantWord\n" Fmt:write
+    $fmt "(MakeVariant\n" Fmt:write
     $fmt Fmt:indent
     $fmt Fmt:write-indent
     $fmt "token=" Fmt:write
@@ -590,8 +590,8 @@ variant Word {
     case Sizeof -> Resolved:Sizeof
     case Call -> Call
     case FieldInit -> FieldInit
-    case StructWord -> StructWord
-    case StructWordNamed -> StructWordNamed
+    case MakeStruct -> MakeStruct
+    case MakeStructNamed -> MakeStructNamed
     case FunRef -> FunRef
     case If -> If
     case Loop -> Loop
@@ -620,8 +620,8 @@ fn Word-format(fmt: .Formatter, self: .Word) {
         case Sizeof -> { $fmt flip Resolved:Sizeof-format }
         case Call -> { $fmt flip Call-format }
         case FieldInit -> { $fmt flip FieldInit-format }
-        case StructWord -> { $fmt flip StructWord-format }
-        case StructWordNamed -> { $fmt flip StructWordNamed-format }
+        case MakeStruct -> { $fmt flip MakeStruct-format }
+        case MakeStructNamed -> { $fmt flip MakeStructNamed-format }
         case FunRef -> { $fmt flip FunRef-format }
         case If -> { $fmt flip If-format }
         case Loop -> { $fmt flip Loop-format }

@@ -58,21 +58,21 @@ class PtrType(Formattable):
 class ForeignType(Formattable):
     module: Token
     name: Token
-    generic_arguments: Tuple[Type, ...]
+    generic_arguments: Tuple[Type, ...] | None
     def format(self, fmt: Formatter):
         return fmt.unnamed_record("ForeignCustomType", [
             self.module,
             self.name,
-            format.Seq(self.generic_arguments)])
+            format.Optional(format.Seq(self.generic_arguments) if self.generic_arguments is not None else None)])
 
 @dataclass(frozen=True, eq=True)
 class CustomTypeType(Formattable):
     name: Token
-    generic_arguments: Tuple[Type, ...]
+    generic_arguments: Tuple[Type, ...] | None
     def format(self, fmt: Formatter):
         return fmt.unnamed_record("LocalCustomType", [
             self.name,
-            format.Seq(self.generic_arguments, multi_line=True)])
+            format.Optional(format.Seq(self.generic_arguments, multi_line=True) if self.generic_arguments is not None else None)])
 
 @dataclass(frozen=True, eq=True)
 class FunctionType(Formattable):

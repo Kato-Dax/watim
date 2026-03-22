@@ -120,13 +120,13 @@ class ModuleResolver:
         return Struct(
             struct.name,
             struct.generic_parameters,
-            tuple(map(self.type_resolver.resolve_named_type, struct.fields)))
+            tuple(self.forbid_holes_named(self.type_resolver.resolve_named_type(t)) for t in struct.fields))
 
     def resolve_variant(self, variant: parser.Variant) -> Variant:
         return Variant(
             variant.name,
             variant.generic_parameters,
-            tuple(VariantCase(case.name, None if case.taip is None else self.type_resolver.resolve_type(case.taip)) for case in variant.cases))
+            tuple(VariantCase(case.name, None if case.taip is None else self.forbid_holes(self.type_resolver.resolve_type(case.taip))) for case in variant.cases))
 
 
 @dataclass
@@ -165,9 +165,9 @@ class FunctionResolver:
                 return self.resolve_extern(function)
 
     def resolve_local_function(self, function: parser.Function) -> Function:
-        signature = self.signatures[function.signature.name.lexeme]
+        signature: FunctionSignature = self.signatures[function.signature.name.lexeme]
         env = Env(list(map(Local.make_parameter, signature.parameters)))
-        type_lookup = TypeLookup(self.module_id, self.modules, self.type_definitions)
+        type_lookup = TypeLookup(self.module_id, tuple(self.modules.values()), self.type_definitions)
         resolver = WordResolver(
             self.module_id, self.module_path, self.imports, self.globals,
             self.signatures, self.type_resolver, self.modules,

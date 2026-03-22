@@ -1,4 +1,4 @@
-from typing import List, Dict, Tuple, Iterable, assert_never
+from typing import List, Dict, Tuple, Iterable, Callable, assert_never
 from dataclasses import dataclass
 
 import format
@@ -9,14 +9,14 @@ import copy
 
 from util import Ref
 
-from lexer import Token
-from parsing.types import Bool, I32, I8
+from lexer import Token, TokenType
+from parsing.types import Bool, I64, I32, I8
 
 import resolving.module as resolved
 import resolving.type_without_holes as without_holes
-from resolving.type_without_holes import Type, CustomTypeHandle
+from resolving.type_without_holes import Type, CustomTypeHandle, GenericType, PtrType
 import resolving.types as with_holes
-from resolving.top_items import FunctionSignature, LocalName, Global as ResolvedGlobal, TypeDefinition, Variant, Struct
+from resolving.top_items import Signature, IntrinsicSignature, FunctionSignature, LocalName, Global as ResolvedGlobal, TypeDefinition, Variant, Struct, MustBeOneOf
 from resolving.words import LocalId, Scope as ResolvedScope, Word as ResolvedWord, GlobalId, IntrinsicWord as ResolvedIntrinsicWord, IntrinsicType, IfWord as ResolvedIfWord, MatchWord as ResolvedMatchWord
 import resolving.words as resolved_words
 
@@ -24,8 +24,113 @@ import unstacking.word as words
 from unstacking.word import InferenceHole, InferenceFieldHole, FieldAccess, Scope, Word
 from unstacking.source import Source, MultiReturnNode
 import unstacking.source as source
-from unstacking.voids import StackVoid, NonSpecificVoid, CallVoid, SetGlobalVoid, StoreVoid, IndirectCallVoid
+from unstacking.voids import StackVoid, NonSpecificVoid, CallVoid, SetGlobalVoid, StoreVoid, IndirectCallVoid, ImpossibleMatchVoid
 from unstacking.stack import Stack
+
+@dataclass(frozen=True)
+class IntrinsicDescription:
+    signature: IntrinsicSignature
+    construct: Callable[[Token, Tuple[InferenceHole, ...]], Word]
+
+def add_sub_generic_constraints(generic_arguments: Tuple[Type | None, ...]) -> str | None:
+    if generic_arguments[0] is None or generic_arguments[1] is None:
+        return None
+    if isinstance(generic_arguments[0], PtrType):
+        if generic_arguments[1] == I32():
+            return None
+        return "can only add i32 to ptr"
+    if generic_arguments[0] != generic_arguments[1]:
+        return "can not add two values of differing types"
+    return None
+
+intrinsic_and_signature = IntrinsicSignature(
+    ("T",),
+    (GenericType(Token(TokenType.IDENT, 0, 0, "T"), 0),
+     GenericType(Token(TokenType.IDENT, 0, 0, "T"), 0)),
+    (GenericType(Token(TokenType.IDENT, 0, 0, "T"), 0),),
+    constraints=(MustBeOneOf(0, allowed=set((I32(), I64(), I8(), Bool()))),))
+
+intrinsic_muldivmod_signature = IntrinsicSignature(
+    ("T",),
+    (GenericType(Token(TokenType.IDENT, 0, 0, "T"), 0),
+     GenericType(Token(TokenType.IDENT, 0, 0, "T"), 0)),
+    (GenericType(Token(TokenType.IDENT, 0, 0, "T"), 0),),
+    constraints=(MustBeOneOf(0, allowed=set((I32(), I64(), I8()))),))
+
+intrinsic_cmp_signature = IntrinsicSignature(
+    ("T",),
+    (GenericType(Token(TokenType.IDENT, 0, 0, "T"), 0),
+     GenericType(Token(TokenType.IDENT, 0, 0, "T"), 0)),
+    (Bool(),),
+    constraints=(MustBeOneOf(0, allowed=set((I32(), I64(), I8()))),))
+
+intrinsic_eq_signature = IntrinsicSignature(
+        ("T",),
+        (GenericType(Token(TokenType.IDENT, 0, 0, "T"), 0),
+         GenericType(Token(TokenType.IDENT, 0, 0, "T"), 0)),
+        (Bool(),))
+
+intrinsic_signatures: Dict[IntrinsicType, IntrinsicDescription] = {
+        IntrinsicType.EQ: IntrinsicDescription(
+            intrinsic_eq_signature,
+            lambda token, generic_arguments: words.Eq(token, generic_arguments[0])),
+        IntrinsicType.NOT_EQ: IntrinsicDescription(
+            intrinsic_eq_signature,
+            lambda token, generic_arguments: words.NotEq(token, generic_arguments[0])),
+        IntrinsicType.MUL: IntrinsicDescription(
+            IntrinsicSignature(
+                ("T",),
+                (GenericType(Token(TokenType.IDENT, 0, 0, "T"), 0),
+                 GenericType(Token(TokenType.IDENT, 0, 0, "T"), 0)),
+                (GenericType(Token(TokenType.IDENT, 0, 0, "T"), 0),),
+                constraints=(MustBeOneOf(0, allowed=set((I8(), I32(), I64()))),)),
+            lambda token, generic_arguments: words.Mul(token, generic_arguments[0])),
+        IntrinsicType.UNINIT: IntrinsicDescription(
+            IntrinsicSignature(
+                ("T",),
+                (),
+                (GenericType(Token(TokenType.IDENT, 0, 0, "T"), 0),)),
+            lambda token, generic_arguments: words.Uninit(token, generic_arguments[0])),
+        IntrinsicType.MEM_GROW: IntrinsicDescription(
+            IntrinsicSignature((), (I32(),), (I32(),)),
+            lambda token, _: words.MemGrow(token)),
+        IntrinsicType.DROP: IntrinsicDescription(
+            IntrinsicSignature(("T",), (GenericType(Token(TokenType.IDENT, 0, 0, "T"), 0),), ()),
+            lambda token, generic_arguments: words.Drop(token, generic_arguments[0])),
+        IntrinsicType.AND: IntrinsicDescription(
+            intrinsic_and_signature, lambda token, generic_arguments: words.And(token, generic_arguments[0])),
+        IntrinsicType.OR: IntrinsicDescription(
+            intrinsic_and_signature, lambda token, generic_arguments: words.Or(token, generic_arguments[0])),
+        IntrinsicType.NOT: IntrinsicDescription(
+            IntrinsicSignature(
+                ("T",),
+                (GenericType(Token(TokenType.IDENT, 0, 0, "T"), 0),),
+                (GenericType(Token(TokenType.IDENT, 0, 0, "T"), 0),),
+                constraints=(MustBeOneOf(0, allowed=set((Bool(), I8(), I32(), I64(), Bool()))),)),
+            lambda token, generic_arguments: words.Not(token, generic_arguments[0])),
+        IntrinsicType.MUL: IntrinsicDescription(
+            intrinsic_muldivmod_signature, lambda token, generic_arguments: words.Mul(token, generic_arguments[0])),
+        IntrinsicType.DIV: IntrinsicDescription(
+            intrinsic_muldivmod_signature, lambda token, generic_arguments: words.Div(token, generic_arguments[0])),
+        IntrinsicType.MOD: IntrinsicDescription(
+            intrinsic_muldivmod_signature, lambda token, generic_arguments: words.Mod(token, generic_arguments[0])),
+        IntrinsicType.SHL: IntrinsicDescription(
+            intrinsic_muldivmod_signature, lambda token, generic_arguments: words.Shl(token, generic_arguments[0])),
+        IntrinsicType.SHR: IntrinsicDescription(
+            intrinsic_muldivmod_signature, lambda token, generic_arguments: words.Shr(token, generic_arguments[0])),
+        IntrinsicType.ROTL: IntrinsicDescription(
+            intrinsic_muldivmod_signature, lambda token, generic_arguments: words.Rotl(token, generic_arguments[0])),
+        IntrinsicType.ROTR: IntrinsicDescription(
+            intrinsic_muldivmod_signature, lambda token, generic_arguments: words.Rotr(token, generic_arguments[0])),
+        IntrinsicType.LESS: IntrinsicDescription(
+            intrinsic_cmp_signature, lambda token, generic_arguments: words.Lt(token, generic_arguments[0])),
+        IntrinsicType.LESS_EQ: IntrinsicDescription(
+            intrinsic_cmp_signature, lambda token, generic_arguments: words.Le(token, generic_arguments[0])),
+        IntrinsicType.GREATER_EQ: IntrinsicDescription(
+            intrinsic_cmp_signature, lambda token, generic_arguments: words.Ge(token, generic_arguments[0])),
+        IntrinsicType.GREATER: IntrinsicDescription(
+            intrinsic_cmp_signature, lambda token, generic_arguments: words.Gt(token, generic_arguments[0])),
+}
 
 @dataclass(frozen=True)
 class Assignment(Formattable):
@@ -112,7 +217,7 @@ class Function(Formattable):
             ("body", self.body),
             ("returns", format.Optional(None if self.returns is None else format.Seq(self.returns, multi_line=True)))])
 
-def unstack_function(modules: List[resolved.Module], function: resolved.Function) -> Function:
+def unstack_function(modules: Tuple[resolved.Module, ...], function: resolved.Function) -> Function:
     stack = Stack.root()
 
     unstacker = Unstacker(
@@ -163,7 +268,7 @@ class BreakStack(Formattable):
 @dataclass
 class Unstacker:
     locals: Dict[LocalId, Local]
-    modules: List[resolved.Module]
+    modules: Tuple[resolved.Module, ...]
     voids: List[StackVoid]
     holes: Holes
     multi_return_nodes: List[MultiReturnNode]
@@ -198,8 +303,12 @@ class Unstacker:
     def lookup_type_definition(self, handle: CustomTypeHandle) -> TypeDefinition:
         return self.modules[handle.module].type_definitions.index(handle.index)
 
-    def lookup_signature(self, handle: resolved.FunctionHandle) -> FunctionSignature:
-        return self.modules[handle.module].functions.index(handle.index).signature
+    def lookup_signature(self, handle: resolved.FunctionHandle | IntrinsicType) -> Signature:
+        match handle:
+            case resolved.FunctionHandle():
+                return self.modules[handle.module].functions.index(handle.index).signature
+            case IntrinsicType():
+                return intrinsic_signatures[handle].signature
 
     def pre_add_node(self) -> int:
         self.multi_return_nodes.append(source.PlaceHolder())
@@ -246,7 +355,9 @@ class Unstacker:
             case resolved_words.CastWord():
                 return self.unstack_cast(stack, word)
             case resolved_words.CallWord():
-                return self.unstack_call(stack, word)
+                return words.Call(word.name,
+                                  word.function,
+                                  self.unstack_call(stack, word.name, word.function, word.generic_arguments))
             case resolved_words.SetLocal():
                 return self.unstack_set_local(stack, word)
             case resolved_words.StringWord():
@@ -280,9 +391,12 @@ class Unstacker:
                 return self.unstack_store_local(stack, word)
             case resolved_words.FunRefWord():
                 return self.unstack_fun_ref(stack, word)
-        print(word, file=sys.stderr)
-        # assert_never(word)
-        assert False
+            case resolved_words.MatchVoidWord():
+                self.voids.append(ImpossibleMatchVoid(word.token, stack.pop()))
+                return word
+            case resolved_words.StackAnnotation():
+                assert False
+        assert_never(word)
 
     def unstack_fun_ref(self, stack: Stack, word: resolved_words.FunRefWord) -> Word:
         signature = self.lookup_signature(word.call.function)
@@ -394,7 +508,7 @@ class Unstacker:
             break_returns = tuple(
                     source.BreakReturns(tuple(source.BreakReturnSource(
                         break_stack.token,
-                        break_stack.sources[return_index]) for break_stack in loop_break_stacks))
+                        break_stack.sources[return_index] if return_index < len(break_stack.sources) else None) for break_stack in loop_break_stacks))
                     for return_index in range(n_returns))
 
             exit_node = loop_unstacker.add_node(source.FromBlockExit(word.token, return_types, break_returns))
@@ -410,7 +524,7 @@ class Unstacker:
             self.reachable = False
 
         if return_types is None or len(return_types) == 0:
-            for i, (argument, parameter) in enumerate(zip(arguments, parameters)):
+            for i, parameter in enumerate(parameters):
                 return_depth = len(arguments) - i - 1
                 loop_unstacker.voids.append(NonSpecificVoid(
                     token=word.token,
@@ -452,11 +566,11 @@ class Unstacker:
         break_returns = tuple(
                 source.BreakReturns(tuple(source.BreakReturnSource(
                     break_stack.token,
-                    break_stack.sources[return_index]) for break_stack in block_break_stacks))
+                    break_stack.sources[return_index] if return_index < len(break_stack.sources) else None) for break_stack in block_break_stacks))
                 for return_index in range(n_returns))
 
         if return_types is None:
-            self.reachable = True
+            self.reachable = False
         elif len(return_types) != 0:
             exit_node = block_unstacker.add_node(source.FromBlockExit(
                 word.token,
@@ -560,30 +674,34 @@ class Unstacker:
         stack.push(source.FromGetField(word.token, base_type, src, fields))
         return words.GetField(word.token, base_type, fields)
 
-    def unstack_call(self, stack: Stack, word: resolved_words.CallWord) -> Word:
-        signature = self.lookup_signature(word.function)
+    def unstack_call(self,
+                          stack: Stack,
+                          token: Token,
+                          function: resolved.FunctionHandle | IntrinsicType,
+                          generic_arguments: Tuple[with_holes.Type, ...] | None) -> Tuple[InferenceHole, ...]:
+        signature = self.lookup_signature(function)
         arguments = stack.pop_n(len(signature.parameters))
-        generic_arguments = self.fresh_holes(word.name, len(signature.generic_parameters))
-        if word.generic_arguments is not None:
-            for i, generic_argument in enumerate(word.generic_arguments):
+        generic_argument_holes = self.fresh_holes(token, len(signature.generic_parameters))
+        if generic_arguments is not None:
+            for i, generic_argument in enumerate(generic_arguments):
                 hole_or_type = without_holes.without_holes(generic_argument)
                 if not isinstance(hole_or_type, Token):
-                    self.holes.fill(generic_arguments[i], hole_or_type)
+                    self.holes.fill(generic_argument_holes[i], hole_or_type)
 
-        node_index = self.add_node(source.FromCall(word.name, word.function, generic_arguments, arguments))
+        node_index = self.add_node(source.FromCall(token, function, generic_argument_holes, arguments))
 
         for i in range(len(signature.returns), 0, -1):
             return_depth = i - 1
-            stack.push(source.FromNode(word.name, node_index, return_depth))
+            stack.push(source.FromNode(token, node_index, return_depth))
 
         if len(signature.returns) == 0:
             self.voids.append(CallVoid(
-                word.name,
-                word.function,
+                token,
+                function,
                 arguments,
-                generic_arguments))
+                generic_argument_holes))
 
-        return words.Call(word.name, word.function, generic_arguments)
+        return generic_argument_holes
 
     def unstack_cast(self, stack: Stack, word: resolved_words.CastWord) -> Word:
         src_type = self.fresh_hole(word.token)
@@ -734,7 +852,7 @@ class Unstacker:
                 stack.push(source.FromNode(word.token, exit_node, return_depth))
 
         cases = tuple(x for case in unstacked_cases for x in (case.to_case(),) if x is not None)
-        default = next((x for case in unstacked_cases for x in (case.to_default_case(),)), None)
+        default = next((x for case in unstacked_cases for x in (case.to_default_case(),) if x is not None), None)
         return words.Match(word.token, scrutinee_type, parameters, return_types, cases, default)
 
     def unstack_if(self, stack: Stack, word: ResolvedIfWord, remaining: List[ResolvedWord]) -> Word:
@@ -827,64 +945,10 @@ class Unstacker:
             return words.If(word.token, parameters, return_types, true_body, false_body)
 
     def unstack_intrinsic(self, stack: Stack, word: ResolvedIntrinsicWord) -> Word:
+        if word.ty in intrinsic_signatures:
+            generic_arguments = self.unstack_call(stack, word.token, word.ty, word.generic_arguments)
+            return intrinsic_signatures[word.ty].construct(word.token, generic_arguments)
         match word.ty:
-            case IntrinsicType.ADD | IntrinsicType.SUB:
-                taip = self.fresh_hole(word.token)
-                stack.push(source.FromAdd(
-                    token=word.token,
-                    addition=stack.pop(),
-                    base=stack.pop(),
-                    taip=taip))
-                match word.ty:
-                    case IntrinsicType.ADD:
-                        return words.Add(word.token, taip)
-                    case IntrinsicType.SUB:
-                        return words.Sub(word.token, taip)
-            case IntrinsicType.MUL | IntrinsicType.DIV | IntrinsicType.MOD | IntrinsicType.SHR | IntrinsicType.SHL | IntrinsicType.ROTL | IntrinsicType.ROTR:
-                taip = self.fresh_hole(word.token)
-                stack.push(source.FromMul(
-                    token=word.token,
-                    b=stack.pop(),
-                    a=stack.pop(),
-                    taip=taip))
-                match word.ty:
-                    case IntrinsicType.MUL:
-                        return words.Mul(word.token, taip)
-                    case IntrinsicType.DIV:
-                        return words.Div(word.token, taip)
-                    case IntrinsicType.MOD:
-                        return words.Mod(word.token, taip)
-                    case IntrinsicType.SHL:
-                        return words.Shl(word.token, taip)
-                    case IntrinsicType.SHR:
-                        return words.Shr(word.token, taip)
-                    case IntrinsicType.ROTL:
-                        return words.Rotl(word.token, taip)
-                    case IntrinsicType.ROTR:
-                        return words.Rotr(word.token, taip)
-                assert_never(word.ty)
-            case IntrinsicType.EQ | IntrinsicType.NOT_EQ:
-                taip = self.fresh_hole(word.token)
-                stack.push(source.FromEq(
-                    token=word.token,
-                    taip=taip,
-                    a=stack.pop(),
-                    b=stack.pop()))
-                match word.ty:
-                    case IntrinsicType.EQ:
-                        return words.Eq(word.token, taip)
-                    case IntrinsicType.NOT_EQ:
-                        return words.NotEq(word.token, taip)
-            case IntrinsicType.DROP:
-                src = stack.pop()
-                taip = self.fresh_hole(word.token)
-                self.voids.append(NonSpecificVoid(
-                    word.token, src, None, taip))
-                return words.Drop(word.token, taip)
-            case IntrinsicType.UNINIT:
-                generic_arguments = self.unstack_generic_arguments(word.token, word.generic_arguments, 1)
-                stack.push(source.FromUninit(word.token, generic_arguments))
-                return words.Uninit(word.token, generic_arguments[0])
             case IntrinsicType.FLIP:
                 b = stack.pop()
                 a = stack.pop()
@@ -895,10 +959,6 @@ class Unstacker:
                 if a is not None:
                     stack.push(source.FromProxied(a, lower))
                 return words.Flip(word.token, lower, upper)
-            case IntrinsicType.MEM_GROW:
-                src = stack.pop()
-                stack.push(source.FromMemGrow(word.token, src))
-                return words.MemGrow(word.token)
             case IntrinsicType.SET_STACK_SIZE:
                 self.voids.append(NonSpecificVoid(
                     token=word.token,
@@ -906,22 +966,6 @@ class Unstacker:
                     known=without_holes.I32(),
                     taip=None))
                 return words.SetStackSize(word.token)
-            case IntrinsicType.LESS_EQ | IntrinsicType.LESS | IntrinsicType.GREATER | IntrinsicType.GREATER_EQ:
-                taip = self.fresh_hole(word.token)
-                stack.push(source.FromCmp(
-                    word.token,
-                    b=stack.pop(),
-                    a=stack.pop(),
-                    taip=taip))
-                match word.ty:
-                    case IntrinsicType.LESS:
-                        return words.Lt(word.token, taip)
-                    case IntrinsicType.LESS_EQ:
-                        return words.Le(word.token, taip)
-                    case IntrinsicType.GREATER_EQ:
-                        return words.Ge(word.token, taip)
-                    case IntrinsicType.GREATER:
-                        return words.Gt(word.token, taip)
             case IntrinsicType.STORE:
                 taip = self.fresh_hole(word.token)
                 self.voids.append(StoreVoid(
@@ -930,23 +974,6 @@ class Unstacker:
                     dst=stack.pop(),
                     taip=taip))
                 return words.Store(word.token, taip)
-            case IntrinsicType.AND | IntrinsicType.OR:
-                taip = self.fresh_hole(word.token)
-                stack.push(source.FromAnd(
-                    word.token,
-                    b=stack.pop(),
-                    a=stack.pop(),
-                    taip=taip))
-                match word.ty:
-                    case IntrinsicType.AND:
-                        return words.And(word.token, taip)
-                    case IntrinsicType.OR:
-                        return words.Or(word.token, taip)
-            case IntrinsicType.NOT:
-                taip = self.fresh_hole(word.token)
-                src = stack.pop()
-                stack.push(source.FromNot(word.token, taip, src))
-                return words.Not(word.token, taip)
             case IntrinsicType.MEM_COPY:
                 self.voids.append(NonSpecificVoid(
                     token=word.token,
@@ -981,7 +1008,18 @@ class Unstacker:
                     known=without_holes.PtrType(I8()),
                     taip=None))
                 return words.MemFill(word.token)
-
+            case IntrinsicType.ADD:
+                taip = self.fresh_hole(word.token)
+                addition = stack.pop()
+                base = stack.pop()
+                stack.push(source.FromAdd(word.token, base, addition, taip))
+                return words.Add(word.token, taip)
+            case IntrinsicType.SUB:
+                taip = self.fresh_hole(word.token)
+                addition = stack.pop()
+                base = stack.pop()
+                stack.push(source.FromAdd(word.token, base, addition, taip))
+                return words.Sub(word.token, taip)
 
         print(word, file=sys.stderr)
         assert False

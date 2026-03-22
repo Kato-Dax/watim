@@ -70,6 +70,9 @@ def run_bootstrap_compiler(args: List[str] | None, stdin: str) -> CompilerOutput
     except bootstrap_compiler.CheckException as e:
         stderr = e.display()
         status = 1
+    except bootstrap_compiler.InferenceException as e:
+        stderr = e.display()
+        status = 1
     return CompilerOutput(status, stdout.strip(), stderr.strip())
 
 if len(sys.argv) > 2 and sys.argv[1] == "accept":
@@ -110,15 +113,16 @@ if len(sys.argv) > 2 and sys.argv[1] == "accept":
         })
     exit(0)
 
+tests = []
+
 if len(sys.argv) > 2 and sys.argv[1] == "--native":
-    pattern = sys.argv[2]
+    tests = glob.glob(sys.argv[2])
 elif len(sys.argv) == 2 and sys.argv[1] == "--native":
-    pattern = "./tests/*.watim"
+    tests = set(glob.glob("./tests/**/*.watim", recursive=True)).difference(set(glob.glob("./tests/fixtures/**", recursive=True)))
 elif len(sys.argv) > 1:
-    pattern = sys.argv[1]
+    tests = [path for pattern in sys.argv[1:] for path in glob.glob(pattern, recursive=True)]
 else:
-    pattern = "./tests/*.watim"
-tests = glob.glob(pattern)
+    tests = set(glob.glob("./tests/**/*.watim", recursive=True)).difference(set(glob.glob("./tests/fixtures/**", recursive=True)))
 
 def print_mismatch(expected: str, actual: str):
     for line in difflib.unified_diff(expected.splitlines(), actual.splitlines(), fromfile='expected', tofile='actual'):

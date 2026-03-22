@@ -1,0 +1,24 @@
+[== Stdin Compiler ==]
+fn foo() -> i32 { 0 }
+fn main() {
+    foo drop
+}
+[== Args Compiler ==]
+infer
+-
+main
+--quiet
+[== Status Compiler ==]
+0
+[== Stdout Compiler ==]
+(Function
+  name=(IDENT main 2 4),
+  export=None,
+  signature=(Signature
+    generic-parameters=[],
+    parameters=[],
+    returns=[]),
+  locals=(Map),
+  body=(Scope 0 [
+    (Call (IDENT foo 3 5) (FunctionHandle 0 0) []),
+    (Intrinsic (IDENT drop 3 9) (Drop I32))]))

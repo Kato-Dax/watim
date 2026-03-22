@@ -1,0 +1,35 @@
+[== Stdin Compiler ==]
+fn foo<T>(x: i32, c: T) {}
+
+fn bar<T>(c: T, d: T) {}
+
+fn main() {
+    4 0 1 = foo
+
+    uninit 0 bar
+}
+[== Args Compiler ==]
+infer
+-
+main
+--quiet
+[== Status Compiler ==]
+0
+[== Stdout Compiler ==]
+(Function
+  name=(IDENT main 5 4),
+  export=None,
+  signature=(Signature
+    generic-parameters=[],
+    parameters=[],
+    returns=[]),
+  locals=(Map),
+  body=(Scope 0 [
+    (Number (NUMBER 4 6 5)),
+    (Number (NUMBER 0 6 7)),
+    (Number (NUMBER 1 6 9)),
+    (Intrinsic (IDENT = 6 11) (Eq I32)),
+    (Call (IDENT foo 6 13) (FunctionHandle 0 0) [Bool]),
+    (Intrinsic (IDENT uninit 8 5) (Uninit I32)),
+    (Number (NUMBER 0 8 12)),
+    (Call (IDENT bar 8 14) (FunctionHandle 0 1) [I32])]))

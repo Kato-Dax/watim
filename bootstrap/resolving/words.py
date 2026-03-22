@@ -7,6 +7,7 @@ from lexer import Token
 
 from resolving.intrinsics import IntrinsicType
 from resolving.types import CustomTypeType, Type, CustomTypeHandle
+import resolving.type_without_holes as without_holes
 from parsing.words import (
     BreakWord as BreakWord,
     NumberWord as NumberWord,
@@ -117,20 +118,27 @@ class SetLocal(Formattable):
     name: Token
     var: LocalId | GlobalId
     fields: Tuple[Token, ...]
+    def format(self, fmt: Formatter):
+        fmt.unnamed_record("SetLocal", [self.name, self.var, format.Seq(self.fields, multi_line=True)])
 
 @dataclass
 class StoreWord(Formattable):
     name: Token
     var: LocalId | GlobalId
     fields: Tuple[Token, ...]
+    def format(self, fmt: Formatter):
+        fmt.unnamed_record("StoreLocal", [self.name, self.var, self.fields])
 
 @dataclass
 class CallWord(Formattable):
     name: Token
     function: 'FunctionHandle'
-    generic_arguments: Tuple[Type, ...]
+    generic_arguments: Tuple[Type, ...] | None
     def format(self, fmt: Formatter):
-        fmt.unnamed_record("Call", [self.name, self.function, format.Seq(self.generic_arguments)])
+        fmt.unnamed_record("Call", [
+            self.name,
+            self.function,
+            format.Optional(format.Seq(self.generic_arguments) if self.generic_arguments is not None else None)])
 
 @dataclass(frozen=True, eq=True)
 class FunctionHandle(Formattable):
@@ -182,16 +190,23 @@ class BlockWord(Formattable):
     end: Token
     body: Scope
     annotation: BlockAnnotation | None
+    def format(self, fmt: Formatter):
+        fmt.named_record("Block", [
+            ("token", self.token),
+            ("body", self.body),
+            ("annotation", format.Optional(self.annotation))])
 
 @dataclass
 class CastWord(Formattable):
     token: Token
     dst: Type
+    def format(self, fmt: Formatter):
+        fmt.unnamed_record("Cast", [self.token, self.dst])
 
 @dataclass
 class SizeofWord(Formattable):
     token: Token
-    taip: Type
+    taip: without_holes.Type
     def format(self, fmt: Formatter):
         fmt.unnamed_record("Sizeof", [self.token, self.taip])
 
@@ -208,7 +223,7 @@ class StructWordNamed(Formattable):
     taip: CustomTypeType
     body: Scope
     def format(self, fmt: Formatter):
-        fmt.named_record("StructWordNamed", [
+        fmt.named_record("MakeStructNamed", [
             ("token", self.token),
             ("name", self.token),
             ("type", self.taip),
@@ -220,7 +235,7 @@ class StructWord(Formattable):
     name: Token
     taip: CustomTypeType
     def format(self, fmt: Formatter):
-        fmt.named_record("StructWord", [
+        fmt.named_record("MakeStruct", [
             ("token", self.token),
             ("name", self.name),
             ("type", self.taip)])

@@ -1,0 +1,15 @@
+[== Stdin Compiler ==]
+variant Foo { case Bar }
+fn foo() {
+    make Foo.Bar match {
+        case Foo.Baz -> {}
+    }
+}
+[== Args Compiler ==]
+resolve
+-
+--quiet
+[== Status Compiler ==]
+1
+[== Stderr Compiler ==]
+-:4:18 case not found

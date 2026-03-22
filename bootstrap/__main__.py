@@ -1,9 +1,8 @@
 #!/usr/bin/env python
 from dataclasses import dataclass
-from typing import List, Dict
+from typing import List, Dict, Tuple
 import sys
 import os
-import unittest
 
 import format
 
@@ -17,12 +16,13 @@ from lexer import TokenLocation, Lexer
 import resolving as resolved
 from resolving import ModuleResolver, ResolveException
 
-from checking import determine_compilation_order, CheckCtx, CheckException
-import checking as checked
 import unstacking as unstacking
+import inference as inference
+from inference import InferenceException as InferenceException
 
-from monomizer import Monomizer, merge_locals_module, DetermineLoadsToValueTests
-from wat_generator import WatGenerator
+import monomorphization
+import local_merging
+import codegen
 
 def load_recursive(
         modules: Dict[str, parser.Module],
@@ -64,6 +64,29 @@ def load_recursive(
         )
         import_stack.pop()
 
+def determine_compilation_order(modules: Dict[str, parser.Module]) -> IndexedDict[str, parser.Module]:
+    unprocessed: IndexedDict[str, parser.Module] = IndexedDict.from_items(modules.items())
+    ordered: IndexedDict[str, parser.Module] = IndexedDict()
+    while len(unprocessed) > 0:
+        i = 0
+        while i < len(unprocessed):
+            postpone = False
+            module_path,module = list(unprocessed.items())[i]
+            for imp in module.imports:
+                if os.path.dirname(module_path) != "":
+                    path = os.path.normpath(os.path.dirname(module_path) + "/" + imp.file_path.lexeme[1:-1])
+                else:
+                    path = os.path.normpath(imp.file_path.lexeme[1:-1])
+                if "./"+path not in ordered.keys():
+                    postpone = True
+                    break
+            if postpone:
+                i += 1
+                continue
+            ordered[module_path] = module
+            unprocessed.delete(i)
+    return ordered
+
 def resolve_modules(modules_unordered: Dict[str, parser.Module]) -> IndexedDict[str, resolved.Module]:
     modules: IndexedDict[str, parser.Module] = determine_compilation_order({
         ("./" + path if path != "-" else path): module
@@ -74,29 +97,32 @@ def resolve_modules(modules_unordered: Dict[str, parser.Module]) -> IndexedDict[
         resolved_modules[module_path] = ModuleResolver.resolve_module(resolved_modules, module, id)
     return resolved_modules
 
-def check_modules(resolved_modules: IndexedDict[str, resolved.Module]) -> IndexedDict[str, checked.Module]:
-    checked_modules: IndexedDict[str, checked.Module] = IndexedDict()
-    for id,(module_path,module) in enumerate(resolved_modules.items()):
-        type_lookup = resolved.TypeLookup(id, resolved_modules, module.type_definitions)
-        ctx = CheckCtx(
-                resolved_modules,
-                checked_modules,
-                [f.signature for f in module.functions.values()],
-                module.globals,
-                type_lookup,
-                id)
-        for handle in type_lookup.find_directly_recursive_types():
-            token = type_lookup.lookup(handle).name
-            raise CheckException(module_path, token, "structs and variants cannot be recursive")
-        checked_modules[module_path] = checked.Module(
-                module.path,
-                module.id,
-                module.imports,
-                module.type_definitions,
-                module.globals,
-                ctx.check_functions(),
-                bytes(module.static_data))
-    return checked_modules
+def infer_modules(resolved_modules: IndexedDict[str, resolved.Module]) -> IndexedDict[str, inference.Module]:
+    inferred: IndexedDict[str, inference.Module] = IndexedDict()
+    for file_path, resolved_module in resolved_modules.items():
+        inferred[file_path] = infer_module(tuple(resolved_modules.values()), resolved_module)
+    return inferred
+
+def infer_module(modules: Tuple[resolved.Module, ...], module: resolved.Module) -> inference.Module:
+    functions: List[inference.Function | inference.Extern] = []
+    globals = tuple(module.globals.values())
+    type_lookup = resolved.TypeLookup(module.id, modules, module.type_definitions)
+    for handle in type_lookup.find_directly_recursive_types():
+        token = type_lookup.lookup(handle).name
+        raise InferenceException(module.path, token, "structs and variants cannot be recursive")
+    for function in module.functions.values():
+        match function:
+            case resolved.Extern():
+                functions.append(function)
+            case resolved.Function():
+                unstacked_function = unstacking.unstack_function(modules, function)
+                functions.append(inference.infer_function(module.path, modules, globals, unstacked_function))
+    return inference.Module(
+            imports=module.imports,
+            type_definitions=tuple(module.type_definitions.values()),
+            globals=globals,
+            static_data=module.static_data,
+            functions=tuple(functions))
 
 @dataclass
 class Lex:
@@ -116,8 +142,9 @@ class Unstack:
     function: str
 
 @dataclass
-class Check:
+class Infer:
     path: str
+    functions: Tuple[str, ...]
 
 @dataclass
 class Monomize:
@@ -127,7 +154,7 @@ class Monomize:
 class Compile:
     path: str
 
-type Cmd = Lex | Parse | Resolve | Unstack | Check | Monomize | Compile
+type Cmd = Lex | Parse | Resolve | Unstack | Infer | Monomize | Compile
 
 def read_path(path: str, stdin: str | None = None) -> str:
     if path == "-":
@@ -159,25 +186,43 @@ def run(cmd: Cmd, guard_stack: bool, stdin: str | None = None) -> str:
             f = resolved_modules.index(len(resolved_modules) - 1).functions[function_name]
             if isinstance(f, resolved.Extern):
                 return "TODO"
-            unstacked = unstacking.unstack_function(list(resolved_modules.values()), f)
+            unstacked = unstacking.unstack_function(tuple(resolved_modules.values()), f)
             return str(unstacked)
-        case Check(path):
+        case Infer(path, function_names):
             modules = {}
             load_recursive(modules, os.path.normpath(path), None, stdin)
             resolved_modules = resolve_modules(modules)
-            checked_modules = check_modules(resolved_modules)
-            return str(checked_modules.formattable(format.Str, lambda x: x))
+            resolved_module = resolved_modules.index(len(resolved_modules) - 1)
+
+            inferred_functions = []
+            for function_name in function_names:
+                f = resolved_modules.index(len(resolved_modules) - 1).functions[function_name]
+                if isinstance(f, resolved.Extern):
+                    return "TODO"
+                unstacked = unstacking.unstack_function(tuple(resolved_modules.values()), f)
+                inferred = inference.infer_function(resolved_module.path, tuple(resolved_modules.values()), tuple(resolved_module.globals.values()), unstacked)
+                inferred_functions.append(str(inferred))
+            return "\n".join(inferred_functions)
         case Monomize(path):
-            return "TODO"
+            modules = {}
+            load_recursive(modules, os.path.normpath(path), None, stdin)
+            resolved_modules = resolve_modules(modules)
+            resolved_module = resolved_modules.index(len(resolved_modules) - 1)
+            inferred_modules = infer_modules(resolved_modules)
+            monomized = monomorphization.monomize(inferred_modules)
+            local_merging.merge_locals(monomized)
+            return str(monomized)
         case Compile(path):
             modules = {}
             load_recursive(modules, os.path.normpath(path), None, stdin)
             resolved_modules = resolve_modules(modules)
-            checked_modules = check_modules(resolved_modules)
-            function_table, mono_modules = Monomizer(checked_modules).monomize()
-            for mono_module in mono_modules.values():
-                merge_locals_module(mono_module)
-            return WatGenerator(mono_modules, function_table, guard_stack).write_wat_module()
+            resolved_module = resolved_modules.index(len(resolved_modules) - 1)
+            inferred_modules = infer_modules(resolved_modules)
+            monomized = monomorphization.monomize(inferred_modules)
+            local_merging.merge_locals(monomized)
+            fmt = format.Formatter("\t", 0, [])
+            codegen.generate(fmt, monomized, guard_stack)
+            return fmt.to_string()
 
 help = """The native Watim compiler
 
@@ -202,9 +247,6 @@ Commands:
     <path> <function> [log-level]
     log-level = 0 | 1 | 2
 
-  check     unstack and infer everything
-    <path>
-
   monomize  monomorphize all generic functions
     <path>
 
@@ -222,19 +264,9 @@ class CliArgException(Exception):
     message: str
 
 def main(argv: List[str], stdin: str | None = None) -> str:
-    argv = [arg for arg in argv if arg != "-q"]
+    argv = [arg for arg in argv if arg != "-q" and arg != "--quiet"]
     if len(argv) == 1:
         raise CliArgException(help)
-    if argv[1] == "units":
-        suite = unittest.TestSuite()
-        classes = [DetermineLoadsToValueTests]
-        for klass in classes:
-            for method in dir(klass):
-                if method.startswith("test_"):
-                    suite.addTest(klass(method))
-        runner = unittest.TextTestRunner()
-        runner.run(suite)
-        return ""
     cmd: Cmd
     if len(argv) >= 2 and argv[1] == "lex":
         path = argv[2] if len(argv) > 2 else "-"
@@ -249,9 +281,10 @@ def main(argv: List[str], stdin: str | None = None) -> str:
         if len(argv) < 4:
             raise CliArgException(help)
         cmd = Unstack(argv[2], argv[3])
-    elif len(argv) > 2 and argv[1] == "check":
-        path = argv[2] if len(argv) > 2 else "-"
-        cmd = Check(path)
+    elif len(argv) >= 2 and argv[1] == "infer":
+        if len(argv) < 4:
+            raise CliArgException(help)
+        cmd = Infer(argv[2], tuple(argv[3:]))
     elif len(argv) > 2 and argv[1] == "monomize":
         path = argv[2] if len(argv) > 2 else "-"
         cmd = Monomize(path)
@@ -274,6 +307,6 @@ if __name__ == "__main__":
     except ResolveException as e:
         print(e.display(), file=sys.stderr)
         exit(1)
-    except CheckException as e:
+    except inference.InferenceException as e:
         print(e.display(), file=sys.stderr)
         exit(1)

@@ -36,7 +36,10 @@ fn generate-store(ctx: .Ctx, type: TypeId) { block {
 fn generate-var-ident(ctx: .Ctx, locals: .Map<LocalId, Local>, var-id: .VarId) {
     $ctx $var-id match {
         case Local -> {
-            $locals flip generate-local-ident-by-id
+            @local-id
+            .fmt ~
+            $locals $local-id Map:get<LocalId, Local> Maybe:assert-some<.Local>
+            $local-id generate-local-ident
         }
         case Global -> {
             @global-id
@@ -47,12 +50,6 @@ fn generate-var-ident(ctx: .Ctx, locals: .Map<LocalId, Local>, var-id: .VarId) {
             $ctx.fmt $global-id.module.index i32-format
         }
     }
-}
-
-fn generate-local-ident-by-id(ctx: .Ctx, locals: .Map<LocalId, Local>, local-id: .LocalId) {
-    $ctx.fmt
-    $locals $local-id Map:get<LocalId, Local> Maybe:assert-some<.Local>
-    $local-id generate-local-ident
 }
 
 fn generate-local-ident(fmt: .Formatter, local: .Local, local-id: .LocalId) {

@@ -871,20 +871,22 @@ fn unstack-word(unstacker: .Unstacker, stack: .Stack, word: .Resolved:Word, rema
             $unstacker $word.token $word.parameters.len fresh-holes @parameters
             $unstacker $word.token $word.returns.len fresh-holes @return-types
 
-            $unstacker make Source:FromIndirectCall {
-                $word.token @token
-                $function @function
-                $return-types @return-types
-                $arguments @arguments
-                $parameters @parameters
-            } make Source:MultiReturnNode.IndirectCall add-node @node
+            $word.returns.len 0 /= if {
+                $unstacker make Source:FromIndirectCall {
+                    $word.token @token
+                    $function @function
+                    $return-types @return-types
+                    $arguments @arguments
+                    $parameters @parameters
+                } make Source:MultiReturnNode.IndirectCall add-node @node
 
-            0 loop {
-                @i $i $word.returns.len = if { break }
-                $unstacker.arena $stack
-                $word.token $node $i make Source:FromNode make Source.FromNode
-                Stack:push
-                $i 1 +
+                0 loop {
+                    @i $i $word.returns.len = if { break }
+                    $unstacker.arena $stack
+                    $word.token $node $i make Source:FromNode make Source.FromNode
+                    Stack:push
+                    $i 1 +
+                }
             }
 
             $word.returns.len 0 = if {

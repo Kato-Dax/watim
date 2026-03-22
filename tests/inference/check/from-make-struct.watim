@@ -1,0 +1,28 @@
+[== Stdin Compiler ==]
+struct Iov { ptr: .i8 len: i32 }
+fn main() -> Iov {
+    0 !.i8 0 make Iov
+}
+[== Args Compiler ==]
+infer
+-
+main
+--quiet
+[== Status Compiler ==]
+0
+[== Stdout Compiler ==]
+(Function
+  name=(IDENT main 2 4),
+  export=None,
+  signature=(Signature
+    generic-parameters=[],
+    parameters=[],
+    returns=[(CustomType 0 0 [])]),
+  locals=(Map),
+  body=(Scope 0 [
+    (Number (NUMBER 0 3 5)),
+    (Cast (BANG ! 3 7) I32 (Ptr I8)),
+    (Number (NUMBER 0 3 12)),
+    (MakeStruct
+      token=(MAKE make 3 14),
+      type=(CustomType 0 0 []))]))

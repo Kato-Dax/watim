@@ -24,8 +24,8 @@ def with_holes(taip: Type) -> wh.Type:
             return taip
         case PtrType(child):
             return wh.PtrType(with_holes(child))
-        case CustomTypeType(name, type_definition, generic_arguments):
-            return wh.CustomTypeType(name, type_definition, tuple(with_holes(t) for t in generic_arguments))
+        case CustomTypeType(type_definition, generic_arguments):
+            return wh.CustomTypeType(type_definition, tuple(with_holes(t) for t in generic_arguments))
         case FunctionType(token, parameters, returns):
             return wh.FunctionType(token, tuple(with_holes(t) for t in parameters), tuple(with_holes(t) for t in returns))
         case GenericType():
@@ -59,7 +59,7 @@ def without_holes(taip: wh.Type) -> Type | Token:
             generic_arguments = types_without_holes(taip.generic_arguments)
             if isinstance(generic_arguments, Token):
                 return generic_arguments
-            return CustomTypeType(taip.name, taip.type_definition, generic_arguments)
+            return CustomTypeType(taip.type_definition, generic_arguments)
         case wh.FunctionType():
             parameters = types_without_holes(taip.parameters)
             returns = types_without_holes(taip.returns)
@@ -86,9 +86,8 @@ def with_generics(taip: Type, generics: Tuple[Type, ...]) -> Type:
     match taip:
         case PtrType(child):
             return PtrType(with_generics(child, generics))
-        case CustomTypeType(name, type_definition, generic_arguments):
+        case CustomTypeType(type_definition, generic_arguments):
             return CustomTypeType(
-                name,
                 type_definition,
                 tuple(with_generics(arg, generics) for arg in generic_arguments))
         case FunctionType(token, parameters, returns):
@@ -109,7 +108,6 @@ class PtrType(Formattable):
 
 @dataclass(eq=True, frozen=True)
 class CustomTypeType(Formattable):
-    name: Token = field(compare=False)
     type_definition: CustomTypeHandle
     generic_arguments: Tuple[Type, ...]
     def format(self, fmt: Formatter):
@@ -134,4 +132,17 @@ class NamedType(Formattable):
         fmt.unnamed_record("NamedType", [self.name, self.taip])
     def __eq__(self, other: object) -> bool:
         return isinstance(other, NamedType) and other.name.lexeme == self.name.lexeme and other.taip == self.taip
+
+def contains_generic(taip: Type) -> bool:
+    match taip:
+        case I32() | I64() | Bool() | I8():
+            return False
+        case PtrType(child):
+            return contains_generic(child)
+        case FunctionType(_, parameters, returns):
+            return any(map(contains_generic, parameters)) or any(map(contains_generic, returns))
+        case CustomTypeType(_, generic_arguments):
+            return any(map(contains_generic, generic_arguments))
+        case GenericType():
+            return True
 

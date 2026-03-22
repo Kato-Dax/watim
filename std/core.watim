@@ -74,7 +74,7 @@ fn i32-to-str-hex(buf: .i8, n: i32) -> i32 {
     $buf 4 + $buf-reversed $l 5 - + ~ store
     $buf 5 + $buf-reversed $l 6 - + ~ store
     $buf 6 + $buf-reversed $l 7 - + ~ store
-    $buf 7 + $buf-reversed $l 8 - + ~ store
+    $buf 7 + $buf-reversed $l 8 -<i32, i32> +<.i8, i32> ~ store
 
     $l
 }

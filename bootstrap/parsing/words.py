@@ -73,16 +73,16 @@ class InitWord(Formattable):
 class ForeignCallWord(Formattable):
     module: Token
     ident: Token
-    generic_arguments: Tuple[Type, ...]
+    generic_arguments: Tuple[Type, ...] | None
 
 @dataclass
 class CallWord(Formattable):
     ident: Token
-    generic_arguments: Tuple[Type, ...]
+    generic_arguments: Tuple[Type, ...] | None
     def format(self, fmt: Formatter):
         fmt.unnamed_record("LocalCall", [
             self.ident,
-            format.Seq(self.generic_arguments, multi_line=True)])
+            format.Optional(format.Seq(self.generic_arguments, multi_line=True) if self.generic_arguments is not None else None)])
 
 @dataclass
 class FunRefWord(Formattable):

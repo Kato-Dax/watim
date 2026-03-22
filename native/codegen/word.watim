@@ -16,7 +16,7 @@ import "../monomorphization/monomizer.watim" as Monomized (
     Monomized, Module, ExternOrInstances,
     Extern, Function, FunctionHandle, Signature, Local, Global,
     Key, Key-type,
-    Scope, Word, StructWord, Intrinsic, FieldAccess, MatchCase,
+    Scope, Word, MakeStruct, Intrinsic, FieldAccess, MatchCase,
     I32-id, I64-id, type-size, field-offset, can-live-in-reg,
     globl-lives-in-memory, local-lives-in-memory,
 )
@@ -74,8 +74,6 @@ fn generate-word(ctx: .Ctx, module: i32, locals: .Map<LocalId, Local>, word: .Wo
         case Word.GetLocal -> {
             @word
             &ctx.program.sizes $word.result-type can-live-in-reg @result-can-live-in-reg
-
-            $ctx.program $word.result-type lookup-type @result-type
 
             $result-can-live-in-reg not if {
                 // set up the address to store the result in
@@ -282,8 +280,8 @@ fn generate-word(ctx: .Ctx, module: i32, locals: .Map<LocalId, Local>, word: .Wo
                 }
             } Fmt:write }
         }
-        case Word.Struct -> { $ctx flip generate-struc-word }
-        case Word.StructNamed -> { block {
+        case Word.MakeStruct -> { $ctx flip generate-make-struct }
+        case Word.MakeStructNamed -> { block {
             @word
             $ctx.program $word.type lookup-type match {
                 case Custom -> {}
@@ -586,7 +584,7 @@ fn generate-word(ctx: .Ctx, module: i32, locals: .Map<LocalId, Local>, word: .Wo
                     $ctx $word.dst generate-type-pretty
                     break
                 }
-                $src-size 4 le $dst-size 4 gt and 8 $dst-size le and if {
+                $src-size 4 le $dst-size 4 gt and $dst-size 8 le and if {
                     $ctx.fmt "i64.extend_i32_u ;; cast to " Fmt:write
                     $ctx $word.dst generate-type-pretty
                     break
@@ -830,7 +828,7 @@ fn generate-word(ctx: .Ctx, module: i32, locals: .Map<LocalId, Local>, word: .Wo
     $ctx.fmt "\n" Fmt:write
 }
 
-fn generate-struc-word(ctx: .Ctx, word: .StructWord) { block {
+fn generate-make-struct(ctx: .Ctx, word: .MakeStruct) { block {
     $ctx.program $word.type lookup-type match {
         case Custom -> {}
         case _ -> { drop Core:unreachable<.CustomTypeHandle> }
@@ -859,51 +857,49 @@ fn generate-struc-word(ctx: .Ctx, word: .StructWord) { block {
             $ctx $word.type generate-type-pretty
             break
         }
-        $type-size 8 le if {
-            $struc.fields.len @i
-            loop {
-                $i 0 = if { break }
-                &ctx.program.sizes &struc.fields $i 1 - Array:get<NamedTypeId> .type ~ type-size @field-size
-                &ctx.program.sizes $struc $i 1 - field-offset @offset
+        $struc.fields.len @i
+        loop {
+            $i 0 = if { break }
+            &ctx.program.sizes &struc.fields $i 1 - Array:get<NamedTypeId> .type ~ type-size @field-size
+            &ctx.program.sizes $struc $i 1 - field-offset @offset
 
-                $i $struc.fields.len /=
-                $offset 0 /= $type-size 4 gt or
-                and if {
-                    $type-size 4 le if {
-                        $ctx generate-flip-i32-i32
-                    } else {
-                        $ctx generate-flip-i32-i64
-                    }
-                    $ctx.fmt " " Fmt:write
+            $i $struc.fields.len /=
+            $offset 0 /= $type-size 4 gt or
+            and if {
+                $type-size 4 le if {
+                    $ctx generate-flip-i32-i32
+                } else {
+                    $ctx generate-flip-i32-i64
                 }
-                $type-size 4 gt if {
-                    $ctx.fmt "i64.extend_i32_u " Fmt:write
-                }
-                $offset 0 /= if {
-                    $type-size 4 le if {
-                        $ctx.fmt "i32.const " Fmt:write
-                        $ctx.fmt $offset 8 * i32-format
-                        $ctx.fmt " i32.shl " Fmt:write
-                    } else {
-                        $ctx.fmt "i64.const " Fmt:write
-                        $ctx.fmt $offset 8 * i32-format
-                        $ctx.fmt " i64.shl " Fmt:write
-                    }
-                }
-
-                $i $struc.fields.len /= if {
-                    $type-size 4 le if {
-                        $ctx.fmt "i32.or " Fmt:write
-                    } else {
-                        $ctx.fmt "i64.or " Fmt:write
-                    }
-                }
-                $i 1 - #i
+                $ctx.fmt " " Fmt:write
             }
-            $ctx.fmt ";; make " Fmt:write
-            $ctx $word.type generate-type-pretty
-            break
+            $type-size 4 gt if {
+                $ctx.fmt "i64.extend_i32_u " Fmt:write
+            }
+            $offset 0 /= if {
+                $type-size 4 le if {
+                    $ctx.fmt "i32.const " Fmt:write
+                    $ctx.fmt $offset 8 * i32-format
+                    $ctx.fmt " i32.shl " Fmt:write
+                } else {
+                    $ctx.fmt "i64.const " Fmt:write
+                    $ctx.fmt $offset 8 * i32-format
+                    $ctx.fmt " i64.shl " Fmt:write
+                }
+            }
+
+            $i $struc.fields.len /= if {
+                $type-size 4 le if {
+                    $ctx.fmt "i32.or " Fmt:write
+                } else {
+                    $ctx.fmt "i64.or " Fmt:write
+                }
+            }
+            $i 1 - #i
         }
+        $ctx.fmt ";; make " Fmt:write
+        $ctx $word.type generate-type-pretty
+        break
     }
 
     $ctx.fmt ";; make " Fmt:write
@@ -984,10 +980,9 @@ fn generate-return-receivers(ctx: .Ctx, offset: i32, returns: .Array<TypeId>) {
                 $ctx.fmt " i32.add call $intrinsic:dupi32 local.get $s" Fmt:write
                 $ctx.fmt $i i32-format
                 $ctx.fmt ":4 i32.const " Fmt:write
-                &ctx.program.sizes $ret type-size @ret-size
-                $ctx.fmt $ret-size i32-format
+                $ctx.fmt $size i32-format
                 $ctx.fmt " memory.copy" Fmt:write
-                $offset $ret-size + #offset
+                $offset $size + #offset
             } }
             $i 1 + #i
             $i $returns.len = if { break }
@@ -1162,7 +1157,7 @@ fn determine-loads(arena: .Arena, ctx: .Ctx, fields: .Array<FieldAccess>, just-r
                             } else {
                                 $field.target-type $offset make TypeAtOffset make Load.OffsetLoad
                             } @load
-                            1 1 = #base-in-mem
+                            1 1 = @base-in-mem
                             $arena $ctx &tail $just-ref $base-in-mem determine-loads @rest
                             $arena $load &rest List:cons<Load> merge-loads break
                         }
@@ -1381,17 +1376,7 @@ fn generate-set(
             case _ -> { drop 0 0 / drop }
         }
         $target-lives-in-memory if {
-            $ctx.fmt &var-id match {
-                case Local -> { drop "local.get " }
-                case Global -> { drop "global.get " }
-            } Fmt:write
-            $ctx $locals &var-id generate-var-ident
-            $ctx generate-flip-i64-i32
-            // Because the value is being packed into an i64, the modified i64
-            // needs to be stored back, not the target-type.
-            $ctx I64-id generate-store
-            $ctx.fmt "\n" Fmt:write
-            break
+            0 0 / drop
         } else {
             $ctx.fmt &var-id match {
                 case Local -> { drop "local.set " }

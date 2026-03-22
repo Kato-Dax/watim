@@ -795,8 +795,8 @@ fn infer-matsh-type(ctx: .WordCtx, matsh: .P:Match) -> Result<CustomTypeHandle, 
                         } @handle
                         $ctx.type-lookup &handle TypeLookup:lookup match {
                             case Struct -> { drop $ctx $varint "expected variant" abort<Unit> break }
-                            case Variant -> { drop }
-                        }
+                            case Variant -> {}
+                        } @varint
                         &inferred match {
                             case None -> { $handle make Maybe<CustomTypeHandle>.Some #inferred }
                             case Some -> {
@@ -804,6 +804,10 @@ fn infer-matsh-type(ctx: .WordCtx, matsh: .P:Match) -> Result<CustomTypeHandle, 
                                     $ctx &matsh.token "constructors belong to different variants" abort<Unit> break
                                 }
                             }
+                        }
+                        $ctx $varint &cays.name lookup-constructor-in-variant match {
+                            case None -> { $ctx &cays.name "case not found" abort<Unit> break }
+                            case Some -> { drop }
                         }
                     }
                 }
@@ -875,6 +879,18 @@ struct VariantTypeWithTag {
     tag: i32
 }
 
+fn lookup-constructor-in-variant(ctx: .WordCtx, varint: .Variant, constructor: .Token) -> Maybe<i32> {
+    0 @tag
+    loop {
+        $tag $varint.cases.len = if { make Maybe<i32>.None break }
+        &varint.cases $tag Array:get<_> @cays
+        &cays.name Token-lexeme $constructor Token-lexeme Bytes:eq if {
+            $tag make Maybe<i32>.Some break
+        }
+        $tag 1 + #tag
+    }
+}
+
 fn lookup-constructor(ctx: .WordCtx, constructor: .Token) -> Result<VariantTypeWithTag, ResolveError> { block (-> Result<VariantTypeWithTag, ResolveError>) {
     0 @i
     loop {
@@ -936,17 +952,12 @@ fn lookup-constructor(ctx: .WordCtx, constructor: .Token) -> Result<VariantTypeW
         $ctx.type-lookup.types $i Array:get<_> match {
             case Variant -> {
                 @varint
-                0 @tag
-                loop {
-                    $tag $varint.cases.len = if { make Maybe<VariantTypeWithTag>.None break }
-                    &varint.cases $tag Array:get<_> @cays
-                    &cays.name Token-lexeme $constructor Token-lexeme Bytes:eq if {
-                        $ctx.module-id $i make CustomTypeHandle $tag make VariantTypeWithTag make Maybe<VariantTypeWithTag>.Some break
-                    }
-                    $tag 1 + #tag
-                } match {
+                $ctx $varint $constructor lookup-constructor-in-variant match {
                     case None -> {}
-                    case Some -> { make Result<VariantTypeWithTag, ResolveError>.Success break }
+                    case Some -> {
+                        $ctx.module-id $i make CustomTypeHandle flip make VariantTypeWithTag
+                        make Result<VariantTypeWithTag, ResolveError>.Success break
+                    }
                 }
             }
             case _ -> { drop }

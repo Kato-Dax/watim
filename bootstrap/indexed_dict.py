@@ -54,6 +54,13 @@ class IndexedDict[K, V]:
             self.inner[key] = ref
             self.pairs.append((key, ref))
 
+    def __delitem__(self, key: K):
+        index = self.inner[key].value[1]
+        for _, ref in self.pairs[index:]:
+            ref.value = (ref.value[0], ref.value[1] - 1)
+        del self.pairs[index]
+        del self.inner[key]
+
     def keys(self) -> Iterable[K]:
         return self.inner.keys()
 

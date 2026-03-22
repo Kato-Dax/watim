@@ -1,0 +1,16 @@
+[== Stdin Compiler ==]
+struct Foo {
+    a: i32
+}
+fn with-fields() {
+    uninit @foo $foo.a drop
+}
+[== Args Compiler ==]
+infer
+-
+with-fields
+--quiet
+[== Status Compiler ==]
+1
+[== Stderr Compiler ==]
+-:5:24 failed to infer type of void

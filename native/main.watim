@@ -549,6 +549,7 @@ fn run-project-wide-command(fs: .FileSystem, command: ProjectWideCommand) { bloc
             drop
             1 Fmt:to-fd @fmt
             &arena &fmt 1024 Fmt:buffered @buf @fmt
+            &monomized merge-locals
             &fmt &monomized Monomized-format
             &fmt "\n" Fmt:write
             $buf Fmt:flush

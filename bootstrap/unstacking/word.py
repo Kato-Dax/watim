@@ -1,7 +1,7 @@
 from typing import Tuple
 from dataclasses import dataclass
 
-from resolving.words import ScopeId, LocalId, GlobalId, NumberWord, InitLocal, StringWord, SizeofWord, BreakWord
+from resolving.words import ScopeId, LocalId, GlobalId, NumberWord, InitLocal, StringWord, SizeofWord, BreakWord, MatchVoidWord as MatchVoid
 from resolving import FunctionHandle, CustomTypeHandle
 import resolving.types as with_holes
 
@@ -39,7 +39,7 @@ class Scope(Formattable):
     def format(self, fmt: Formatter):
         fmt.unnamed_record("Scope", [self.id, format.Seq(self.words, multi_line=True)])
 
-type Word = 'InitLocal | RefLocal | GetLocal | NumberWord | Intrinsic | If | Match | Cast | Call | SetLocal | SetGlobal | StringWord | GetField | SizeofWord | Store | Load | MakeStructNamed | FieldInit | MakeVariant | Block | BreakWord | Loop | IndirectCall | MakeStruct | StoreLocal | FunRef'
+type Word = 'InitLocal | RefLocal | GetLocal | NumberWord | Intrinsic | If | Match | Cast | Call | SetLocal | SetGlobal | StringWord | GetField | SizeofWord | Store | Load | MakeStructNamed | FieldInit | MakeVariant | Block | BreakWord | Loop | IndirectCall | MakeStruct | StoreLocal | FunRef | MatchVoid'
 
 @dataclass(frozen=True)
 class GetLocal(Formattable):
@@ -272,7 +272,7 @@ class CommonIntrinsic(Formattable):
     token: Token
     taip: InferenceHole
     def format(self, fmt: Formatter):
-        fmt.unnamed_record(type(self).__name__, [self.token, self.taip])
+        fmt.unnamed_record("Intrinsic", [format.UnnamedRecord(type(self).__name__, [self.token, self.taip])])
 
 @dataclass(frozen=True)
 class Add(CommonIntrinsic):
@@ -357,8 +357,8 @@ class Rotr(CommonIntrinsic):
 @dataclass(frozen=True)
 class Flip(Formattable):
     token: Token
-    lower: InferenceHole | None
-    upper: InferenceHole | None
+    lower: InferenceHole
+    upper: InferenceHole
     def format(self, fmt: Formatter):
         fmt.unnamed_record("Flip", [self.token, self.lower, self.upper])
 
@@ -366,25 +366,25 @@ class Flip(Formattable):
 class MemGrow:
     token: Token
     def format(self, fmt: Formatter):
-        fmt.unnamed_record("MemGrow", [self.token])
+        fmt.unnamed_record("Intrinsic", [self.token, "MemGrow"])
 
 @dataclass(frozen=True)
 class SetStackSize:
     token: Token
     def format(self, fmt: Formatter):
-        fmt.unnamed_record("SetStackSize", [self.token])
+        fmt.unnamed_record("Intrinsic", [self.token, "SetStackSize"])
 
 @dataclass(frozen=True)
 class MemCopy:
     token: Token
     def format(self, fmt: Formatter):
-        fmt.unnamed_record("MemCopy", [self.token])
+        fmt.unnamed_record("Intrinsic", [self.token, "MemCopy"])
 
 @dataclass(frozen=True)
 class MemFill:
     token: Token
     def format(self, fmt: Formatter):
-        fmt.unnamed_record("MemFill", [self.token])
+        fmt.unnamed_record("Intrinsic", [self.token, "MemFill"])
 
 type Intrinsic = Add | Sub | Eq | NotEq | Drop | Uninit | Flip | MemGrow | Mul | Div | Mod | SetStackSize | Lt | Le | Ge | Gt | And | Or | Not | MemCopy | MemFill | Shl | Shr | Rotl | Rotr
 

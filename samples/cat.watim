@@ -24,6 +24,8 @@ fn main "_start" () {
     loop {
         $args.len $arg-index = if { break }
         &fs &args $arg-index Array:get<_> ~ ByteSlice:unpack
+
+        // Watim doesn't have literal booleans, 1 1 = and 0 1 = have to suffice.
         1 1 = 0 1 = FS:create-rights
         0 1 = 0 1 = FS:create-rights
         0 1 = FS:create-oflags

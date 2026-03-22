@@ -495,10 +495,10 @@ class Parser:
             if name is None or name.ty != TokenType.IDENT:
                 self.abort("Expected an identifier")
             next = self.peek()
-            generic_arguments = self.parse_generic_arguments(generic_parameters) if next is not None and next.ty == TokenType.LEFT_TRIANGLE else ()
+            generic_arguments = self.parse_generic_arguments(generic_parameters) if next is not None and next.ty == TokenType.LEFT_TRIANGLE else None
             return ForeignCallWord(module, name, generic_arguments)
         name = token
-        generic_arguments = self.parse_generic_arguments(generic_parameters) if next is not None and next.ty == TokenType.LEFT_TRIANGLE else ()
+        generic_arguments = self.parse_generic_arguments(generic_parameters) if next is not None and next.ty == TokenType.LEFT_TRIANGLE else None
         return CallWord(name, generic_arguments)
 
     def parse_field_accesses(self) -> Tuple[Token, ...]:
@@ -597,6 +597,15 @@ class Parser:
         next = self.peek(skip_ws=False)
         return self.parse_triangle_listed(lambda self: self.parse_type(generic_parameters)) if next is not None and next.ty == TokenType.LEFT_TRIANGLE else ()
 
+
+    def parse_optional_generic_arguments(self, generic_parameters: Tuple[Token, ...]) -> Tuple[Type, ...] | None:
+        next = self.peek(skip_ws=False)
+        if next is None:
+            return None
+        if next.ty != TokenType.LEFT_TRIANGLE:
+            return None
+        return self.parse_generic_arguments(generic_parameters)
+
     def parse_generic_parameters(self) -> Tuple[Token, ...]:
         def parse_ident(self):
             token = self.advance(skip_ws=True)
@@ -616,12 +625,12 @@ class Parser:
             struct_name = self.advance(skip_ws=True)
             if struct_name is None or struct_name.ty != TokenType.IDENT:
                 self.abort("Expected an identifier as struct name")
-            return ForeignType(module, struct_name, self.parse_generic_arguments(generic_parameters))
+            return ForeignType(module, struct_name, self.parse_optional_generic_arguments(generic_parameters))
         else:
             struct_name = token
             if struct_name is None or struct_name.ty != TokenType.IDENT:
                 self.abort("Expected an identifier as struct name")
-            return CustomTypeType(struct_name, self.parse_generic_arguments(generic_parameters))
+            return CustomTypeType(struct_name, self.parse_optional_generic_arguments(generic_parameters))
 
     def parse_type(self, generic_parameters: Tuple[Token, ...]) -> Type:
         token = self.advance(skip_ws=True)

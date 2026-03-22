@@ -82,7 +82,7 @@ check
           returns=[]),
         locals=(Map),
         body=(Scope 0 [
-          (StructWordNamed
+          (MakeStructNamed
             token=(MAKE make 13 5),
             type=(CustomType 0 0 [I32]),
             body=(Scope 1 [])),

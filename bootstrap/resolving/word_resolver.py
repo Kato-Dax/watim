@@ -10,9 +10,10 @@ from resolving.words import Word, IntrinsicWord, FunctionHandle, GlobalId
 from resolving.module import Module, ResolveException
 import resolving.words as resolved
 from resolving.intrinsics import INTRINSICS
-from resolving.types import with_generics
+import resolving.type_without_holes as without_holes
+import resolving.types as with_holes
 from resolving.type_resolver import TypeResolver, TypeLookup
-from resolving.top_items import Import, Local, SyntheticName, FromSource, CustomTypeHandle, Variant, Struct, Global, LocalId, FunctionSignature, VariantImport
+from resolving.top_items import Import, Local, SyntheticName, FromSource, CustomTypeHandle, Variant, Struct, Global, LocalId, FunctionSignature, VariantImport, Signature
 from resolving.env import Env
 
 @dataclass
@@ -41,6 +42,7 @@ class WordResolver:
     env: Env
     static_data: bytearray
     struct_literal_env: StructLiteralEnv | None = None
+    is_in_block: bool = False
 
     def abort(self, token: Token, message: str) -> NoReturn:
         raise ResolveException(self.module_path, token, message)
@@ -60,12 +62,29 @@ class WordResolver:
         self.struct_literal_env = None
         return self
 
+    def with_in_block(self) -> 'WordResolver':
+        self = copy.copy(self)
+        self.is_in_block = True
+        return self
+
     def allocate_static_data(self, data: bytes) -> int:
         offset = self.static_data.find(data)
         if offset == -1:
             offset = len(self.static_data)
             self.static_data.extend(data)
         return offset
+
+    def forbid_holes(self, taip: with_holes.Type) -> without_holes.Type:
+        without = without_holes.without_holes(taip)
+        if isinstance(without, Token):
+            self.abort(without, "hole not allowed here")
+        return without
+
+    def lookup_signature(self, handle: FunctionHandle) -> Signature:
+        if handle.module == self.module_id:
+            return self.signatures.index(handle.index)
+        else:
+            return self.modules.index(handle.module).functions.index(handle.index).signature
 
     def resolve_words(self, words: Sequence[parsing.Word]) -> Tuple[Word, ...]:
         return tuple(resolved_word for word in words for resolved_word in self.resolve_word(word))
@@ -78,6 +97,8 @@ class WordResolver:
                 offset = self.allocate_static_data(bytes(word.data))
                 return resolved.StringWord(word.token, offset, len(word.data)),
             case parsing.BreakWord():
+                if not self.is_in_block:
+                    self.abort(word.token, "`break` can only be used inside of blocks and loops")
                 return word,
             case parsing.CallWord():
                 call = self.resolve_call(word)
@@ -86,7 +107,7 @@ class WordResolver:
                         return IntrinsicWord(
                                 word.ident,
                                 INTRINSICS[word.ident.lexeme],
-                                self.type_resolver.resolve_types(word.generic_arguments)),
+                                self.type_resolver.resolve_types(word.generic_arguments) if word.generic_arguments is not None else ()),
                     self.abort(word.ident, f"function `{word.ident.lexeme}` not found")
                 return call,
             case parsing.ForeignCallWord():
@@ -106,7 +127,7 @@ class WordResolver:
             case parsing.LoadWord():
                 return word,
             case parsing.SizeofWord():
-                return resolved.SizeofWord(word.token, self.type_resolver.resolve_type(word.taip)),
+                return resolved.SizeofWord(word.token, self.forbid_holes(self.type_resolver.resolve_type(word.taip))),
             case parsing.VariantWord():
                 return self.resolve_make_variant(word),
             case parsing.IndirectCallWord():
@@ -137,13 +158,15 @@ class WordResolver:
                     self.resolve_scope(word.true_words.words),
                     self.resolve_scope(word.false_words.words if word.false_words is not None else ())),
             case parsing.LoopWord():
-                return resolved.LoopWord(word.token, self.resolve_scope(word.words.words), self.resolve_block_annotation(word.annotation)),
+                ctx = self.with_in_block()
+                return resolved.LoopWord(word.token, ctx.resolve_scope(word.words.words), ctx.resolve_block_annotation(word.annotation)),
             case parsing.BlockWord():
+                ctx = self.with_in_block()
                 return resolved.BlockWord(
                     word.token,
                     word.words.end,
-                    self.resolve_scope(word.words.words),
-                    self.resolve_block_annotation(word.annotation)),
+                    ctx.resolve_scope(word.words.words),
+                    ctx.resolve_block_annotation(word.annotation)),
 
     def resolve_inline_ref_word(self, word: parsing.InlineRefWord) -> Sequence[resolved.Word]:
         local = Local(SyntheticName(word.token, "synth:ref"), None)
@@ -161,14 +184,24 @@ class WordResolver:
                             return resolved.CallWord(
                                 word.ident,
                                 item.handle,
-                                self.type_resolver.resolve_types(word.generic_arguments))
+                                self.type_resolver.resolve_types(word.generic_arguments) if word.generic_arguments is not None else None)
             return None
 
         function_handle = FunctionHandle(self.module_id, self.signatures.index_of(word.ident.lexeme))
+        signature = self.lookup_signature(function_handle)
+        generic_arguments = self.resolve_generic_arguments(word.ident, word.generic_arguments, len(signature.generic_parameters))
         return resolved.CallWord(
             word.ident,
             function_handle,
-            self.type_resolver.resolve_types(word.generic_arguments))
+            generic_arguments)
+
+    def resolve_generic_arguments(self, token: Token, generic_arguments: Tuple[parsing.Type, ...] | None, expected: int) -> Tuple[resolved.Type, ...] | None:
+        if generic_arguments is None:
+            return None
+        args = self.type_resolver.resolve_types(generic_arguments)
+        if len(args) != expected:
+            self.abort(token, "resolve-generic-arguments TODO")
+        return args
 
     def resolve_foreign_call(self, word: parsing.ForeignCallWord) -> resolved.CallWord:
         if word.module.lexeme not in self.imports:
@@ -177,7 +210,7 @@ class WordResolver:
             module = self.modules.index(imp.module)
             item = module.lookup_item(word.ident)
             if isinstance(item, FunctionHandle):
-                return resolved.CallWord(word.ident, item, self.type_resolver.resolve_types(word.generic_arguments))
+                return resolved.CallWord(word.ident, item, self.type_resolver.resolve_types(word.generic_arguments) if word.generic_arguments is not None else None)
         self.abort(word.ident, f"function `{word.ident.lexeme}` not found")
 
     def lookup_variable(self, name: Token) -> LocalId | GlobalId:
@@ -300,11 +333,12 @@ class WordResolver:
                             if variant.cases[constructor].name.lexeme == name.lexeme:
                                 return item.handle, constructor
                     pass
-        for index, type_definition in enumerate(self.type_lookup.type_definitions.values()):
-            if not isinstance(type_definition, Struct):
-                for tag, case in enumerate(type_definition.cases):
-                    if case.name.lexeme == name.lexeme:
-                        return CustomTypeHandle(self.module_id, index), tag
+        if self.type_lookup.type_definitions is not None:
+            for index, type_definition in enumerate(self.type_lookup.type_definitions.values()):
+                if not isinstance(type_definition, Struct):
+                    for tag, case in enumerate(type_definition.cases):
+                        if case.name.lexeme == name.lexeme:
+                            return CustomTypeHandle(self.module_id, index), tag
         self.abort(name, f"constructor {name.lexeme} not found")
 
     def resolve_match_case(self, variant: Variant, cays: parsing.MatchCase) -> resolved.MatchCase:
@@ -320,13 +354,13 @@ class WordResolver:
         taip = self.type_resolver.resolve_custom_type(word.taip)
         struct = self.type_lookup.lookup(taip.type_definition)
         if isinstance(struct, Variant):
-            self.abort(taip.name, "expected struct")
+            self.abort(word.name, "expected struct")
         struct_literal_env = StructLiteralEnv.of_struct(struct, taip.type_definition)
         words = self.with_struct_literal_env(struct_literal_env).resolve_scope(word.words, keep_struct_literal_env=True)
         if len(struct_literal_env.remaining_fields) != 0:
             error_message = "missing fields in struct literal:"
             for field_name,field_index in struct_literal_env.remaining_fields.items():
-                field_taip = with_generics(struct.fields[field_index].taip, taip.generic_arguments)
+                field_taip = with_holes.with_generics(without_holes.with_holes(struct.fields[field_index].taip), taip.generic_arguments)
                 error_message += f"\n\t{field_name}: {self.type_lookup.type_pretty(field_taip)}"
             self.abort(word.token, error_message)
         return resolved.StructWordNamed(

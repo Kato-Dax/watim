@@ -1,0 +1,39 @@
+[== Stdin Compiler ==]
+fn main() -> i32 {
+    uninit 0 1 = if {
+        0 *
+    } else {
+        drop 3
+    }
+}
+[== Args Compiler ==]
+infer
+-
+main
+--quiet
+[== Status Compiler ==]
+0
+[== Stdout Compiler ==]
+(Function
+  name=(IDENT main 1 4),
+  export=None,
+  signature=(Signature
+    generic-parameters=[],
+    parameters=[],
+    returns=[I32]),
+  locals=(Map),
+  body=(Scope 0 [
+    (Intrinsic (IDENT uninit 2 5) (Uninit I32)),
+    (Number (NUMBER 0 2 12)),
+    (Number (NUMBER 1 2 14)),
+    (Intrinsic (IDENT = 2 16) (Eq I32)),
+    (If
+      token=(IF if 2 18),
+      parameters=[I32],
+      returns=(Some [I32]),
+      true-branch=(Scope 1 [
+        (Number (NUMBER 0 3 9)),
+        (Intrinsic (IDENT * 3 11) (Mul I32))]),
+      false-branch=(Scope 2 [
+        (Intrinsic (IDENT drop 5 9) (Drop I32)),
+        (Number (NUMBER 3 5 14))]))]))

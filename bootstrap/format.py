@@ -51,9 +51,10 @@ class Formatter:
             self.write(" ", field)
         self.write(")")
 
-    def named_record(self, name: str, fields: List[Tuple[str, Writable]]):
+    def named_record(self, name: str, fields: List[Tuple[str, Writable]]) -> None:
         if len(fields) == 0:
-            return self.write("(", name, ")")
+            self.write("(", name, ")")
+            return
         self.write("(", name, "\n")
         self.indent()
         for i,(name,value) in enumerate(fields):

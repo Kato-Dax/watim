@@ -1,4 +1,4 @@
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Set, Literal, Callable
 from dataclasses import dataclass
 
 import format
@@ -6,7 +6,7 @@ from format import Formattable, Formatter
 
 from lexer import Token
 from resolving.words import FunctionHandle, Scope, LocalId
-from resolving.types import CustomTypeHandle, Type, NamedType
+from resolving.types import CustomTypeHandle, NamedType
 import resolving.type_without_holes as without_holes
 
 type TopItem = Import | Struct | Variant | Extern | Function
@@ -58,7 +58,7 @@ class Import(Formattable):
 class Struct(Formattable):
     name: Token
     generic_parameters: Tuple[Token, ...]
-    fields: Tuple[NamedType, ...]
+    fields: Tuple[without_holes.NamedType, ...]
     def format(self, fmt: Formatter):
         fmt.named_record("Struct", [
             ("name", self.name),
@@ -68,7 +68,7 @@ class Struct(Formattable):
 @dataclass
 class VariantCase(Formattable):
     name: Token
-    taip: Type | None
+    taip: without_holes.Type | None
     def format(self, fmt: Formatter):
         fmt.unnamed_record("VariantCase", [self.name, format.Optional(self.taip)])
 
@@ -83,31 +83,65 @@ class Variant(Formattable):
             ("generic-parameters", format.Seq(self.generic_parameters)),
             ("cases", format.Seq(self.cases, multi_line=True))])
 
+@dataclass(frozen=True)
+class MustBeOneOf:
+    generic: int
+    allowed: Set[without_holes.Type | Literal["AnyPtr"]]
+    def format(self, fmt: Formatter):
+        return fmt.unnamed_record("MustBeOneOf", [self.generic, format.Seq(self.allowed)])
+
+@dataclass(frozen=True)
+class MustSatisfyPredicate(Formattable):
+    name: str
+    description: str
+    predicate: Callable[[Tuple[without_holes.Type | None, ...]], str | None]
+    def format(self, fmt: Formatter):
+        return fmt.unnamed_record("MustSatisfyPredicate", [self.name])
+
+type ConstraintOnGeneric = MustBeOneOf | MustSatisfyPredicate
+
 @dataclass
 class FunctionSignature(Formattable):
     generic_parameters: Tuple[Token, ...]
     parameters: Tuple[without_holes.NamedType, ...]
     returns: Tuple[without_holes.Type, ...]
+    constraints: Tuple[ConstraintOnGeneric, ...] = ()
     def format(self, fmt: Formatter):
         fmt.named_record("Signature", [
             ("generic-parameters", format.Seq(self.generic_parameters)),
             ("parameters", format.Seq(self.parameters)),
             ("returns", format.Seq(self.returns))])
 
+
+@dataclass
+class IntrinsicSignature(Formattable):
+    generic_parameters: Tuple[str, ...]
+    parameters: Tuple[without_holes.Type, ...]
+    returns: Tuple[without_holes.Type, ...]
+    constraints: Tuple[ConstraintOnGeneric, ...] = ()
+    def format(self, fmt: Formatter):
+        fmt.named_record("IntrinsicSignature", [
+            ("generic-parameters", format.Seq(map(format.Str, self.generic_parameters))),
+            ("parameters", format.Seq(self.parameters)),
+            ("returns", format.Seq(self.returns)),
+            ("constraints", format.Seq(self.constraints))])
+
+type Signature = FunctionSignature | IntrinsicSignature
+
 @dataclass
 class Global(Formattable):
     name: Token
     taip: without_holes.Type
-    was_reffed: bool = False
+    reffed: bool = False
     def format(self, fmt: Formatter):
-        fmt.unnamed_record("Global", [self.name, self.taip, self.was_reffed])
+        fmt.unnamed_record("Global", [self.name, self.taip, self.reffed])
 
 @dataclass(frozen=True, eq=True)
 class SyntheticName(Formattable):
     _token: Token
     name: str
     def format(self, fmt: Formatter):
-        fmt.unnamed_record("SyntheticName", [self._token, self.name])
+        fmt.unnamed_record("SyntheticName", [self._token, format.Str(self.name)])
 
     def get(self) -> str:
         return self.name

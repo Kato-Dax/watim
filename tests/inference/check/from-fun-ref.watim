@@ -1,0 +1,25 @@
+[== Stdin Compiler ==]
+fn foo<T>(x: i32, y: T) -> bool {
+    0 1 =
+}
+fn main() -> (i32, i64 -> bool) {
+    \foo
+}
+[== Args Compiler ==]
+infer
+-
+main
+--quiet
+[== Status Compiler ==]
+0
+[== Stdout Compiler ==]
+(Function
+  name=(IDENT main 4 4),
+  export=None,
+  signature=(Signature
+    generic-parameters=[],
+    parameters=[],
+    returns=[(FunType (LEFT_PAREN ( 4 14) [I32, I64] [Bool])]),
+  locals=(Map),
+  body=(Scope 0 [
+    (FunRef (Call (IDENT foo 5 6) (FunctionHandle 0 0) [I64]))]))

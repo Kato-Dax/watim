@@ -1,0 +1,29 @@
+[== Stdin Compiler ==]
+struct Foo {
+    a: bool
+    b: i32
+}
+
+fn with-fields(foo: Foo) -> i32 {
+    $foo.b
+}
+[== Args Compiler ==]
+infer
+-
+with-fields
+--quiet
+[== Status Compiler ==]
+0
+[== Stdout Compiler ==]
+(Function
+  name=(IDENT with-fields 6 4),
+  export=None,
+  signature=(Signature
+    generic-parameters=[],
+    parameters=[(NamedType (IDENT foo 6 16) (CustomType 0 0 []))],
+    returns=[I32]),
+  locals=(Map
+    (LocalId "foo" 0 0)=(Local (IDENT foo 6 16) (CustomType 0 0 []) True)),
+  body=(Scope 0 [
+    (GetLocal (IDENT foo 7 6) (LocalId "foo" 0 0) (CustomType 0 0 []) I32 [
+      (FieldAccess (IDENT b 7 10) (CustomType 0 0 []) I32 1)])]))

@@ -1,0 +1,32 @@
+[== Stdin Compiler ==]
+fn without-fields(foo: i32) {
+    $foo drop
+
+    3 @bar
+    $bar drop
+}
+[== Args Compiler ==]
+infer
+-
+without-fields
+--quiet
+[== Status Compiler ==]
+0
+[== Stdout Compiler ==]
+(Function
+  name=(IDENT without-fields 1 4),
+  export=None,
+  signature=(Signature
+    generic-parameters=[],
+    parameters=[(NamedType (IDENT foo 1 19) I32)],
+    returns=[]),
+  locals=(Map
+    (LocalId "foo" 0 0)=(Local (IDENT foo 1 19) I32 True),
+    (LocalId "bar" 0 0)=(Local (IDENT bar 4 8) I32 False)),
+  body=(Scope 0 [
+    (GetLocal (IDENT foo 2 6) (LocalId "foo" 0 0) I32 I32 []),
+    (Intrinsic (IDENT drop 2 10) (Drop I32)),
+    (Number (NUMBER 3 4 5)),
+    (InitLocal (IDENT bar 4 8) I32 (LocalId "bar" 0 0)),
+    (GetLocal (IDENT bar 5 6) (LocalId "bar" 0 0) I32 I32 []),
+    (Intrinsic (IDENT drop 5 10) (Drop I32))]))

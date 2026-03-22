@@ -42,7 +42,7 @@ fn new-with-capacity<T>(arena: .A:Arena, elems: i32) -> Array<T> {
 fn ensure-capacity<T>(arena: .A:Arena, self: .Array<T>, cap: i32) {
     $self.cap $cap lt if {
         $arena $cap A:alloc-many<T> @ptr
-        $self.ptr $ptr $cap CORE:copy<T>
+        $self.ptr $ptr $self.cap CORE:copy<T>
         $ptr #self.ptr
         $cap #self.cap
     }
