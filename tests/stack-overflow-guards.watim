@@ -66,44 +66,4 @@ compile
 )
 [== Status ==]
 134
-[== Stderr ==]
-Error: failed to run main module `./out.wat`
 
-Caused by:
-    0: failed to invoke command default
-    1: error while executing at wasm backtrace:
-           0:    0x10c - <unknown>!stack-overflow-guar:d
-           1:     0xca - <unknown>!0:main
-           2:     0xe5 - <unknown>!0:main
-           3:     0xe5 - <unknown>!0:main
-           4:     0xe5 - <unknown>!0:main
-           5:     0xe5 - <unknown>!0:main
-           6:     0xe5 - <unknown>!0:main
-           7:     0xe5 - <unknown>!0:main
-           8:     0xe5 - <unknown>!0:main
-           9:     0xe5 - <unknown>!0:main
-          10:     0xe5 - <unknown>!0:main
-          11:     0xe5 - <unknown>!0:main
-          12:     0xe5 - <unknown>!0:main
-          13:     0xe5 - <unknown>!0:main
-          14:     0xe5 - <unknown>!0:main
-          15:     0xe5 - <unknown>!0:main
-          16:     0xe5 - <unknown>!0:main
-          17:     0xe5 - <unknown>!0:main
-          18:     0xe5 - <unknown>!0:main
-          19:     0xe5 - <unknown>!0:main
-          20:     0xe5 - <unknown>!0:main
-          21:     0xe5 - <unknown>!0:main
-          22:     0xe5 - <unknown>!0:main
-          23:     0xe5 - <unknown>!0:main
-          24:     0xe5 - <unknown>!0:main
-          25:     0xe5 - <unknown>!0:main
-          26:     0xe5 - <unknown>!0:main
-          27:     0xe5 - <unknown>!0:main
-          28:     0xe5 - <unknown>!0:main
-          29:     0xe5 - <unknown>!0:main
-          30:     0xe5 - <unknown>!0:main
-          31:     0xe5 - <unknown>!0:main
-          32:     0xe5 - <unknown>!0:main
-          33:     0xa7 - <unknown>!0:start
-    2: wasm trap: integer divide by zero
