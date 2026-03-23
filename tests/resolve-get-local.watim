@@ -9,7 +9,7 @@ fn foo(f: Foo) -> i32 {
     $f.a.x
 }
 [== Args Compiler ==]
-check
+resolve
 -
 --quiet
 [== Status Compiler ==]
@@ -18,20 +18,20 @@ check
 (Map
   "-"=(Module
     imports=(Map),
-    type-definitions=[
-      (Struct
+    type-definitions=(Map
+      "Foo"=(Struct
         name=(IDENT Foo 1 8),
         generic-parameters=[],
         fields=[
           (NamedType (IDENT a 2 5) (Ptr (CustomType 0 1 [])))]),
-      (Struct
+      "Bar"=(Struct
         name=(IDENT Bar 4 8),
         generic-parameters=[],
         fields=[
-          (NamedType (IDENT x 5 5) I32)])],
-    globals=[],
-    functions=[
-      (Function
+          (NamedType (IDENT x 5 5) I32)])),
+    globals=(Map),
+    functions=(Map
+      "foo"=(Function
         name=(IDENT foo 7 4),
         export=None,
         signature=(Signature
@@ -39,8 +39,9 @@ check
           parameters=[(NamedType (IDENT f 7 8) (CustomType 0 0 []))],
           returns=[I32]),
         locals=(Map
-          (LocalId "f" 0 0)=(Local (IDENT f 7 8) (CustomType 0 0 []) True)),
+          (LocalId "f" 0 0)=(Local (IDENT f 7 8) (Some (CustomType 0 0 [])))),
         body=(Scope 0 [
-          (GetLocal (IDENT f 8 6) (LocalId "f" 0 0) (CustomType 0 0 []) I32 [
-            (FieldAccess (IDENT a 8 8) (CustomType 0 0 []) (Ptr (CustomType 0 1 [])) 0),
-            (FieldAccess (IDENT x 8 10) (Ptr (CustomType 0 1 [])) I32 0)])]))]))
+          (GetLocal (IDENT f 8 6) (LocalId "f" 0 0) [
+            (IDENT a 8 8),
+            (IDENT x 8 10)])]))),
+    static-data=""))

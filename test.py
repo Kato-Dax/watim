@@ -67,9 +67,6 @@ def run_bootstrap_compiler(args: List[str] | None, stdin: str) -> CompilerOutput
     except bootstrap_compiler.ResolveException as e:
         stderr = e.display()
         status = 1
-    except bootstrap_compiler.CheckException as e:
-        stderr = e.display()
-        status = 1
     except bootstrap_compiler.InferenceException as e:
         stderr = e.display()
         status = 1

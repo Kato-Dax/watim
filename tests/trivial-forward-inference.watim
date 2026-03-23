@@ -4,36 +4,21 @@ fn foo() {
     0 dup<_>
 }
 [== Args Compiler ==]
-check
+infer
 -
+foo
 --quiet
 [== Status Compiler ==]
 0
 [== Stdout Compiler ==]
-(Map
-  "-"=(Module
-    imports=(Map),
-    type-definitions=[],
-    globals=[],
-    functions=[
-      (Function
-        name=(IDENT dup 1 4),
-        export=None,
-        signature=(Signature
-          generic-parameters=[(IDENT T 1 8)],
-          parameters=[(NamedType (IDENT a 1 11) (GenericType (IDENT T 1 14) 0))],
-          returns=[]),
-        locals=(Map
-          (LocalId "a" 0 0)=(Local (IDENT a 1 11) (GenericType (IDENT T 1 14) 0) True)),
-        body=(Scope 0 [])),
-      (Function
-        name=(IDENT foo 2 4),
-        export=None,
-        signature=(Signature
-          generic-parameters=[],
-          parameters=[],
-          returns=[]),
-        locals=(Map),
-        body=(Scope 0 [
-          (Number (NUMBER 0 3 5)),
-          (Call (IDENT dup 3 7) (FunctionHandle 0 0) [I32])]))]))
+(Function
+  name=(IDENT foo 2 4),
+  export=None,
+  signature=(Signature
+    generic-parameters=[],
+    parameters=[],
+    returns=[]),
+  locals=(Map),
+  body=(Scope 0 [
+    (Number (NUMBER 0 3 5)),
+    (Call (IDENT dup 3 7) (FunctionHandle 0 0) [I32])]))

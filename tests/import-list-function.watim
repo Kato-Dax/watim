@@ -5,7 +5,7 @@ fn main "_start" () {
     0 function-b drop
 }
 [== Args Compiler ==]
-check
+resolve
 -
 --quiet
 [== Status Compiler ==]
@@ -14,10 +14,10 @@ check
 (Map
   "./function.watim"=(Module
     imports=(Map),
-    type-definitions=[],
-    globals=[],
-    functions=[
-      (Function
+    type-definitions=(Map),
+    globals=(Map),
+    functions=(Map
+      "function-a"=(Function
         name=(IDENT function-a 1 4),
         export=None,
         signature=(Signature
@@ -25,12 +25,12 @@ check
           parameters=[(NamedType (IDENT a 1 15) I32)],
           returns=[Bool]),
         locals=(Map
-          (LocalId "a" 0 0)=(Local (IDENT a 1 15) I32 True)),
+          (LocalId "a" 0 0)=(Local (IDENT a 1 15) (Some I32))),
         body=(Scope 0 [
-          (GetLocal (IDENT a 2 6) (LocalId "a" 0 0) I32 I32 []),
+          (GetLocal (IDENT a 2 6) (LocalId "a" 0 0) []),
           (Number (NUMBER 0 2 8)),
-          (Intrinsic (IDENT = 2 10) (Eq I32))])),
-      (Function
+          (Intrinsic (IDENT = 2 10) Eq [])])),
+      "function-b"=(Function
         name=(IDENT function-b 4 4),
         export=None,
         signature=(Signature
@@ -38,19 +38,20 @@ check
           parameters=[(NamedType (IDENT b 4 15) I32)],
           returns=[Bool]),
         locals=(Map
-          (LocalId "b" 0 0)=(Local (IDENT b 4 15) I32 True)),
+          (LocalId "b" 0 0)=(Local (IDENT b 4 15) (Some I32))),
         body=(Scope 0 [
-          (GetLocal (IDENT b 5 6) (LocalId "b" 0 0) I32 I32 []),
+          (GetLocal (IDENT b 5 6) (LocalId "b" 0 0) []),
           (Number (NUMBER 0 5 8)),
-          (Intrinsic (IDENT = 5 10) (Eq I32))]))]),
+          (Intrinsic (IDENT = 5 10) Eq [])]))),
+    static-data=""),
   "-"=(Module
     imports=(Map
       "F"=[(Import (IMPORT import 1 1) 0 "./function.watim" (IDENT F 1 30) [
         (FunctionImport (IDENT function-b 1 33) (FunctionHandle 0 1))])]),
-    type-definitions=[],
-    globals=[],
-    functions=[
-      (Function
+    type-definitions=(Map),
+    globals=(Map),
+    functions=(Map
+      "main"=(Function
         name=(IDENT main 3 4),
         export=(Some (STRING "_start" 3 9)),
         signature=(Signature
@@ -60,5 +61,6 @@ check
         locals=(Map),
         body=(Scope 0 [
           (Number (NUMBER 0 4 5)),
-          (Call (IDENT function-b 4 7) (FunctionHandle 0 1) []),
-          (Intrinsic (IDENT drop 4 18) (Drop Bool))]))]))
+          (Call (IDENT function-b 4 7) (FunctionHandle 0 1) None),
+          (Intrinsic (IDENT drop 4 18) Drop [])]))),
+    static-data=""))

@@ -9,7 +9,7 @@ variant Baz {
 	case Foo -> Bar
 }
 [== Args Compiler ==]
-check
+resolve
 -
 --quiet
 [== Status Compiler ==]
@@ -18,22 +18,23 @@ check
 (Map
   "-"=(Module
     imports=(Map),
-    type-definitions=[
-      (Struct
+    type-definitions=(Map
+      "Foo"=(Struct
         name=(IDENT Foo 1 8),
         generic-parameters=[],
         fields=[]),
-      (Struct
+      "Bar"=(Struct
         name=(IDENT Bar 2 8),
         generic-parameters=[],
         fields=[
           (NamedType (IDENT foo 3 2) (CustomType 0 0 [])),
           (NamedType (IDENT baz 4 2) (Ptr (CustomType 0 2 []))),
           (NamedType (IDENT fun 5 2) (FunType (LEFT_PAREN ( 5 7) [I32, (CustomType 0 0 [])] [(Ptr (CustomType 0 2 []))]))]),
-      (Variant
+      "Baz"=(Variant
         name=(IDENT Baz 7 9),
         generic-parameters=[],
         cases=[
-          (VariantCase (IDENT Foo 8 7) (Some (CustomType 0 1 [])))])],
-    globals=[],
-    functions=[]))
+          (VariantCase (IDENT Foo 8 7) (Some (CustomType 0 1 [])))])),
+    globals=(Map),
+    functions=(Map),
+    static-data=""))

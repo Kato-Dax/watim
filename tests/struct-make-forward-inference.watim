@@ -5,36 +5,25 @@ fn foo() {
     0 1 make Two<_> drop
 }
 [== Args Compiler ==]
-check
+infer
 -
+foo
 --quiet
 [== Status Compiler ==]
 0
 [== Stdout Compiler ==]
-(Map
-  "-"=(Module
-    imports=(Map),
-    type-definitions=[
-      (Struct
-        name=(IDENT Two 1 8),
-        generic-parameters=[(IDENT T 1 12)],
-        fields=[
-          (NamedType (IDENT a 1 17) (GenericType (IDENT T 1 20) 0)),
-          (NamedType (IDENT b 1 22) (GenericType (IDENT T 1 25) 0))])],
-    globals=[],
-    functions=[
-      (Function
-        name=(IDENT foo 3 4),
-        export=None,
-        signature=(Signature
-          generic-parameters=[],
-          parameters=[],
-          returns=[]),
-        locals=(Map),
-        body=(Scope 0 [
-          (Number (NUMBER 0 4 5)),
-          (Number (NUMBER 1 4 7)),
-          (MakeStruct
-            token=(MAKE make 4 9),
-            type=(CustomType 0 0 [I32])),
-          (Intrinsic (IDENT drop 4 21) (Drop (CustomType 0 0 [I32])))]))]))
+(Function
+  name=(IDENT foo 3 4),
+  export=None,
+  signature=(Signature
+    generic-parameters=[],
+    parameters=[],
+    returns=[]),
+  locals=(Map),
+  body=(Scope 0 [
+    (Number (NUMBER 0 4 5)),
+    (Number (NUMBER 1 4 7)),
+    (MakeStruct
+      token=(MAKE make 4 9),
+      type=(CustomType 0 0 [I32])),
+    (Intrinsic (IDENT drop 4 21) (Drop (CustomType 0 0 [I32])))]))

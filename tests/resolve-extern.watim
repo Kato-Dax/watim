@@ -2,7 +2,7 @@
 struct Foo {}
 extern "abc" "def" fn ext(foo: Foo) -> Foo
 [== Args Compiler ==]
-check
+resolve
 -
 --quiet
 [== Status Compiler ==]
@@ -11,14 +11,15 @@ check
 (Map
   "-"=(Module
     imports=(Map),
-    type-definitions=[
-      (Struct
+    type-definitions=(Map
+      "Foo"=(Struct
         name=(IDENT Foo 1 8),
         generic-parameters=[],
-        fields=[])],
-    globals=[],
-    functions=[
-      (Extern (IDENT ext 2 23) "abc" "def" (Signature
+        fields=[])),
+    globals=(Map),
+    functions=(Map
+      "ext"=(Extern (IDENT ext 2 23) "abc" "def" (Signature
         generic-parameters=[],
         parameters=[(NamedType (IDENT foo 2 27) (CustomType 0 0 []))],
-        returns=[(CustomType 0 0 [])]))]))
+        returns=[(CustomType 0 0 [])]))),
+    static-data=""))

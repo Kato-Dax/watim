@@ -210,6 +210,11 @@ class MakeStructNamed(Formattable):
     token: Token
     taip: CustomTypeType
     scope: Scope
+    def format(self, fmt: Formatter):
+        fmt.named_record("MakeStructNamed", [
+            ("token", self.token),
+            ("type", self.taip),
+            ("body", self.scope)])
 
 @dataclass(frozen=True)
 class IndirectCall(Formattable):
