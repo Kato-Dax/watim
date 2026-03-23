@@ -897,6 +897,8 @@ class Ctx:
                 inferred = self.infer_signature_application(node.token, node.generic_arguments, node.arguments, signature, return_index)
                 if inferred is None:
                     return None
+                if self.states[source] == "BeingInferred":
+                    del self.states[source]
                 self.check(source, inferred)
                 return inferred
             case FromIfEntry():
