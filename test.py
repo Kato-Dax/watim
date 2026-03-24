@@ -112,6 +112,11 @@ if len(sys.argv) > 2 and sys.argv[1] == "accept":
 
 tests = []
 
+compare_stderr = True
+if "--ignore-stderr" in sys.argv:
+    compare_stderr = False
+    sys.argv.remove("--ignore-stderr")
+
 if len(sys.argv) > 2 and sys.argv[1] == "--native":
     tests = glob.glob(sys.argv[2])
 elif len(sys.argv) == 2 and sys.argv[1] == "--native":
@@ -164,7 +169,7 @@ for path in tests:
         print(f"Actual:\n{compiler.returncode}", file=sys.stderr)
         print(f"compiler-stderr was: {compiler.stderr}", file=sys.stderr)
         continue
-    if test['compiler-stderr'] is not None and compiler.stderr != test['compiler-stderr'].strip():
+    if compare_stderr and test['compiler-stderr'] is not None and compiler.stderr != test['compiler-stderr'].strip():
         print(f"{path}: expected different compiler stderr:", file=sys.stderr)
         print_mismatch(test['compiler-stderr'], compiler.stderr)
         continue
