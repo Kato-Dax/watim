@@ -122,7 +122,6 @@ class InferenceException(Exception):
         return f"{self.path}:{line}:{column} {self.message}"
 
 def infer_function(path: str, modules: Tuple[resolved.Module, ...], globals: Tuple[resolved.Global, ...], function: unstacked.Function) -> Function:
-    print(path, function.name.lexeme, file=sys.stderr)
     ctx = Ctx(
             path=path,
             modules=modules,

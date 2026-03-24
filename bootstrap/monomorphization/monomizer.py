@@ -537,7 +537,6 @@ class Ctx:
         return slot, index
 
     def monomize_function(self, function: inferred.Function, generic_arguments: Tuple[TypeId, ...]) -> Function:
-        print("monomize", function.name.lexeme, generic_arguments, file=sys.stderr)
         locals = self.monomize_locals(function.locals, generic_arguments)
         ctx = WordCtx(self, locals, None)
         return Function(

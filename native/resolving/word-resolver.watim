@@ -693,33 +693,31 @@ fn resolve-matsh(ctx: .WordCtx, matsh: .P:Match) -> Result<OneOrMany<Word>, Reso
 fn error-on-missing-cases(ctx: .WordCtx, varint: .Variant, matsh: .P:Match, cases: .Array<MatchCase>) -> Maybe<ResolveError> { block {
     $ctx.arena Arena:save @save
     $ctx.arena $varint.cases.len 0 1 = Array:repeat-element<bool> @cases-matched
-    &matsh.default Maybe:is-none<_> if {
-        0 loop {
-            @i $i $cases.len = if { make Maybe<ResolveError>.None break }
-            $cases $i Array:get<_> @cays
-            &cases-matched $cays.tag 1 1 = Array:set<_> if {
-                $ctx.arena Fmt:into-new-string @string @fmt
-                &fmt "duplicate case in match:" Fmt:write
-                0 loop {
-                    @i $i $cases.len = if { break }
-                    $cases $i Array:get<_> @other-case
-                    $other-case.tag $cays.tag = if {
-                        &fmt "\n\t" Fmt:write
-                        &fmt &other-case.name L:Token-line i32-format
-                        &fmt ":" Fmt:write
-                        &fmt &other-case.name L:Token-column i32-format
-                        &fmt " " Fmt:write
-                        &fmt &other-case.name Token-lexeme Fmt:write
-                    }
-                    $i 1 +
+    0 loop {
+        @i $i $cases.len = if { make Maybe<ResolveError>.None break }
+        $cases $i Array:get<_> @cays
+        &cases-matched $cays.tag 1 1 = Array:set<_> if {
+            $ctx.arena Fmt:into-new-string @string @fmt
+            &fmt "duplicate case in match:" Fmt:write
+            0 loop {
+                @i $i $cases.len = if { break }
+                $cases $i Array:get<_> @other-case
+                $other-case.tag $cays.tag = if {
+                    &fmt "\n\t" Fmt:write
+                    &fmt &other-case.name L:Token-line i32-format
+                    &fmt ":" Fmt:write
+                    &fmt &other-case.name L:Token-column i32-format
+                    &fmt " " Fmt:write
+                    &fmt &other-case.name Token-lexeme Fmt:write
                 }
-                $ctx.module-id &matsh.token Token-location $string ~ make ResolveError make Maybe<ResolveError>.Some break
+                $i 1 +
             }
-            $i 1 +
-        } match {
-            case None -> {}
-            case _ -> { break }
+            $ctx.module-id &matsh.token Token-location $string ~ make ResolveError make Maybe<ResolveError>.Some break
         }
+        $i 1 +
+    } match {
+        case None -> {}
+        case _ -> { break }
     }
     0 loop {
         @i $i $cases-matched.len = if { 0 1 = break }

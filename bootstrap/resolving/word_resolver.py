@@ -277,11 +277,22 @@ class WordResolver:
         default = resolved.DefaultCase(
                 word.default.name,
                 self.resolve_scope(word.default.words)) if word.default is not None else None
+        if word.default is None:
+            self.error_on_missing_cases(variant, word, cases)
         return resolved.MatchWord(
                 word.token,
                 variant_handle,
                 cases,
                 default),
+
+    def error_on_missing_cases(self, variant: Variant, match: parsing.MatchWord, cases: Sequence[resolved.MatchCase]):
+        cases_matched = list(False for _ in variant.cases)
+        for case in cases:
+            if cases_matched[case.tag]:
+                self.abort(case.name, "duplicate case")
+            cases_matched[case.tag] = True
+        if not all(cases_matched):
+            self.abort(match.token, "missing cases in match")
 
     def infer_match_type(self, match: parsing.MatchWord) -> CustomTypeHandle:
         inferred: CustomTypeHandle | None = None
