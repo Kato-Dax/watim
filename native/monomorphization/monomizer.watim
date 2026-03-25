@@ -794,7 +794,7 @@ fn monomize-functions(ctx: .Ctx, functions: .Array<Checked:FunctionOrExtern>) {
     }
 }
 
-fn monomize-signature(ctx: .Ctx, signature: .Resolved:Signature, generic-arguments: .Array<TypeId>) -> Signature {
+fn monomize-signature(ctx: .Ctx, signature: .Resolved:FunctionSignature, generic-arguments: .Array<TypeId>) -> Signature {
     make Signature {
         $ctx &signature.parameters $generic-arguments monomize-named-types @parameters
         $ctx &signature.returns    $generic-arguments monomize-types       @returns

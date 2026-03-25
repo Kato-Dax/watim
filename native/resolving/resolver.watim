@@ -16,7 +16,7 @@ import "./top-items.watim" as TopItem (
     TypeDefinition, Import, Global, FunctionOrExtern, TopItemHandle,
     ImportItem, StructImport, VariantImport, FunctionImport,
     Variant, Struct, VariantCase, TypeDefinition-name,
-    Function, FunctionOrExtern, Extern, Signature, Local, LocalName)
+    Function, FunctionOrExtern, Extern, FunctionSignature, Local, LocalName)
 import "./type.watim" as Type (Type, ModuleId, NamedType)
 import "./type-without-holes.watim" as WithoutHoles
 import "./type-resolver.watim" as TypeResolver (TypeResolver)
@@ -411,7 +411,7 @@ fn resolve-globl(ctx: .ModuleCtx, globl: .P:Global) -> Result<Global, ResolveErr
 fn resolve-functions(
     ctx: .ModuleCtx,
     globals: .Map<ByteSlice, Global>,
-    signatures: .Map<ByteSlice, Signature>,
+    signatures: .Map<ByteSlice, FunctionSignature>,
     type-lookup: .TypeLookup,
     functions: .Array<P:FunctionOrExtern>,
 ) -> Result<Map<ByteSlice, FunctionOrExtern>, ResolveError> {
@@ -441,49 +441,49 @@ fn resolve-functions(
     }
 }
 
-fn resolve-extrn(ctx: .ModuleCtx, signatures: .Map<ByteSlice, Signature>, extrn: .P:Extern) -> Result<Extern, ResolveError> {
+fn resolve-extrn(ctx: .ModuleCtx, signatures: .Map<ByteSlice, FunctionSignature>, extrn: .P:Extern) -> Result<Extern, ResolveError> {
     $extrn.name
     &extrn.extrn-module Token-lexeme 2 - flip 1 + flip make ByteSlice
     &extrn.extrn-name Token-lexeme 2 - flip 1 + flip make ByteSlice
-    $signatures &extrn.name Token-lexeme Map:get-bs<Signature> Maybe:assert-some<_> ~
+    $signatures &extrn.name Token-lexeme Map:get-bs<FunctionSignature> Maybe:assert-some<_> ~
     make Extern make Result<Extern, ResolveError>.Success
 }
 
-fn resolve-signatures(ctx: .ModuleCtx, functions: .Array<P:FunctionOrExtern>) -> Result<Map<ByteSlice, Signature>, ResolveError> {
-    $ctx.arena \ByteSlice:eq-by-ref $functions.len Map:new-with-capacity<_, Signature> @signatures
+fn resolve-signatures(ctx: .ModuleCtx, functions: .Array<P:FunctionOrExtern>) -> Result<Map<ByteSlice, FunctionSignature>, ResolveError> {
+    $ctx.arena \ByteSlice:eq-by-ref $functions.len Map:new-with-capacity<_, FunctionSignature> @signatures
     0 @i
     loop {
-        $i $functions.len = if { $signatures make Result<Map<ByteSlice, Signature>, ResolveError>.Success break }
+        $i $functions.len = if { $signatures make Result<Map<ByteSlice, FunctionSignature>, ResolveError>.Success break }
         $ctx $functions $i Array:get<_> match {
             case P:FunctionOrExtern.Extern -> { Core:dup<_> .signature flip .name }
             case P:FunctionOrExtern.Function -> { Core:dup<_> .signature flip .name }
         } @name resolve-signature match {
-            case Error -> { make Result<Map<ByteSlice, Signature>, ResolveError>.Error break }
+            case Error -> { make Result.Error break }
             case Success -> {}
         } &signatures flip $name Token-lexeme make ByteSlice flip Map:insert-assert-no-alloc<_, _> drop
         $i 1 + #i
     }
 }
 
-fn resolve-signature(ctx: .ModuleCtx, signature: .P:Signature) -> Result<Signature, ResolveError> { block (-> Result<Signature, ResolveError>) {
+fn resolve-signature(ctx: .ModuleCtx, signature: .P:Signature) -> Result<FunctionSignature, ResolveError> { block (-> Result<FunctionSignature, ResolveError>) {
     $ctx.type-resolver $ctx.arena &signature.parameters TypeResolver:resolve-named-types match {
-        case Error -> { make Result<Signature, ResolveError>.Error break }
+        case Error -> { make Result.Error break }
         case Success -> {}
     } $ctx flip & named-types-forbid-holes match {
-        case Error -> { make Result<Signature, ResolveError>.Error break }
+        case Error -> { make Result.Error break }
         case Success -> {}
     } @parameters
 
     $ctx.type-resolver $ctx.arena &signature.returns TypeResolver:resolve-types match {
-        case Error -> { make Result<Signature, ResolveError>.Error break }
+        case Error -> { make Result.Error break }
         case Success -> {}
     } $ctx flip & types-forbid-holes match {
-        case Error -> { make Result<Signature, ResolveError>.Error break }
+        case Error -> { make Result.Error break }
         case Success -> {}
     } @returns
 
-    $signature.generic-parameters $parameters $returns make Signature
-    make Result<Signature, ResolveError>.Success
+    $signature.generic-parameters $parameters $returns make FunctionSignature
+    make Result.Success
 } }
 
 fn named-types-forbid-holes(ctx: .ModuleCtx, types: .Array<NamedType>) -> Result<Array<WithoutHoles:NamedType>, ResolveError> {
@@ -519,7 +519,7 @@ fn forbid-holes(ctx: .ModuleCtx, type: .Type) -> Result<WithoutHoles:Type, Resol
 fn resolve-function(
     ctx: .ModuleCtx,
     globals: .Map<ByteSlice, Global>,
-    signatures: .Map<ByteSlice, Signature>,
+    signatures: .Map<ByteSlice, FunctionSignature>,
     type-lookup: .TypeLookup,
     function: .P:Function
 ) -> Result<Function, ResolveError> { block (-> Result<Function, ResolveError>) {

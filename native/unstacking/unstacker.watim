@@ -17,12 +17,20 @@ import "../resolving/type.watim" as WithHoles (CustomTypeHandle)
 import "../resolving/type-without-holes.watim" as Type (Type)
 import "../resolving/words.watim" as Resolved (VarId, LocalId, LocalId-format)
 import "../resolving/intrinsics.watim" as Resolved
-import "../resolving/top-items.watim" as Resolved (Signature, Signature-format, LocalName, LocalName-token)
+import "../resolving/top-items.watim" as Resolved (
+    FunctionSignature, FunctionSignature-format,
+    IntrinsicSignature,
+    LocalName, LocalName-token)
 import "../resolving/module.watim" as Resolved
 
 import "./stack.watim" as Stack (Stack)
 import "./source.watim" as Source (Source, Source-format, Source-format-shallow, MultiReturnNode)
 import "./word.watim" as Word (InferenceHole, InferenceHole-format, InferenceFieldHole, Word, Scope, Scope-format)
+
+struct IntrinsicDescription {
+    signature: IntrinsicSignature
+    construct: (Token, Array<Type> -> Word)
+}
 
 variant FunctionOrExtern {
     case Extern -> Resolved:Extern
@@ -34,7 +42,7 @@ fn FunctionOrExtern-format(fmt: .Formatter, self: .FunctionOrExtern) {
         case Function -> { Function-format }
     }
 }
-fn FunctionOrExtern-signature(self: .FunctionOrExtern) -> .Signature {
+fn FunctionOrExtern-signature(self: .FunctionOrExtern) -> .FunctionSignature {
     $self match {
         case Extern -> { .signature }
         case Function -> { .signature }
@@ -419,7 +427,7 @@ fn NonSpecificVoid-format-shallow(fmt: .Formatter, self: .NonSpecificVoid) {
 struct Function {
     name: Token
     export: Maybe<Token>
-    signature: Signature
+    signature: FunctionSignature
     locals: Map<LocalId, Local>
     voids: Array<StackVoid>
     holes: Holes
@@ -440,7 +448,7 @@ fn Function-format(fmt: .Formatter, self: .Function) {
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "signature=" Fmt:write
-    $fmt &self.signature Signature-format
+    $fmt &self.signature FunctionSignature-format
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "locals=" Fmt:write
@@ -606,7 +614,7 @@ fn fresh-field-hole(unstacker: .Unstacker) -> InferenceFieldHole {
 fn lookup-type-definition(unstacker: .Unstacker, handle: CustomTypeHandle) -> .Resolved:TypeDefinition {
     $unstacker.modules $handle.module.index Array:get<_> .type-definitions.values $handle.index Array:get<_>
 }
-fn lookup-signature(unstacker: .Unstacker, handle: Resolved:FunctionHandle) -> .Resolved:Signature {
+fn lookup-signature(unstacker: .Unstacker, handle: Resolved:FunctionHandle) -> .Resolved:FunctionSignature {
     $unstacker.modules $handle.module.index Array:get<_>
     .functions.values $handle.index Array:get<_> Resolved:FunctionOrExtern-signature
 }

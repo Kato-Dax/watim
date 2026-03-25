@@ -22,7 +22,7 @@ import "../resolving/type-without-holes.watim" as Type (
     Type(I8, I32, I64, Ptr), NamedType, NamedType-type,
 )
 import "../resolving/words.watim" as Resolved (LocalId, LocalId-eq, LocalId-format, FunctionHandle, VarId)
-import "../resolving/top-items.watim" as Resolved (TypeDefinition, Signature, LocalName, TypeDefinition-name)
+import "../resolving/top-items.watim" as Resolved (TypeDefinition, FunctionSignature, LocalName, TypeDefinition-name)
 import "../resolving/module.watim" as Resolved
 
 import "../unstacking/source.watim" as Source (
@@ -73,7 +73,7 @@ fn infer-function(
         Array:new<Maybe<i32>> @field-holes
         $arena make Type.Bool Arena:push<_> @type-bool
         $arena make Type.I32 Arena:push<_> @type-i32
-        \CustomTypeHandle-eq Map:new<CustomTypeHandle, Signature> @struct-signatures
+        \CustomTypeHandle-eq Map:new @struct-signatures
         Array:new<DeferredInferAtProgress> @deferred-infers
         1 @progress
         0 1 = @ignore-being-inferred
@@ -544,7 +544,7 @@ block {
 fn call-argument-mismatch-error(
     ctx: .Ctx,
     token: .Token,
-    signature: .Signature,
+    signature: .FunctionSignature,
     generic-arguments: .Array<InferenceHole>,
     argument-types: .Array<Maybe<Type>>,
 ) -> InferenceError {
@@ -625,7 +625,7 @@ struct Ctx {
     field-holes: Array<Maybe<i32>>
     type-bool: .Type
     type-i32: .Type
-    struct-signatures: Map<CustomTypeHandle, Signature>
+    struct-signatures: Map<CustomTypeHandle, FunctionSignature>
     deferred-infers: Array<DeferredInferAtProgress>
     progress: i32
     ignore-being-inferred: bool
@@ -641,7 +641,7 @@ fn lookup-hole(ctx: .Ctx, hole: InferenceHole) -> Maybe<.Type> {
     &ctx.holes &hole Holes-lookup
 }
 
-fn Struct-signature(ctx: .Ctx, handle: CustomTypeHandle) -> .Signature { block {
+fn Struct-signature(ctx: .Ctx, handle: CustomTypeHandle) -> .FunctionSignature { block {
     &ctx.struct-signatures &handle Map:get<_, _> match {
         case Some -> { break }
         case None -> {}
@@ -662,7 +662,7 @@ fn Struct-signature(ctx: .Ctx, handle: CustomTypeHandle) -> .Signature { block {
     }
     $handle $generic-arguments make Type:CustomTypeType make Type.Custom @type
 
-    make Signature {
+    make FunctionSignature {
         $struc.generic-parameters @generic-parameters
         $struc.fields @parameters
         $ctx.arena $type Array:singleton<_> @returns
@@ -704,7 +704,7 @@ fn lookup-type-definition(ctx: .Ctx, handle: .CustomTypeHandle) -> .TypeDefiniti
     $ctx.modules $handle.module.index Array:get<_> .type-definitions.values $handle.index Array:get<_>
 }
 
-fn lookup-signature(ctx: .Ctx, function: FunctionHandle) -> .Resolved:Signature {
+fn lookup-signature(ctx: .Ctx, function: FunctionHandle) -> .Resolved:FunctionSignature {
     $ctx.modules      $function.module.index Array:get<_>
     .functions.values $function.index        Array:get<_>
     Resolved:FunctionOrExtern-signature
@@ -3490,7 +3490,7 @@ fn infer-signature-application(
     token: .Token,
     generic-arguments: .Array<InferenceHole>,
     arguments: .Array<Source>,
-    signature: .Signature,
+    signature: .FunctionSignature,
     return-index: i32,
 ) -> Result<Maybe<Type>, InferenceError> { block {
     $arguments.len $signature.parameters.len /= if {

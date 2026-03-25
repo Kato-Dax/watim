@@ -19,6 +19,56 @@ import "./words.watim" as Words (
     FunctionHandle, FunctionHandle-format,
 )
 
+variant TypeShape {
+    case Exact -> WithoutHoles:Type
+    case AnyPtr
+}
+fn TypeShape-format(fmt: .Formatter, self: .TypeShape) {
+    $self match {
+        case Exact -> { $fmt flip WithoutHoles:format }
+        case AnyPtr -> { $fmt "AnyPtr" Fmt:write }
+    }
+}
+
+struct MustBeOneOf {
+    generic: i32
+    allowed: Array<TypeShape>
+}
+fn MustBeOneOf-format(fmt: .Formatter, self: .MustBeOneOf) {
+    $fmt "(MustBeOneOf " Fmt:write
+    $fmt $self.generic i32-format
+    $fmt " " Fmt:write
+    $fmt \TypeShape-format &self.allowed Array:format
+    $fmt ")" Fmt:write
+}
+
+struct MustSatisfyPredicate {
+    name: ByteSlice
+    description: ByteSlice
+    predicate: (Array<Maybe<WithoutHoles:Type>> -> Maybe<ByteSlice>)
+}
+fn MustSatisfyPredicate-format(fmt: .Formatter, self: .MustSatisfyPredicate) {
+    $fmt "(MustSatisfyPredicate " Fmt:write $fmt $self.name ByteSlice:unpack Fmt:write $fmt ")" Fmt:write
+}
+
+variant ConstraintOnGeneric {
+    case MustBeOneOf -> MustBeOneOf
+    case MustSatisfyPredicate -> MustSatisfyPredicate
+}
+fn ConstraintOnGeneric-format(fmt: .Formatter, self: .ConstraintOnGeneric) {
+    $fmt $self match {
+        case MustBeOneOf -> { MustBeOneOf-format }
+        case MustSatisfyPredicate -> { MustSatisfyPredicate-format }
+    }
+}
+
+struct IntrinsicSignature {
+    generic-parameters: Array<Token>
+    parameters: Array<Type>
+    returns: Array<Type>
+    constraints: Array<ConstraintOnGeneric>
+}
+
 struct Struct {
     name: Token
     generic-parameters: Array<Token>
@@ -191,12 +241,12 @@ fn Global-format(fmt: .Formatter, self: .Global) {
     $fmt ")" Fmt:write
 }
 
-struct Signature {
+struct FunctionSignature {
     generic-parameters: Array<Token>
     parameters: Array<WithoutHoles:NamedType>
     returns: Array<WithoutHoles:Type>
 }
-fn Signature-format(fmt: .Formatter, self: .Signature) {
+fn FunctionSignature-format(fmt: .Formatter, self: .FunctionSignature) {
     $fmt "(Signature\n" Fmt:write
     $fmt Fmt:indent
     $fmt Fmt:write-indent
@@ -218,7 +268,7 @@ struct Extern {
     name: Token
     extrn-module: ByteSlice
     extrn-name: ByteSlice
-    signature: Signature
+    signature: FunctionSignature
 }
 fn Extern-format(fmt: .Formatter, self: .Extern) {
     $fmt "(Extern " Fmt:write
@@ -228,7 +278,7 @@ fn Extern-format(fmt: .Formatter, self: .Extern) {
     $fmt " " Fmt:write
     $fmt &self.extrn-name ByteSlice-format
     $fmt " " Fmt:write
-    $fmt &self.signature Signature-format
+    $fmt &self.signature FunctionSignature-format
     $fmt ")" Fmt:write
 }
 
@@ -283,7 +333,7 @@ fn Local-format(fmt: .Formatter, self: .Local) {
 struct Function {
     name: Token
     export: Maybe<Token>
-    signature: Signature
+    signature: FunctionSignature
     locals: Map<LocalId, Local>
     body: Scope
 }
@@ -300,7 +350,7 @@ fn Function-format(fmt: .Formatter, self: .Function) {
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "signature=" Fmt:write
-    $fmt &self.signature Signature-format
+    $fmt &self.signature FunctionSignature-format
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "locals=" Fmt:write
@@ -323,7 +373,7 @@ fn FunctionOrExtern-format(fmt: .Formatter, self: .FunctionOrExtern) {
         case FunctionOrExtern.Function -> { Function-format }
     }
 }
-fn FunctionOrExtern-signature(self: .FunctionOrExtern) -> .Signature {
+fn FunctionOrExtern-signature(self: .FunctionOrExtern) -> .FunctionSignature {
     $self match {
         case FunctionOrExtern.Extern -> { .signature }
         case FunctionOrExtern.Function -> { .signature }

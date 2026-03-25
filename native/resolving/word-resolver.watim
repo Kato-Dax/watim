@@ -20,7 +20,7 @@ import "./top-items.watim" as TopItem (
     FunctionOrExtern, FunctionOrExtern-signature,
     ImportItem, StructImport, VariantImport, FunctionImport,
     Variant, Struct, VariantCase, TypeDefinition-name,
-    Function, FunctionOrExtern, Extern, Signature,
+    Function, FunctionOrExtern, Extern, FunctionSignature,
     Local, LocalName, SyntheticName,
 )
 import "./type.watim" as Type (
@@ -69,7 +69,7 @@ struct WordCtx {
     module-path: ByteSlice
     imports: .Map<ByteSlice, Array<Import>>
     globals: .Map<ByteSlice, Global>
-    signatures: .Map<ByteSlice, Signature>
+    signatures: .Map<ByteSlice, FunctionSignature>
     type-resolver: .TypeResolver
     modules: .Map<ByteSlice, Module>
     static-data: .Array<i8>
@@ -100,7 +100,7 @@ fn with-in-block(ctx: .WordCtx) -> WordCtx {
     $new
 }
 
-fn lookup-signature(ctx: .WordCtx, handle: .FunctionHandle) -> .Signature {
+fn lookup-signature(ctx: .WordCtx, handle: .FunctionHandle) -> .FunctionSignature {
     $handle.module $ctx.module-id = if {
         &ctx.signatures.values $handle.index Array:get<_>
     } else {

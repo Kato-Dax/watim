@@ -16,7 +16,7 @@ import "../resolving/top-items.watim" as Resolved (
     Global, Global-format,
     TypeDefinition, TypeDefinition-format,
     Import, Import-format, Extern, Extern-format,
-    Signature, Signature-format, LocalName, LocalName-format,
+    FunctionSignature, FunctionSignature-format, LocalName, LocalName-format,
 )
 import "../resolving/type.watim" as ResolvedType (
     ModuleId, CustomTypeHandle, CustomTypeHandle-format,
@@ -651,7 +651,7 @@ fn FunctionOrExtern-format(fmt: .Formatter, self: .FunctionOrExtern) {
         case FunctionOrExtern.Function -> { Function-format }
     }
 }
-fn FunctionOrExtern-signature(self: .FunctionOrExtern) -> .Signature {
+fn FunctionOrExtern-signature(self: .FunctionOrExtern) -> .FunctionSignature {
     $self match {
         case FunctionOrExtern.Extern -> { .signature }
         case FunctionOrExtern.Function -> { .signature }
@@ -661,7 +661,7 @@ fn FunctionOrExtern-signature(self: .FunctionOrExtern) -> .Signature {
 struct Function {
     name: Token
     export: Maybe<Token>
-    signature: Signature
+    signature: FunctionSignature
     locals: Map<LocalId, Local>
     body: Scope
 }
@@ -678,7 +678,7 @@ fn Function-format(fmt: .Formatter, self: .Function) {
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "signature=" Fmt:write
-    $fmt &self.signature Signature-format
+    $fmt &self.signature FunctionSignature-format
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "locals=" Fmt:write
