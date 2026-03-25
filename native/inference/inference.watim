@@ -24,6 +24,7 @@ import "../resolving/type-without-holes.watim" as Type (
 import "../resolving/words.watim" as Resolved (LocalId, LocalId-eq, LocalId-format, FunctionHandle, VarId)
 import "../resolving/top-items.watim" as Resolved (TypeDefinition, FunctionSignature, LocalName, TypeDefinition-name)
 import "../resolving/module.watim" as Resolved
+import "../resolving/type-lookup.watim" as Resolved
 
 import "../unstacking/source.watim" as Source (
     Source(FromIntrinsic), Source-token, Source-format,
@@ -39,7 +40,6 @@ import "../unstacking/unstacker.watim" as Unstacked (Holes, Holes-lookup, Holes-
 import "../unstacking/graph.watim" as Graph
 
 import "./ast.watim" as Checked (Module, FunctionOrExtern, Function)
-import "./type.watim" as WithHoles
 import "./type-without-holes.watim" as Type (Types-pretty-bracketed)
 
 fn load<T>(ptr: .T) -> T { $ptr ~ }
@@ -1872,7 +1872,7 @@ fn stack-annotation-mismatch-error(ctx: .Ctx, source: .Source:FromStackAnnotatio
         case None -> {}
     }
     &fmt "]\n  expected: " Fmt:write
-    &fmt $ctx.modules &source.types WithHoles:Types-pretty-bracketed
+    &fmt $ctx.modules &source.types Resolved:Types-pretty-bracketed
     &source.token $msg Array:unpack<_> error
 } }
 
