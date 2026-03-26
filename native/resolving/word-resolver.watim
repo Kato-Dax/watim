@@ -27,6 +27,7 @@ import "./type.watim" as Type (
     Type, ModuleId, NamedType, with-generics,
     CustomTypeType, CustomTypeHandle, CustomTypeHandle-eq,
 )
+import "./pretty-type.watim" as Type
 import "./type-without-holes.watim" as WithoutHoles
 import "./type-resolver.watim" as TypeResolver (TypeResolver)
 import "./type-lookup.watim" as TypeLookup (TypeLookup)
@@ -557,7 +558,7 @@ fn resolve-make-struct-named(ctx: .WordCtx, word: .P:MakeStructNamed) -> Result<
             $temp flip &type.generic-arguments with-generics @type
             &fmt "\n\t" Fmt:write &fmt $name ~ ByteSlice:unpack Fmt:write
             &fmt ": " Fmt:write
-            &fmt $ctx.type-lookup &type TypeLookup:pretty
+            &fmt &ctx.modules.values &type Type:pretty
             $i 1 +
         }
         &ctx &word.token $buf Array:unpack<_> abort<Word> break

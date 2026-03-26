@@ -1,5 +1,5 @@
-import "../../std/core.watim" as Core
-import "../../std/maybe.watim" as Maybe (Maybe(Some, None))
+import "../../std/core.watim" as Core (dup)
+import "../../std/maybe.watim" as Maybe (Maybe(Some, None), assert-none)
 import "../../std/result.watim" as Result (Result(Success, Error))
 import "../../std/arena.watim" as Arena (Arena)
 import "../../std/array.watim" as Array (Array)
@@ -13,6 +13,8 @@ import "../../std/io.watim" as IO
 
 import "../lexer.watim" as Lexer (Token, Token-format)
 
+import "../parser.watim" as Parser (GenericType)
+
 import "../resolving/type.watim" as WithHoles (CustomTypeHandle)
 import "../resolving/type-without-holes.watim" as Type (Type)
 import "../resolving/words.watim" as Resolved (VarId, LocalId, LocalId-format)
@@ -25,11 +27,58 @@ import "../resolving/module.watim" as Resolved
 
 import "./stack.watim" as Stack (Stack)
 import "./source.watim" as Source (Source, Source-format, Source-format-shallow, MultiReturnNode)
-import "./word.watim" as Word (InferenceHole, InferenceHole-format, InferenceFieldHole, Word, Scope, Scope-format)
+import "./word.watim" as Word (InferenceHole, InferenceHole-format, InferenceFieldHole, Word, Scope, Scope-format, Intrinsic)
 
 struct IntrinsicDescription {
     signature: IntrinsicSignature
-    construct: (Token, Array<Type> -> Word)
+    construct: (.Token, .Array<InferenceHole> -> Word)
+}
+
+global INTRINSIC_DESCRIPTIONS_ARENA: Arena
+global INTRINSIC_DESCRIPTIONS_INITIALIZED: bool
+global INTRINSIC_SIGNATURES: Map<Resolved:Intrinsic, IntrinsicSignature>
+global INTRINSIC_DESCRIPTIONS: Map<Resolved:Intrinsic, IntrinsicDescription>
+
+fn construct-and(token: .Token, generic-arguments: .Array<InferenceHole>) -> Word {
+    $token ~ $generic-arguments 0 Array:get ~ make Word:Add make Intrinsic.Add make Word.Intrinsic
+}
+
+fn init-intrinsic-signatures() {
+    $INTRINSIC_DESCRIPTIONS_INITIALIZED if {
+        0 0 / drop
+    }
+    1 1 = #INTRINSIC_DESCRIPTIONS_INITIALIZED
+
+    "IntrinsicSignatures" Arena:new #INTRINSIC_DESCRIPTIONS_ARENA
+    &INTRINSIC_DESCRIPTIONS_ARENA @arena
+    $arena \Resolved:Intrinsic-eq 26 Map:new-with-capacity #INTRINSIC_SIGNATURES
+    $arena \Resolved:Intrinsic-eq 26 Map:new-with-capacity #INTRINSIC_DESCRIPTIONS
+
+    make IntrinsicSignature {
+        $arena "T" make ByteSlice Array:singleton @generic-parameters
+        block {
+            $arena 2 Array:new-with-capacity @parameters
+            &parameters make GenericType {
+                0 @index
+                make Lexer:TokenTy.TOKEN_FN 0 0 Lexer:Token-new-keyword @name
+            } make Type.Generic Array:push-assert-no-alloc
+            $parameters
+        } @parameters
+        $arena make GenericType {
+            0 @index
+            make Lexer:TokenTy.TOKEN_FN 0 0 Lexer:Token-new-keyword @name
+        } make Type.Generic Array:singleton @returns
+
+        Array:new @constraints
+    } @signature-and
+
+    make IntrinsicDescription {
+        $signature-and @signature
+        \construct-and @construct
+    } @description-and
+
+    &INTRINSIC_SIGNATURES make Resolved:Intrinsic.Add $signature-and Map:insert-assert-no-alloc assert-none
+    &INTRINSIC_DESCRIPTIONS make Resolved:Intrinsic.Add $description-and Map:insert-assert-no-alloc assert-none
 }
 
 variant FunctionOrExtern {

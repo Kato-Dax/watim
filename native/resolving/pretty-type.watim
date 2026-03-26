@@ -1,0 +1,76 @@
+import "../../std/array.watim" as Array (Array)
+import "../../std/fmt.watim" as Fmt (Formatter)
+
+import "../lexer.watim" as L (Token-lexeme)
+import "../parser.watim" as P
+
+import "./top-items.watim" as TopItems (TypeDefinition(Struct, Variant))
+import "./module.watim" as Module (Module)
+import "./type.watim" as Type (
+    Type(Bool, I8, I32, I64, Ptr, Custom, Fun, Tuple, Generic, Hole),
+    CustomTypeType, TupleType, FunType)
+
+fn pretty(fmt: .Formatter, lookup: .Array<Module>, self: .Type) { block {
+    $fmt $self match {
+        case Bool -> { "bool" }
+        case I8 -> { "i8" }
+        case I32 -> { "i32" }
+        case I64 -> { "i64" }
+        case Ptr -> { $fmt "." Fmt:write ~ $lookup flip pretty break }
+        case Custom -> { $lookup flip CustomTypeType-pretty break }
+        case Fun -> { $lookup flip FunType-pretty break }
+        case Tuple -> { $lookup flip TupleType-pretty break }
+        case Generic -> { P:GenericType-pretty break }
+        case Hole -> { drop "_" }
+    } Fmt:write
+} }
+
+fn FunType-pretty(fmt: .Formatter, modules: .Array<Module>, self: .FunType) {
+    $fmt "(" Fmt:write
+    $fmt $modules &self.parameters Types-pretty
+    $fmt " -> " Fmt:write
+    $fmt $modules &self.returns Types-pretty
+    $fmt ")" Fmt:write
+}
+
+fn Types-pretty(fmt: .Formatter, modules: .Array<Module>, self: .Array<Type>) {
+    0 @i
+    loop {
+        $i $self.len = if { break }
+        $fmt $modules $self $i Array:get<Type> pretty
+        $i 1 + #i
+        $i $self.len = if { break }
+        $fmt ", " Fmt:write
+    }
+}
+fn Types-pretty-bracketed(fmt: .Formatter, modules: .Array<Module>, self: .Array<Type>) {
+    $fmt "[" Fmt:write
+    $fmt $modules $self Types-pretty
+    $fmt "]" Fmt:write
+}
+
+fn TupleType-pretty(fmt: .Formatter, thr: .Array<Module>, self: .TupleType) {
+    $fmt $thr &self.items Types-pretty-bracketed
+}
+
+fn CustomTypeType-pretty(fmt: .Formatter, modules: .Array<Module>, self: .CustomTypeType) {
+    $fmt
+    $modules $self.type-definition.module.index Array:get
+    .type-definitions.values $self.type-definition.index Array:get
+    match {
+        case Struct  -> { .name }
+        case Variant -> { .name }
+    } Token-lexeme Fmt:write
+    0 @i
+    loop {
+        $i $self.generic-arguments.len = if { break }
+        $i 0 = if { $fmt "<" Fmt:write }
+        $fmt $modules &self.generic-arguments $i Array:get<Type> pretty
+        $i 1 + #i
+        $i $self.generic-arguments.len /= if {
+            $fmt ", " Fmt:write
+        } else {
+            $fmt ">" Fmt:write
+        }
+    }
+}

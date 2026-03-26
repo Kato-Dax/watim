@@ -4,11 +4,11 @@ import "../../std/array.watim" as Array (Array)
 import "../lexer.watim" as Lexer (Token-lexeme)
 import "../parser.watim" as Parser
 
-import "../resolving/type-without-holes.watim" as Type (Type, CustomTypeType, FunType)
-import "../resolving/module.watim" as Resolved
-import "../resolving/top-items.watim" as Resolved
+import "./type-without-holes.watim" as Type (Type, CustomTypeType, FunType)
+import "./module.watim" as Resolved (Module)
+import "./top-items.watim" as Resolved
 
-fn pretty(fmt: .Formatter, modules: .Array<Resolved:Module>, self: .Type) { block {
+fn pretty(fmt: .Formatter, modules: .Array<Module>, self: .Type) { block {
     $fmt $self match {
         case Type.Bool -> { "bool" }
         case Type.I8 -> { "i8" }
@@ -21,7 +21,7 @@ fn pretty(fmt: .Formatter, modules: .Array<Resolved:Module>, self: .Type) { bloc
     } Fmt:write
 } }
 
-fn FunType-pretty(fmt: .Formatter, modules: .Array<Resolved:Module>, self: .FunType) {
+fn FunType-pretty(fmt: .Formatter, modules: .Array<Module>, self: .FunType) {
     $fmt "(" Fmt:write
     $fmt $modules &self.parameters Types-pretty
     $fmt " -> " Fmt:write
@@ -29,7 +29,7 @@ fn FunType-pretty(fmt: .Formatter, modules: .Array<Resolved:Module>, self: .FunT
     $fmt ")" Fmt:write
 }
 
-fn Types-pretty(fmt: .Formatter, modules: .Array<Resolved:Module>, self: .Array<Type>) {
+fn Types-pretty(fmt: .Formatter, modules: .Array<Module>, self: .Array<Type>) {
     0 @i
     loop {
         $i $self.len = if { break }
@@ -39,13 +39,13 @@ fn Types-pretty(fmt: .Formatter, modules: .Array<Resolved:Module>, self: .Array<
         $fmt ", " Fmt:write
     }
 }
-fn Types-pretty-bracketed(fmt: .Formatter, modules: .Array<Resolved:Module>, self: .Array<Type>) {
+fn Types-pretty-bracketed(fmt: .Formatter, modules: .Array<Module>, self: .Array<Type>) {
     $fmt "[" Fmt:write
     $fmt $modules $self Types-pretty
     $fmt "]" Fmt:write
 }
 
-fn CustomTypeType-pretty(fmt: .Formatter, modules: .Array<Resolved:Module>, self: .CustomTypeType) {
+fn CustomTypeType-pretty(fmt: .Formatter, modules: .Array<Module>, self: .CustomTypeType) {
     $fmt $modules $self.type-definition.module.index Array:get<_> .type-definitions.values $self.type-definition.index Array:get<_> match {
         case Resolved:TypeDefinition.Struct  -> { .name }
         case Resolved:TypeDefinition.Variant -> { .name }

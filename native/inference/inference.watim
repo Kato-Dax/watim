@@ -18,9 +18,12 @@ import "../parser.watim" as Parser
 import "../resolving/type.watim" as WithHoles (
     CustomTypeHandle, CustomTypeHandle-eq, ModuleId,
 )
+import "../resolving/pretty-type.watim" as WithHoles
 import "../resolving/type-without-holes.watim" as Type (
     Type(I8, I32, I64, Ptr), NamedType, NamedType-type,
 )
+import "../resolving/pretty-type-without-holes.watim" as Type
+
 import "../resolving/words.watim" as Resolved (LocalId, LocalId-eq, LocalId-format, FunctionHandle, VarId)
 import "../resolving/top-items.watim" as Resolved (TypeDefinition, FunctionSignature, LocalName, TypeDefinition-name)
 import "../resolving/module.watim" as Resolved
@@ -40,7 +43,6 @@ import "../unstacking/unstacker.watim" as Unstacked (Holes, Holes-lookup, Holes-
 import "../unstacking/graph.watim" as Graph
 
 import "./ast.watim" as Checked (Module, FunctionOrExtern, Function)
-import "./type-without-holes.watim" as Type (Types-pretty-bracketed)
 
 fn load<T>(ptr: .T) -> T { $ptr ~ }
 
@@ -113,7 +115,7 @@ block {
                 $arena Fmt:into-new-string @buf @fmt
                 &fmt "unexpected return values:" Fmt:write
                 &fmt "\n\texpected: " Fmt:write
-                &fmt $modules &function.signature.returns Types-pretty-bracketed
+                &fmt $modules &function.signature.returns Type:Types-pretty-bracketed
                 &fmt "\n\tactual:   [" Fmt:write
                 0 loop {
                     @i $i $returns.len = if { make Maybe<InferenceError>.None break }
@@ -554,7 +556,7 @@ fn call-argument-mismatch-error(
     &fmt "call to `" Fmt:write
     &fmt $token Token-lexeme Fmt:write
     &fmt "` expected the following arguments:\n\t" Fmt:write
-    &fmt $ctx.modules &parameters Types-pretty-bracketed
+    &fmt $ctx.modules &parameters Type:Types-pretty-bracketed
     0 loop {
         @i $i $generic-arguments.len = if { break }
         &fmt "\n\t" Fmt:write
@@ -1872,7 +1874,7 @@ fn stack-annotation-mismatch-error(ctx: .Ctx, source: .Source:FromStackAnnotatio
         case None -> {}
     }
     &fmt "]\n  expected: " Fmt:write
-    &fmt $ctx.modules &source.types Resolved:Types-pretty-bracketed
+    &fmt $ctx.modules &source.types WithHoles:Types-pretty-bracketed
     &source.token $msg Array:unpack<_> error
 } }
 

@@ -63,9 +63,9 @@ fn ConstraintOnGeneric-format(fmt: .Formatter, self: .ConstraintOnGeneric) {
 }
 
 struct IntrinsicSignature {
-    generic-parameters: Array<Token>
-    parameters: Array<Type>
-    returns: Array<Type>
+    generic-parameters: Array<ByteSlice>
+    parameters: Array<WithoutHoles:Type>
+    returns: Array<WithoutHoles:Type>
     constraints: Array<ConstraintOnGeneric>
 }
 
