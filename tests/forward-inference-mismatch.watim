@@ -7,8 +7,9 @@ fn foo() {
     make Array<i32> 0 bar<_>
 }
 [== Args Compiler ==]
-check
+infer
 -
+foo
 --quiet
 [== Status Compiler ==]
 1

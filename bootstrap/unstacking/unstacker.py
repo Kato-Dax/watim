@@ -23,7 +23,7 @@ import unstacking.word as words
 from unstacking.word import InferenceHole, InferenceFieldHole, FieldAccess, Scope, Word
 from unstacking.source import Source, MultiReturnNode
 import unstacking.source as source
-from unstacking.voids import StackVoid, NonSpecificVoid, CallVoid, SetGlobalVoid, StoreVoid, IndirectCallVoid, ImpossibleMatchVoid
+from unstacking.voids import StackVoid, NonSpecificVoid, CallVoid, SetGlobalVoid, IndirectCallVoid, ImpossibleMatchVoid
 from unstacking.stack import Stack
 
 @dataclass(frozen=True)

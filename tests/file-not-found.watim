@@ -1,7 +1,7 @@
 [== Stdin Compiler ==]
 import "./foo.watim" as Foo
 [== Args Compiler ==]
-check
+resolve
 -
 --quiet
 [== Status Compiler ==]

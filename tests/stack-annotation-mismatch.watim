@@ -5,8 +5,9 @@ fn foo() {
     :(bool, i32)
 }
 [== Args Compiler ==]
-check
+infer
 -
+foo
 -q
 [== Status Compiler ==]
 1

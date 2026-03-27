@@ -4,8 +4,9 @@ fn foo(foo: Foo) {
     $foo.x drop
 }
 [== Args Compiler ==]
-check
+infer
 -
+foo
 --quiet
 [== Status Compiler ==]
 1

@@ -3,7 +3,7 @@ fn foo() {
     bar
 }
 [== Args Compiler ==]
-check
+resolve
 -
 --quiet
 [== Status Compiler ==]

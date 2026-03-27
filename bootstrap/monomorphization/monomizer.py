@@ -1,6 +1,5 @@
 from typing import Tuple, List, Iterable, Sequence, assert_never
 from dataclasses import dataclass, field
-import sys
 
 from util import Ref, align_to
 from format import Formattable, Formatter

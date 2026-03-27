@@ -56,9 +56,6 @@ fn print-usage-and-exit() {
     2 "    <path> <function> [log-level]\n" IO:write-all IO:check
     2 "    log-level = 0 | 1 | 2\n" IO:write-all IO:check
     2 IO:newline
-    2 "  check     unstack and infer everything\n" IO:write-all IO:check
-    2 "    <path>\n" IO:write-all IO:check
-    2 IO:newline
     2 "  monomize  monomorphize all generic functions\n" IO:write-all IO:check
     2 "    <path>\n" IO:write-all IO:check
     2 IO:newline

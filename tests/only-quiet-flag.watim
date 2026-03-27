@@ -27,9 +27,6 @@ Commands:
     <path> <function> [log-level]
     log-level = 0 | 1 | 2
 
-  check     unstack and infer everything
-    <path>
-
   monomize  monomorphize all generic functions
     <path>
 

@@ -1,7 +1,7 @@
 [== Stdin Compiler ==]
 import "./exit.watim" as E (eexit)
 [== Args Compiler ==]
-check
+resolve
 -
 --quiet
 [== Status Compiler ==]

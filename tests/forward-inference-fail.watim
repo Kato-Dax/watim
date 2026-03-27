@@ -7,8 +7,9 @@ fn foo() {
     new<_> drop
 }
 [== Args Compiler ==]
-check
+infer
 -
+foo
 --quiet
 [== Status Compiler ==]
 1
