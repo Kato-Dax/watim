@@ -202,7 +202,7 @@ class FromAdd(Formattable):
             ("addition", format.Optional(self.addition)),
             ("type", self.taip)])
 
-type MultiReturnNode = 'PlaceHolder | FromIfEntry | FromIfExit | FromMatchEntry | FromMatchExit | FromCall | FromBlockEntry | FromBlockExit | FromLoopEntry | FromIndirectCall'
+type MultiReturnNode = 'PlaceHolder | FromIfEntry | FromIfExit | FromMatchEntry | FromMatchExit | FromCall | FromBlockEntry | FromBlockExit | FromLoopEntry | FromIndirectCall | FromStackAnnotation'
 
 @dataclass(frozen=True, eq=True)
 class PlaceHolder(Formattable):
@@ -338,3 +338,13 @@ class FromIndirectCall(Formattable):
             ("function", format.Optional(self.function)),
             ("arguments", format.Seq(self.arguments, multi_line=True))])
 
+@dataclass(frozen=True)
+class FromStackAnnotation(Formattable):
+    token: Token
+    types: Tuple[with_holes.Type, ...]
+    arguments: Tuple[Source, ...]
+    def format(self, fmt: Formatter):
+        fmt.named_record("FromStackAnnotation", [
+            ("token", self.token),
+            ("types", format.Seq(self.types, multi_line=True)),
+            ("arguments", format.Seq(self.arguments, multi_line=True))])

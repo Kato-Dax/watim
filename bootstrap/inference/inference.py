@@ -2,7 +2,7 @@ from typing import Never, Tuple, Dict, Literal, List, Sequence, assert_never, ca
 from dataclasses import dataclass
 import sys
 
-from format import Formattable
+from format import Formattable, Formatter
 from indexed_dict import IndexedDict
 
 from lexer import Token
@@ -45,6 +45,7 @@ from unstacking.source import (
         FromMakeVariant,
         FromIndirectCall,
         FromAdd,
+        FromStackAnnotation,
         PlaceHolder,
 )
 from unstacking.voids import NonSpecificVoid, CallVoid, ImpossibleMatchVoid, SetGlobalVoid, StoreVoid, IndirectCallVoid
@@ -141,7 +142,18 @@ def infer_function(path: str, modules: Tuple[resolved.Module, ...], globals: Tup
 
     if function.returns is not None:
         if len(function.signature.returns) != len(function.returns):
-            ctx.abort(function.name, "TODO: unexpected return values ...")
+            fmt = Formatter("  ", 0, [])
+            fmt.write("unexpected return values:\n\texpected: ")
+            fmt.write(ctx.type_lookup.types_pretty_bracketed(function.signature.returns))
+            fmt.write("\n\tactual:    [")
+            for ret in function.returns:
+                inferred = ctx.infer(ret)
+                if inferred is None:
+                    fmt.write("_")
+                else:
+                    fmt.write(ctx.type_lookup.type_pretty(inferred))
+                fmt.write(", ")
+            ctx.abort(function.name, fmt.to_string())
         for source, expected in zip(function.returns, function.signature.returns):
             ctx.check(source, expected)
 
@@ -655,8 +667,20 @@ class Ctx:
                     self.abort(node.token, "check IndirectCall: expected different")
             case PlaceHolder():
                 assert False
+            case FromStackAnnotation():
+                return_index = len(node.types) - return_depth - 1
+                annotated_with_holes = node.types[return_index]
+                annotated = without_holes.without_holes(annotated_with_holes)
+                if isinstance(annotated, Token):
+                    self.abort(annotated, "TODO")
+                if annotated != known:
+                    self.stack_annotation_mismatch_error(node)
+                self.check(node.arguments[return_index], known)
             case other:
                 assert_never(other)
+
+    def stack_annotation_mismatch_error(self, source: FromStackAnnotation):
+        self.abort(source.token, "Stack doesn't match annotation")
 
     def check_match_scrutinee_variant(self, source: FromMatchExit, scrutinee_type: Type):
         if isinstance(scrutinee_type, PtrType):
@@ -985,6 +1009,18 @@ class Ctx:
                 return function_type.returns[return_index]
             case PlaceHolder():
                 assert False
+            case FromStackAnnotation():
+                return_index = len(node.types) - return_depth - 1
+                annotated = without_holes.without_holes(node.types[return_index])
+                if isinstance(annotated, Token):
+                    self.abort(annotated, "TODO")
+                inferred = self.infer(node.arguments[return_index])
+                if inferred is None:
+                    self.check(node.arguments[return_index], annotated)
+                    return annotated
+                if inferred != annotated:
+                    self.stack_annotation_mismatch_error(node)
+                return inferred
             case other:
                 assert_never(other)
 
@@ -1196,7 +1232,8 @@ class Ctx:
             assert(isinstance(taip, CustomTypeType))
             custom_type = taip
             struc = self.lookup_type_definition(custom_type.type_definition)
-            assert(not isinstance(struc, Variant))
+            if isinstance(struc, Variant):
+                self.abort(access.name, "variants do not have fields")
 
             type_at_field_index: None | Tuple[Type, int] = None
             for i, field in enumerate(struc.fields):
