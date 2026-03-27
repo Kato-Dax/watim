@@ -1513,8 +1513,7 @@ fn check-from-node(ctx: .Ctx, source: .Source:FromNode, known: .Type) -> Maybe<I
                 case UnificationResult.Success -> {}
                 case _ -> {
                     drop
-                    $ctx &source.token $signature &source.generic-arguments &argument-types
-                    call-argument-mismatch-error make Maybe<InferenceError>.Some break
+                    &source.token "check FromCall: TODO" error make Maybe<InferenceError>.Some break
                 }
             }
 
@@ -2057,6 +2056,9 @@ fn unify-types(ctx: .Ctx, generic-arguments: .Array<InferenceHole>, holey: .Type
                     case Type.Custom -> {}
                     case _ -> { drop make UnificationResult.TypeMismatch break }
                 } @known
+                $known.type-definition $holey.type-definition /= if {
+                    make UnificationResult.TypeMismatch break
+                }
                 $ctx $generic-arguments &holey.generic-arguments &known.generic-arguments unify-types-all
             }
             case Type.Fun -> {
