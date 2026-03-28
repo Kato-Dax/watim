@@ -107,7 +107,7 @@ class WordResolver:
                         return IntrinsicWord(
                                 word.ident,
                                 INTRINSICS[word.ident.lexeme],
-                                self.type_resolver.resolve_types(word.generic_arguments) if word.generic_arguments is not None else ()),
+                                self.type_resolver.resolve_types(word.generic_arguments) if word.generic_arguments is not None else None),
                     self.abort(word.ident, f"function `{word.ident.lexeme}` not found")
                 return call,
             case parsing.ForeignCallWord():

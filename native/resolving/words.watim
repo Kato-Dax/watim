@@ -212,7 +212,7 @@ fn Sizeof-format(fmt: .Formatter, self: .Sizeof) {
 struct IntrinsicWord {
     token: Token
     intrinsic: Intrinsic
-    generic-arguments: Array<Type>
+    generic-arguments: Maybe<Array<Type>>
 }
 fn IntrinsicWord-format(fmt: .Formatter, self: .IntrinsicWord) {
     $fmt "(Intrinsic " Fmt:write
@@ -220,7 +220,7 @@ fn IntrinsicWord-format(fmt: .Formatter, self: .IntrinsicWord) {
     $fmt " " Fmt:write
     $fmt &self.intrinsic Intrinsic-format
     $fmt " " Fmt:write
-    $fmt \Type:format &self.generic-arguments Array:format<_>
+    $fmt \Types-format &self.generic-arguments Maybe:format
     $fmt ")" Fmt:write
 }
 

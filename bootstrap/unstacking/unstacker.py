@@ -114,7 +114,7 @@ intrinsic_signatures: Dict[IntrinsicType, IntrinsicDescription] = {
                 ("T",),
                 (GenericType(Token(TokenType.IDENT, 0, 0, "T"), 0),),
                 (GenericType(Token(TokenType.IDENT, 0, 0, "T"), 0),),
-                constraints=(MustBeOneOf(0, allowed=set((Bool(), I8(), I32(), I64(), Bool()))),)),
+                constraints=(MustBeOneOf(0, allowed=set((Bool(), I8(), I32(), I64()))),)),
             lambda token, generic_arguments: words.Not(token, generic_arguments[0])),
         IntrinsicType.MUL: IntrinsicDescription(
             intrinsic_muldivmod_signature, lambda token, generic_arguments: words.Mul(token, generic_arguments[0])),

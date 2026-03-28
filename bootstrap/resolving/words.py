@@ -309,7 +309,7 @@ class StackAnnotation(Formattable):
 class IntrinsicWord(Formattable):
     token: Token
     ty: IntrinsicType
-    generic_arguments: Tuple[Type, ...]
+    generic_arguments: Tuple[Type, ...] | None
     def format(self, fmt: Formatter):
-        fmt.unnamed_record("Intrinsic", [self.token, self.ty, format.Seq(self.generic_arguments)])
+        fmt.unnamed_record("Intrinsic", [self.token, self.ty, format.Optional(format.Seq(self.generic_arguments) if self.generic_arguments is not None else None)])
 

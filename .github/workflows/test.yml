@@ -23,9 +23,9 @@ jobs:
     - name: Bootstrap
       run: |
         bash ./bootstrap-native.sh
-    # - name: Run tests on bootstrap compiler
-    #   run: |
-    #     ./test.py
+    - name: Run tests on bootstrap compiler
+      run: |
+        ./test.py --ignore-stderr
     - name: Run tests on native compiler
       run: |
         ./test.py --native

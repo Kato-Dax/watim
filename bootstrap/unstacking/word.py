@@ -272,7 +272,7 @@ class CommonIntrinsic(Formattable):
     token: Token
     taip: InferenceHole
     def format(self, fmt: Formatter):
-        fmt.unnamed_record("Intrinsic", [format.UnnamedRecord(type(self).__name__, [self.token, self.taip])])
+        fmt.unnamed_record(type(self).__name__, [self.token, self.taip])
 
 @dataclass(frozen=True)
 class Add(CommonIntrinsic):

@@ -418,6 +418,8 @@ fn run-project-wide-command(fs: .FileSystem, command: ProjectWideCommand) { bloc
 
     &resolved-modules forbid-directly-recursive-types
 
+    Unstacker:init-intrinsic-signatures
+
     $command match {
         case Unstack -> {
             @args
@@ -437,6 +439,7 @@ fn run-project-wide-command(fs: .FileSystem, command: ProjectWideCommand) { bloc
                 }
             }
 
+            Unstacker:uninit-intrinsic-signatures
             &resolving-arena Arena:shred
             &arena Arena:shred
             break
@@ -462,6 +465,7 @@ fn run-project-wide-command(fs: .FileSystem, command: ProjectWideCommand) { bloc
                     $buf Fmt:flush
                 }
             }
+            Unstacker:uninit-intrinsic-signatures
             &resolving-arena Arena:shred
             &arena Arena:shred
             break
@@ -503,6 +507,7 @@ fn run-project-wide-command(fs: .FileSystem, command: ProjectWideCommand) { bloc
                 }
             }
 
+            Unstacker:uninit-intrinsic-signatures
             &resolving-arena Arena:shred
             &inference-arena Arena:shred
             &arena Arena:shred
@@ -529,6 +534,7 @@ fn run-project-wide-command(fs: .FileSystem, command: ProjectWideCommand) { bloc
             &fmt \ByteSlice-format \Checked:Module-format &inferred Map:format-multi-line<_, _>
             &fmt "\n" Fmt:write
             $buf Fmt:flush
+            Unstacker:uninit-intrinsic-signatures
             &resolving-arena Arena:shred
             &inference-arena Arena:shred
             &arena Arena:shred
@@ -539,6 +545,7 @@ fn run-project-wide-command(fs: .FileSystem, command: ProjectWideCommand) { bloc
 
     "Monomizing" Arena:new @monomizing-arena
     &monomizing-arena &inferred monomize @monomized
+    Unstacker:uninit-intrinsic-signatures
     &resolving-arena Arena:shred
     &inference-arena Arena:shred
     $command match {

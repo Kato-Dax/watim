@@ -45,7 +45,7 @@ fn MustBeOneOf-format(fmt: .Formatter, self: .MustBeOneOf) {
 struct MustSatisfyPredicate {
     name: ByteSlice
     description: ByteSlice
-    predicate: (Array<Maybe<WithoutHoles:Type>> -> Maybe<ByteSlice>)
+    predicate: (.Array<Maybe<WithoutHoles:Type>> -> Maybe<ByteSlice>)
 }
 fn MustSatisfyPredicate-format(fmt: .Formatter, self: .MustSatisfyPredicate) {
     $fmt "(MustSatisfyPredicate " Fmt:write $fmt $self.name ByteSlice:unpack Fmt:write $fmt ")" Fmt:write

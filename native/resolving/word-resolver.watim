@@ -238,12 +238,12 @@ fn resolve-word(ctx: .WordCtx, word: .P:Word) -> Result<OneOrMany<Word>, Resolve
                                 case Some -> {
                                     $word.name flip
                                     &word.generic-arguments match {
-                                        case None -> { Array:new<Type> }
+                                        case None -> { make Maybe.None }
                                         case Some -> {
                                             $ctx.type-resolver flip $ctx.arena flip TypeResolver:resolve-types match {
                                                 case Error -> { make Result<OneOrMany<Word>, ResolveError>.Error break }
                                                 case Success -> {}
-                                            }
+                                            } make Maybe.Some
                                         }
                                     }
                                     make IntrinsicWord

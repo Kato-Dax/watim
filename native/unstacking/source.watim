@@ -12,6 +12,7 @@ import "../resolving/words.watim" as Resolved (
     GlobalId, LocalId, GlobalId-format, LocalId-format,
     FunctionHandle, FunctionHandle-format,
 )
+import "../resolving/intrinsics.watim" as Resolved
 
 import "./word.watim" as Word (
     InferenceHole, InferenceHole-format,
@@ -103,228 +104,6 @@ fn FromGlobal-format(fmt: .Formatter, self: .FromGlobal) {
     $fmt ")" Fmt:write
 }
 
-struct FromAdd {
-    token: Token
-    base: .Maybe<Source>
-    addition: .Maybe<Source>
-    type: InferenceHole
-}
-fn FromAdd-format(fmt: .Formatter, self: .FromAdd) {
-    $fmt "(FromAdd\n" Fmt:write
-    $fmt Fmt:indent
-    $fmt Fmt:write-indent
-    $fmt "token=" Fmt:write
-    $fmt &self.token Token-format
-    $fmt ",\n" Fmt:write
-    $fmt Fmt:write-indent
-    $fmt "base=" Fmt:write
-    $fmt \Source-format $self.base Maybe:format<_>
-    $fmt ",\n" Fmt:write
-    $fmt Fmt:write-indent
-    $fmt "addition=" Fmt:write
-    $fmt \Source-format $self.addition Maybe:format<_>
-    $fmt ",\n" Fmt:write
-    $fmt Fmt:write-indent
-    $fmt "type=" Fmt:write
-    $fmt &self.type InferenceHole-format
-    $fmt Fmt:dedent
-    $fmt ")" Fmt:write
-}
-
-struct FromMul {
-    token: Token
-    a: .Maybe<Source>
-    b: .Maybe<Source>
-    type: InferenceHole
-}
-fn FromMul-format(fmt: .Formatter, self: .FromMul) {
-    $fmt "(FromMul\n" Fmt:write
-    $fmt Fmt:indent
-    $fmt Fmt:write-indent
-    $fmt "token=" Fmt:write
-    $fmt &self.token Token-format
-    $fmt ",\n" Fmt:write
-    $fmt Fmt:write-indent
-    $fmt "type=" Fmt:write
-    $fmt &self.type InferenceHole-format
-    $fmt ",\n" Fmt:write
-    $fmt Fmt:write-indent
-    $fmt "a=" Fmt:write
-    $fmt \Source-format $self.a Maybe:format<_>
-    $fmt ",\n" Fmt:write
-    $fmt Fmt:write-indent
-    $fmt "b=" Fmt:write
-    $fmt \Source-format $self.b Maybe:format<_>
-    $fmt Fmt:dedent
-    $fmt ")" Fmt:write
-}
-
-struct FromCmp {
-    token: Token
-    a: .Maybe<Source>
-    b: .Maybe<Source>
-    type: InferenceHole
-}
-fn FromCmp-format(fmt: .Formatter, self: .FromCmp) {
-    $fmt "(FromCmp\n" Fmt:write
-    $fmt Fmt:indent
-    $fmt Fmt:write-indent
-    $fmt "token=" Fmt:write
-    $fmt &self.token Token-format
-    $fmt ",\n" Fmt:write
-    $fmt Fmt:write-indent
-    $fmt "type=" Fmt:write
-    $fmt &self.type InferenceHole-format
-    $fmt ",\n" Fmt:write
-    $fmt Fmt:write-indent
-    $fmt "a=" Fmt:write
-    $fmt \Source-format $self.a Maybe:format<_>
-    $fmt ",\n" Fmt:write
-    $fmt Fmt:write-indent
-    $fmt "b=" Fmt:write
-    $fmt \Source-format $self.b Maybe:format<_>
-    $fmt Fmt:dedent
-    $fmt ")" Fmt:write
-}
-
-struct FromUninit {
-    token: Token
-    generic-arguments: Array<InferenceHole>
-}
-fn FromUninit-format(fmt: .Formatter, self: .FromUninit) {
-    $fmt "(FromUninit " Fmt:write
-    $fmt &self.token Token-format
-    $fmt " " Fmt:write
-    $fmt \InferenceHole-format &self.generic-arguments Array:format<_>
-    $fmt ")" Fmt:write
-}
-
-struct FromEq {
-    token: Token
-    type: InferenceHole
-    a: .Maybe<Source>
-    b: .Maybe<Source>
-}
-fn FromEq-format(fmt: .Formatter, self: .FromEq) {
-    $fmt "(FromEq\n" Fmt:write
-    $fmt Fmt:indent
-    $fmt Fmt:write-indent
-    $fmt "token=" Fmt:write
-    $fmt &self.token Token-format
-    $fmt ",\n" Fmt:write
-    $fmt Fmt:write-indent
-    $fmt "type=" Fmt:write
-    $fmt &self.type InferenceHole-format
-    $fmt ",\n" Fmt:write
-    $fmt Fmt:write-indent
-    $fmt "a=" Fmt:write
-    $fmt \Source-format $self.a Maybe:format<_>
-    $fmt ",\n" Fmt:write
-    $fmt Fmt:write-indent
-    $fmt "b=" Fmt:write
-    $fmt \Source-format $self.b Maybe:format<_>
-    $fmt Fmt:dedent
-    $fmt ")" Fmt:write
-}
-
-struct FromAnd {
-    token: Token
-    type: InferenceHole
-    a: .Maybe<Source>
-    b: .Maybe<Source>
-}
-fn FromAnd-format(fmt: .Formatter, self: .FromAnd) {
-    $fmt "(FromAnd\n" Fmt:write
-    $fmt Fmt:indent
-    $fmt Fmt:write-indent
-    $fmt "token=" Fmt:write
-    $fmt &self.token Token-format
-    $fmt ",\n" Fmt:write
-    $fmt Fmt:write-indent
-    $fmt "type=" Fmt:write
-    $fmt &self.type InferenceHole-format
-    $fmt ",\n" Fmt:write
-    $fmt Fmt:write-indent
-    $fmt "a=" Fmt:write
-    $fmt \Source-format $self.a Maybe:format<_>
-    $fmt ",\n" Fmt:write
-    $fmt Fmt:write-indent
-    $fmt "b=" Fmt:write
-    $fmt \Source-format $self.b Maybe:format<_>
-    $fmt Fmt:dedent
-    $fmt ")" Fmt:write
-}
-
-struct FromNot {
-    token: Token
-    type: InferenceHole
-    source: .Maybe<Source>
-}
-fn FromNot-format(fmt: .Formatter, self: .FromNot) {
-    $fmt "(FromNot\n" Fmt:write
-    $fmt Fmt:indent
-    $fmt Fmt:write-indent
-    $fmt "token=" Fmt:write
-    $fmt &self.token Token-format
-    $fmt ",\n" Fmt:write
-    $fmt Fmt:write-indent
-    $fmt "type=" Fmt:write
-    $fmt &self.type InferenceHole-format
-    $fmt ",\n" Fmt:write
-    $fmt Fmt:write-indent
-    $fmt "source=" Fmt:write
-    $fmt \Source-format $self.source Maybe:format<_>
-    $fmt Fmt:dedent
-    $fmt ")" Fmt:write
-}
-
-struct FromMemGrow {
-    token: Token
-    source: .Maybe<Source>
-}
-fn FromMemGrow-format(fmt: .Formatter, self: .FromMemGrow) {
-    $fmt "(FromMemGrow " Fmt:write
-    $fmt &self.token Token-format
-    $fmt " " Fmt:write
-    $fmt \Source-format $self.source Maybe:format<_>
-    $fmt ")" Fmt:write
-}
-
-variant FromIntrinsic {
-    case Add -> FromAdd
-    case Mul -> FromMul
-    case Uninit -> FromUninit
-    case Eq -> FromEq
-    case Cmp -> FromCmp
-    case And -> FromAnd
-    case MemGrow -> FromMemGrow
-    case Not -> FromNot
-}
-fn FromIntrinsic-format(fmt: .Formatter, self: .FromIntrinsic) {
-    $fmt $self match {
-        case Add -> { FromAdd-format }
-        case Mul -> { FromMul-format }
-        case Uninit -> { FromUninit-format }
-        case Eq -> { FromEq-format }
-        case Cmp -> { FromCmp-format }
-        case And -> { FromAnd-format }
-        case MemGrow -> { FromMemGrow-format }
-        case Not -> { FromNot-format }
-    }
-}
-fn FromIntrinsic-token(self: .FromIntrinsic) -> .Token {
-    $self match {
-        case Add -> { .token }
-        case Mul -> { .token }
-        case Uninit -> { .token }
-        case Eq -> { .token }
-        case Cmp -> { .token }
-        case And -> { .token }
-        case MemGrow -> { .token }
-        case Not -> { .token }
-    }
-}
-
 struct FromMakeStruct {
     token: Token
     name: Token
@@ -401,9 +180,20 @@ fn FromMakeVariant-format(fmt: .Formatter, self: .FromMakeVariant) {
     $fmt ")" Fmt:write
 }
 
+variant SignatureHandle {
+    case Function -> Resolved:FunctionHandle
+    case Intrinsic -> Resolved:Intrinsic
+}
+fn SignatureHandle-format(fmt: .Formatter, self: .SignatureHandle) {
+    $fmt $self match {
+        case Function -> { Resolved:FunctionHandle-format }
+        case Intrinsic -> { Resolved:Intrinsic-format }
+    }
+}
+
 struct FromCall {
     token: Token
-    function: FunctionHandle
+    function: SignatureHandle
     generic-arguments: Array<InferenceHole>
     arguments: Array<Source>
 }
@@ -416,7 +206,7 @@ fn FromCall-format(fmt: .Formatter, self: .FromCall) {
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "function=" Fmt:write
-    $fmt &self.function FunctionHandle-format
+    $fmt &self.function SignatureHandle-format
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "generic-arguments=" Fmt:write
@@ -933,7 +723,6 @@ variant Source {
     case FromGlobal -> FromGlobal
     case FromNumber -> Token
     case FromString -> Token
-    case FromIntrinsic -> FromIntrinsic
     case FromMakeStruct -> FromMakeStruct
     case FromNode -> FromNode
     case FromCast -> FromCast
@@ -950,7 +739,6 @@ fn Source-format(fmt: .Formatter, self: .Source) {
         case FromGlobal -> { FromGlobal-format }
         case FromNumber -> { $fmt "(FromNumber " Fmt:write Token-format $fmt ")" Fmt:write }
         case FromString -> { $fmt "(FromString " Fmt:write Token-format $fmt ")" Fmt:write }
-        case FromIntrinsic -> { FromIntrinsic-format }
         case FromMakeStruct -> { FromMakeStruct-format }
         case FromNode -> { FromNode-format }
         case FromCast -> { FromCast-format }
@@ -979,7 +767,6 @@ fn Source-token(self: .Source) -> .Token {
         case FromGlobal -> { .token }
         case FromNumber -> {}
         case FromString -> {}
-        case FromIntrinsic -> { FromIntrinsic-token }
         case FromMakeStruct -> { .token }
         case FromNode -> { .token }
         case FromCast -> { .token }

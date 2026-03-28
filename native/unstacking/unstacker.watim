@@ -1,5 +1,5 @@
 import "../../std/core.watim" as Core (dup)
-import "../../std/maybe.watim" as Maybe (Maybe(Some, None), assert-none)
+import "../../std/maybe.watim" as Maybe (Maybe(Some, None), assert-none, assert-some)
 import "../../std/result.watim" as Result (Result(Success, Error))
 import "../../std/arena.watim" as Arena (Arena)
 import "../../std/array.watim" as Array (Array)
@@ -21,12 +21,12 @@ import "../resolving/words.watim" as Resolved (VarId, LocalId, LocalId-format)
 import "../resolving/intrinsics.watim" as Resolved
 import "../resolving/top-items.watim" as Resolved (
     FunctionSignature, FunctionSignature-format,
-    IntrinsicSignature,
+    IntrinsicSignature, MustBeOneOf, ConstraintOnGeneric, TypeShape, MustSatisfyPredicate,
     LocalName, LocalName-token)
 import "../resolving/module.watim" as Resolved
 
 import "./stack.watim" as Stack (Stack)
-import "./source.watim" as Source (Source, Source-format, Source-format-shallow, MultiReturnNode)
+import "./source.watim" as Source (Source, Source-format, Source-format-shallow, MultiReturnNode, SignatureHandle, SignatureHandle-format)
 import "./word.watim" as Word (InferenceHole, InferenceHole-format, InferenceFieldHole, Word, Scope, Scope-format, Intrinsic)
 
 struct IntrinsicDescription {
@@ -40,8 +40,135 @@ global INTRINSIC_SIGNATURES: Map<Resolved:Intrinsic, IntrinsicSignature>
 global INTRINSIC_DESCRIPTIONS: Map<Resolved:Intrinsic, IntrinsicDescription>
 
 fn construct-and(token: .Token, generic-arguments: .Array<InferenceHole>) -> Word {
+    $token ~ $generic-arguments 0 Array:get ~ make Word:And make Intrinsic.And make Word.Intrinsic
+}
+
+fn construct-or(token: .Token, generic-arguments: .Array<InferenceHole>) -> Word {
+    $token ~ $generic-arguments 0 Array:get ~ make Word:Or make Intrinsic.Or make Word.Intrinsic
+}
+
+fn construct-gt(token: .Token, generic-arguments: .Array<InferenceHole>) -> Word {
+    $token ~ $generic-arguments 0 Array:get ~ make Word:Gt make Intrinsic.Gt make Word.Intrinsic
+}
+
+fn construct-lt(token: .Token, generic-arguments: .Array<InferenceHole>) -> Word {
+    $token ~ $generic-arguments 0 Array:get ~ make Word:Lt make Intrinsic.Lt make Word.Intrinsic
+}
+
+fn construct-ge(token: .Token, generic-arguments: .Array<InferenceHole>) -> Word {
+    $token ~ $generic-arguments 0 Array:get ~ make Word:Ge make Intrinsic.Ge make Word.Intrinsic
+}
+
+fn construct-le(token: .Token, generic-arguments: .Array<InferenceHole>) -> Word {
+    $token ~ $generic-arguments 0 Array:get ~ make Word:Le make Intrinsic.Le make Word.Intrinsic
+}
+
+fn construct-eq(token: .Token, generic-arguments: .Array<InferenceHole>) -> Word {
+    $token ~ $generic-arguments 0 Array:get ~ make Word:Eq make Intrinsic.Eq make Word.Intrinsic
+}
+
+fn construct-not-eq(token: .Token, generic-arguments: .Array<InferenceHole>) -> Word {
+    $token ~ $generic-arguments 0 Array:get ~ make Word:NotEq make Intrinsic.NotEq make Word.Intrinsic
+}
+
+fn construct-mul(token: .Token, generic-arguments: .Array<InferenceHole>) -> Word {
+    $token ~ $generic-arguments 0 Array:get ~ make Word:Mul make Intrinsic.Mul make Word.Intrinsic
+}
+
+fn construct-div(token: .Token, generic-arguments: .Array<InferenceHole>) -> Word {
+    $token ~ $generic-arguments 0 Array:get ~ make Word:Div make Intrinsic.Div make Word.Intrinsic
+}
+
+fn construct-mod(token: .Token, generic-arguments: .Array<InferenceHole>) -> Word {
+    $token ~ $generic-arguments 0 Array:get ~ make Word:Mod make Intrinsic.Mod make Word.Intrinsic
+}
+
+fn construct-add(token: .Token, generic-arguments: .Array<InferenceHole>) -> Word {
     $token ~ $generic-arguments 0 Array:get ~ make Word:Add make Intrinsic.Add make Word.Intrinsic
 }
+
+fn construct-sub(token: .Token, generic-arguments: .Array<InferenceHole>) -> Word {
+    $token ~ $generic-arguments 0 Array:get ~ make Word:Sub make Intrinsic.Sub make Word.Intrinsic
+}
+
+fn construct-mem-copy(token: .Token, generic-arguments: .Array<InferenceHole>) -> Word {
+    $token ~ make Intrinsic.MemCopy make Word.Intrinsic
+}
+
+fn construct-drop(token: .Token, generic-arguments: .Array<InferenceHole>) -> Word {
+    $token ~ $generic-arguments 0 Array:get ~ make Word:Drop make Intrinsic.Drop make Word.Intrinsic
+}
+
+fn construct-uninit(token: .Token, generic-arguments: .Array<InferenceHole>) -> Word {
+    $token ~ $generic-arguments 0 Array:get ~ make Word:Uninit make Intrinsic.Uninit make Word.Intrinsic
+}
+
+fn construct-flip(token: .Token, generic-arguments: .Array<InferenceHole>) -> Word {
+    $token ~ $generic-arguments 0 Array:get ~ $generic-arguments 1 Array:get ~ make Word:Flip make Intrinsic.Flip make Word.Intrinsic
+}
+
+fn construct-store(token: .Token, generic-arguments: .Array<InferenceHole>) -> Word {
+    $token ~ $generic-arguments 0 Array:get ~ make Word:Store make Intrinsic.Store make Word.Intrinsic
+}
+
+fn construct-shl(token: .Token, generic-arguments: .Array<InferenceHole>) -> Word {
+    $token ~ $generic-arguments 0 Array:get ~ make Word:Shl make Intrinsic.Shl make Word.Intrinsic
+}
+
+fn construct-shr(token: .Token, generic-arguments: .Array<InferenceHole>) -> Word {
+    $token ~ $generic-arguments 0 Array:get ~ make Word:Shr make Intrinsic.Shr make Word.Intrinsic
+}
+
+fn construct-rotl(token: .Token, generic-arguments: .Array<InferenceHole>) -> Word {
+    $token ~ $generic-arguments 0 Array:get ~ make Word:Rotl make Intrinsic.Rotl make Word.Intrinsic
+}
+
+fn construct-rotr(token: .Token, generic-arguments: .Array<InferenceHole>) -> Word {
+    $token ~ $generic-arguments 0 Array:get ~ make Word:Rotr make Intrinsic.Rotr make Word.Intrinsic
+}
+
+fn construct-mem-fill(token: .Token, generic-arguments: .Array<InferenceHole>) -> Word {
+    $token ~ make Intrinsic.MemFill make Word.Intrinsic
+}
+
+fn construct-mem-grow(token: .Token, generic-arguments: .Array<InferenceHole>) -> Word {
+    $token ~ make Intrinsic.MemGrow make Word.Intrinsic
+}
+
+fn construct-not(token: .Token, generic-arguments: .Array<InferenceHole>) -> Word {
+    $token ~ $generic-arguments 0 Array:get ~ make Word:Not make Intrinsic.Not make Word.Intrinsic
+}
+
+fn construct-set-stack-size(token: .Token, generic-arguments: .Array<InferenceHole>) -> Word {
+    $token ~ make Intrinsic.SetStackSize make Word.Intrinsic
+}
+
+fn add-sub-generic-constraints(predicate: .Array<Maybe<Type>>) -> Maybe<ByteSlice> { block {
+    $predicate 0 Array:get match {
+        case None -> { make Maybe.None break }
+        case Some -> {}
+    } @base
+
+    $predicate 1 Array:get match {
+        case None -> { make Maybe.None break }
+        case Some -> {}
+    } @addition
+
+    $base match {
+        case Type.Ptr -> {
+            drop $addition match {
+                case Type.I32 -> { make Maybe<ByteSlice>.None break }
+                case _ -> { drop }
+            }
+            "can only add i32 to ptr" make ByteSlice make Maybe.Some break
+        }
+        case _ -> {}
+    }
+    $addition Type:eq not if {
+        "can not add two values of differing types" make ByteSlice make Maybe.Some break
+    }
+    make Maybe.None
+} }
 
 fn init-intrinsic-signatures() {
     $INTRINSIC_DESCRIPTIONS_INITIALIZED if {
@@ -54,10 +181,40 @@ fn init-intrinsic-signatures() {
     $arena \Resolved:Intrinsic-eq 26 Map:new-with-capacity #INTRINSIC_SIGNATURES
     $arena \Resolved:Intrinsic-eq 26 Map:new-with-capacity #INTRINSIC_DESCRIPTIONS
 
+    block {
+        $arena 3 Array:new-with-capacity<TypeShape> @types
+        &types make Type.I8  make TypeShape.Exact Array:push-assert-no-alloc
+        &types make Type.I32 make TypeShape.Exact Array:push-assert-no-alloc
+        &types make Type.I64 make TypeShape.Exact Array:push-assert-no-alloc
+        $types
+    } @i8i32i64
+
+    block {
+        $arena 4 Array:new-with-capacity<TypeShape> @types
+        &types               make TypeShape.AnyPtr Array:push-assert-no-alloc
+        &types make Type.I8  make TypeShape.Exact  Array:push-assert-no-alloc
+        &types make Type.I32 make TypeShape.Exact  Array:push-assert-no-alloc
+        &types make Type.I64 make TypeShape.Exact  Array:push-assert-no-alloc
+        $types
+    } @ptri8i32i64
+
+    block {
+        $arena 4 Array:new-with-capacity<TypeShape> @types
+        &types make Type.Bool make TypeShape.Exact Array:push-assert-no-alloc
+        &types make Type.I8   make TypeShape.Exact Array:push-assert-no-alloc
+        &types make Type.I32  make TypeShape.Exact Array:push-assert-no-alloc
+        &types make Type.I64  make TypeShape.Exact Array:push-assert-no-alloc
+        $types
+    } @booli8i32i64
+
     make IntrinsicSignature {
         $arena "T" make ByteSlice Array:singleton @generic-parameters
         block {
             $arena 2 Array:new-with-capacity @parameters
+            &parameters make GenericType {
+                0 @index
+                make Lexer:TokenTy.TOKEN_FN 0 0 Lexer:Token-new-keyword @name
+            } make Type.Generic Array:push-assert-no-alloc
             &parameters make GenericType {
                 0 @index
                 make Lexer:TokenTy.TOKEN_FN 0 0 Lexer:Token-new-keyword @name
@@ -72,13 +229,273 @@ fn init-intrinsic-signatures() {
         Array:new @constraints
     } @signature-and
 
-    make IntrinsicDescription {
-        $signature-and @signature
-        \construct-and @construct
-    } @description-and
+    &INTRINSIC_SIGNATURES make Resolved:Intrinsic.And $signature-and Map:insert-assert-no-alloc assert-none
+    &INTRINSIC_DESCRIPTIONS make Resolved:Intrinsic.And $signature-and \construct-and make IntrinsicDescription Map:insert-assert-no-alloc assert-none
 
-    &INTRINSIC_SIGNATURES make Resolved:Intrinsic.Add $signature-and Map:insert-assert-no-alloc assert-none
-    &INTRINSIC_DESCRIPTIONS make Resolved:Intrinsic.Add $description-and Map:insert-assert-no-alloc assert-none
+    &INTRINSIC_SIGNATURES make Resolved:Intrinsic.Or $signature-and Map:insert-assert-no-alloc assert-none
+    &INTRINSIC_DESCRIPTIONS make Resolved:Intrinsic.Or $signature-and \construct-or make IntrinsicDescription Map:insert-assert-no-alloc assert-none
+
+    make IntrinsicSignature {
+        $arena "T" make ByteSlice Array:singleton @generic-parameters
+        block {
+            $arena 2 Array:new-with-capacity @parameters
+            &parameters make Lexer:TokenTy.TOKEN_FN 0 0 Lexer:Token-new-keyword 0 make GenericType make Type.Generic Array:push-assert-no-alloc
+            &parameters make Lexer:TokenTy.TOKEN_FN 0 0 Lexer:Token-new-keyword 0 make GenericType make Type.Generic Array:push-assert-no-alloc
+            $parameters
+        } @parameters
+        $arena make Type.Bool Array:singleton @returns
+
+        $arena 0 $i8i32i64 make MustBeOneOf make ConstraintOnGeneric.MustBeOneOf Array:singleton @constraints
+    } @signature-cmp
+
+    &INTRINSIC_SIGNATURES make Resolved:Intrinsic.Gt $signature-cmp Map:insert-assert-no-alloc assert-none
+    &INTRINSIC_DESCRIPTIONS make Resolved:Intrinsic.Gt $signature-cmp \construct-gt make IntrinsicDescription Map:insert-assert-no-alloc assert-none
+
+    &INTRINSIC_SIGNATURES make Resolved:Intrinsic.Lt $signature-cmp Map:insert-assert-no-alloc assert-none
+    &INTRINSIC_DESCRIPTIONS make Resolved:Intrinsic.Lt $signature-cmp \construct-lt make IntrinsicDescription Map:insert-assert-no-alloc assert-none
+
+    &INTRINSIC_SIGNATURES make Resolved:Intrinsic.Ge $signature-cmp Map:insert-assert-no-alloc assert-none
+    &INTRINSIC_DESCRIPTIONS make Resolved:Intrinsic.Ge $signature-cmp \construct-ge make IntrinsicDescription Map:insert-assert-no-alloc assert-none
+
+    &INTRINSIC_SIGNATURES make Resolved:Intrinsic.Le $signature-cmp Map:insert-assert-no-alloc assert-none
+    &INTRINSIC_DESCRIPTIONS make Resolved:Intrinsic.Le $signature-cmp \construct-le make IntrinsicDescription Map:insert-assert-no-alloc assert-none
+
+    make IntrinsicSignature {
+        $arena "T" make ByteSlice Array:singleton @generic-parameters
+        make Lexer:TokenTy.TOKEN_FN 0 0 Lexer:Token-new-keyword 0 make GenericType make Type.Generic @T
+        block {
+            $arena 2 Array:new-with-capacity @parameters
+            &parameters $T Array:push-assert-no-alloc
+            &parameters $T Array:push-assert-no-alloc
+            $parameters
+        } @parameters
+        $arena make Type.Bool Array:singleton @returns
+        Array:new @constraints
+    } @signature-eq
+
+    make IntrinsicDescription {
+        $signature-eq @signature
+        \construct-eq @construct
+    } @description-eq
+    &INTRINSIC_SIGNATURES make Resolved:Intrinsic.Eq $signature-eq Map:insert-assert-no-alloc assert-none
+    &INTRINSIC_DESCRIPTIONS make Resolved:Intrinsic.Eq $description-eq Map:insert-assert-no-alloc assert-none
+
+    make IntrinsicDescription {
+        $signature-eq @signature
+        \construct-not-eq @construct
+    } @description-not-eq
+    &INTRINSIC_SIGNATURES make Resolved:Intrinsic.NotEq $signature-eq Map:insert-assert-no-alloc assert-none
+    &INTRINSIC_DESCRIPTIONS make Resolved:Intrinsic.NotEq $description-not-eq Map:insert-assert-no-alloc assert-none
+
+    make IntrinsicSignature {
+        $arena "T" make ByteSlice Array:singleton @generic-parameters
+        make Lexer:TokenTy.TOKEN_FN 0 0 Lexer:Token-new-keyword 0 make GenericType make Type.Generic @T
+        block {
+            $arena 2 Array:new-with-capacity @parameters
+            &parameters $T Array:push-assert-no-alloc
+            &parameters $T Array:push-assert-no-alloc
+            $parameters
+        } @parameters
+        $arena $T Array:singleton @returns
+
+        $arena 0 $i8i32i64 make MustBeOneOf make ConstraintOnGeneric.MustBeOneOf Array:singleton @constraints
+    } @signature-muldivmod
+
+    &INTRINSIC_SIGNATURES make Resolved:Intrinsic.Mul $signature-muldivmod Map:insert-assert-no-alloc assert-none
+    &INTRINSIC_DESCRIPTIONS make Resolved:Intrinsic.Mul $signature-muldivmod \construct-mul make IntrinsicDescription Map:insert-assert-no-alloc assert-none
+
+    &INTRINSIC_SIGNATURES make Resolved:Intrinsic.Div $signature-muldivmod Map:insert-assert-no-alloc assert-none
+    &INTRINSIC_DESCRIPTIONS make Resolved:Intrinsic.Div $signature-muldivmod \construct-div make IntrinsicDescription Map:insert-assert-no-alloc assert-none
+
+    &INTRINSIC_SIGNATURES make Resolved:Intrinsic.Mod $signature-muldivmod Map:insert-assert-no-alloc assert-none
+    &INTRINSIC_DESCRIPTIONS make Resolved:Intrinsic.Mod $signature-muldivmod \construct-mod make IntrinsicDescription Map:insert-assert-no-alloc assert-none
+
+    &INTRINSIC_SIGNATURES make Resolved:Intrinsic.Shl $signature-muldivmod Map:insert-assert-no-alloc assert-none
+    &INTRINSIC_DESCRIPTIONS make Resolved:Intrinsic.Shl $signature-muldivmod \construct-shl make IntrinsicDescription Map:insert-assert-no-alloc assert-none
+
+    &INTRINSIC_SIGNATURES make Resolved:Intrinsic.Shr $signature-muldivmod Map:insert-assert-no-alloc assert-none
+    &INTRINSIC_DESCRIPTIONS make Resolved:Intrinsic.Shr $signature-muldivmod \construct-shr make IntrinsicDescription Map:insert-assert-no-alloc assert-none
+
+    &INTRINSIC_SIGNATURES make Resolved:Intrinsic.Rotl $signature-muldivmod Map:insert-assert-no-alloc assert-none
+    &INTRINSIC_DESCRIPTIONS make Resolved:Intrinsic.Rotl $signature-muldivmod \construct-rotl make IntrinsicDescription Map:insert-assert-no-alloc assert-none
+
+    &INTRINSIC_SIGNATURES make Resolved:Intrinsic.Rotr $signature-muldivmod Map:insert-assert-no-alloc assert-none
+    &INTRINSIC_DESCRIPTIONS make Resolved:Intrinsic.Rotr $signature-muldivmod \construct-rotr make IntrinsicDescription Map:insert-assert-no-alloc assert-none
+
+    make IntrinsicSignature {
+        block {
+            $arena 2 Array:new-with-capacity @generic-parameters
+            &generic-parameters "A" make ByteSlice Array:push-assert-no-alloc
+            &generic-parameters "B" make ByteSlice Array:push-assert-no-alloc
+            $generic-parameters
+        } @generic-parameters
+        make Lexer:TokenTy.TOKEN_FN 0 0 Lexer:Token-new-keyword 0 make GenericType make Type.Generic @A
+        make Lexer:TokenTy.TOKEN_FN 0 0 Lexer:Token-new-keyword 1 make GenericType make Type.Generic @B
+        block {
+            $arena 2 Array:new-with-capacity @parameters
+            &parameters $A Array:push-assert-no-alloc
+            &parameters $B Array:push-assert-no-alloc
+            $parameters
+        } @parameters
+        $arena $A Array:singleton @returns
+
+        block {
+            $arena 3 Array:new-with-capacity<ConstraintOnGeneric> @constraints
+            &constraints 0 $ptri8i32i64 make MustBeOneOf make ConstraintOnGeneric.MustBeOneOf Array:push-assert-no-alloc
+            &constraints 1 $i8i32i64 make MustBeOneOf make ConstraintOnGeneric.MustBeOneOf Array:push-assert-no-alloc
+            &constraints "CanAdd" make ByteSlice "foo" make ByteSlice \add-sub-generic-constraints make MustSatisfyPredicate make ConstraintOnGeneric.MustSatisfyPredicate Array:push-assert-no-alloc
+            $constraints
+        } @constraints
+    } @signature-addsub
+
+    &INTRINSIC_SIGNATURES make Resolved:Intrinsic.Add $signature-addsub Map:insert-assert-no-alloc assert-none
+    &INTRINSIC_DESCRIPTIONS make Resolved:Intrinsic.Add $signature-addsub \construct-add make IntrinsicDescription Map:insert-assert-no-alloc assert-none
+
+    &INTRINSIC_SIGNATURES make Resolved:Intrinsic.Sub $signature-addsub Map:insert-assert-no-alloc assert-none
+    &INTRINSIC_DESCRIPTIONS make Resolved:Intrinsic.Sub $signature-addsub \construct-sub make IntrinsicDescription Map:insert-assert-no-alloc assert-none
+
+    make IntrinsicSignature {
+        Array:new @generic-parameters
+        block {
+            $arena 3 Array:new-with-capacity @parameters
+            &parameters $arena make Type.I8 Arena:push make Type.Ptr Array:push-assert-no-alloc
+            &parameters $arena make Type.I8 Arena:push make Type.Ptr Array:push-assert-no-alloc
+            &parameters make Type.I32 Array:push-assert-no-alloc
+            $parameters
+        } @parameters
+        Array:new @returns
+        Array:new @constraints
+    } @signature-mem-copy
+
+    &INTRINSIC_SIGNATURES make Resolved:Intrinsic.MemCopy $signature-mem-copy Map:insert-assert-no-alloc assert-none
+    &INTRINSIC_DESCRIPTIONS make Resolved:Intrinsic.MemCopy $signature-mem-copy \construct-mem-copy make IntrinsicDescription Map:insert-assert-no-alloc assert-none
+
+    make IntrinsicSignature {
+        Array:new @generic-parameters
+        block {
+            $arena 3 Array:new-with-capacity @parameters
+            &parameters $arena make Type.I8 Arena:push make Type.Ptr Array:push-assert-no-alloc
+            &parameters make Type.I8 Array:push-assert-no-alloc
+            &parameters make Type.I32 Array:push-assert-no-alloc
+            $parameters
+        } @parameters
+        Array:new @returns
+        Array:new @constraints
+    } @signature-mem-fill
+
+    &INTRINSIC_SIGNATURES make Resolved:Intrinsic.MemFill $signature-mem-fill Map:insert-assert-no-alloc assert-none
+    &INTRINSIC_DESCRIPTIONS make Resolved:Intrinsic.MemFill $signature-mem-fill \construct-mem-fill make IntrinsicDescription Map:insert-assert-no-alloc assert-none
+
+    make IntrinsicSignature {
+        $arena "T" make ByteSlice Array:singleton @generic-parameters
+        make Lexer:TokenTy.TOKEN_FN 0 0 Lexer:Token-new-keyword 0 make GenericType make Type.Generic @T
+        $arena $T Array:singleton @parameters
+        Array:new @returns
+        Array:new @constraints
+    } @signature-drop
+
+    &INTRINSIC_SIGNATURES make Resolved:Intrinsic.Drop $signature-drop Map:insert-assert-no-alloc assert-none
+    &INTRINSIC_DESCRIPTIONS make Resolved:Intrinsic.Drop $signature-drop \construct-drop make IntrinsicDescription Map:insert-assert-no-alloc assert-none
+
+    make IntrinsicSignature {
+        $arena "T" make ByteSlice Array:singleton @generic-parameters
+        make Lexer:TokenTy.TOKEN_FN 0 0 Lexer:Token-new-keyword 0 make GenericType make Type.Generic @T
+        Array:new @parameters
+        $arena $T Array:singleton @returns
+        Array:new @constraints
+    } @signature-uninit
+
+    &INTRINSIC_SIGNATURES make Resolved:Intrinsic.Uninit $signature-uninit Map:insert-assert-no-alloc assert-none
+    &INTRINSIC_DESCRIPTIONS make Resolved:Intrinsic.Uninit $signature-uninit \construct-uninit make IntrinsicDescription Map:insert-assert-no-alloc assert-none
+
+    make IntrinsicSignature {
+        block {
+            $arena 2 Array:new-with-capacity @generic-parameters
+            &generic-parameters "A" make ByteSlice Array:push-assert-no-alloc
+            &generic-parameters "B" make ByteSlice Array:push-assert-no-alloc
+            $generic-parameters
+        } @generic-parameters
+        make Lexer:TokenTy.TOKEN_FN 0 0 Lexer:Token-new-keyword 0 make GenericType make Type.Generic @A
+        make Lexer:TokenTy.TOKEN_FN 0 0 Lexer:Token-new-keyword 1 make GenericType make Type.Generic @B
+        block {
+            $arena 2 Array:new-with-capacity @parameters
+            &parameters $A Array:push-assert-no-alloc
+            &parameters $B Array:push-assert-no-alloc
+            $parameters
+        } @parameters
+        block {
+            $arena 2 Array:new-with-capacity @returns
+            &returns $B Array:push-assert-no-alloc
+            &returns $A Array:push-assert-no-alloc
+            $returns
+        } @returns
+        Array:new @constraints
+    } @signature-flip
+
+    &INTRINSIC_SIGNATURES make Resolved:Intrinsic.Flip $signature-flip Map:insert-assert-no-alloc assert-none
+    &INTRINSIC_DESCRIPTIONS make Resolved:Intrinsic.Flip $signature-flip \construct-flip make IntrinsicDescription Map:insert-assert-no-alloc assert-none
+
+    make IntrinsicSignature {
+        $arena "T" make ByteSlice Array:singleton @generic-parameters
+        make Lexer:TokenTy.TOKEN_FN 0 0 Lexer:Token-new-keyword 0 make GenericType make Type.Generic @T
+        block {
+            $arena 2 Array:new-with-capacity @parameters
+            &parameters $arena $T Arena:push make Type.Ptr Array:push-assert-no-alloc
+            &parameters $T Array:push-assert-no-alloc
+            $parameters
+        } @parameters
+        Array:new @returns
+        Array:new @constraints
+    } @signature-store
+
+    &INTRINSIC_SIGNATURES make Resolved:Intrinsic.Store $signature-store Map:insert-assert-no-alloc assert-none
+    &INTRINSIC_DESCRIPTIONS make Resolved:Intrinsic.Store $signature-store \construct-store make IntrinsicDescription Map:insert-assert-no-alloc assert-none
+
+    make IntrinsicSignature {
+        Array:new @generic-parameters
+        $arena make Type.I32 Array:singleton @parameters
+        $arena make Type.I32 Array:singleton @returns
+        Array:new @constraints
+    } @signature-mem-grow
+
+    &INTRINSIC_SIGNATURES make Resolved:Intrinsic.MemGrow $signature-mem-grow Map:insert-assert-no-alloc assert-none
+    &INTRINSIC_DESCRIPTIONS make Resolved:Intrinsic.MemGrow $signature-mem-grow \construct-mem-grow make IntrinsicDescription Map:insert-assert-no-alloc assert-none
+
+    make IntrinsicSignature {
+        $arena "T" make ByteSlice Array:singleton @generic-parameters
+        make Lexer:TokenTy.TOKEN_FN 0 0 Lexer:Token-new-keyword 0 make GenericType make Type.Generic @T
+        $arena $T Array:singleton @parameters
+        $arena $T Array:singleton @returns
+        $arena 1 $booli8i32i64 make MustBeOneOf make ConstraintOnGeneric.MustBeOneOf Array:singleton @constraints
+    } @signature-not
+
+    &INTRINSIC_SIGNATURES make Resolved:Intrinsic.Not $signature-not Map:insert-assert-no-alloc assert-none
+    &INTRINSIC_DESCRIPTIONS make Resolved:Intrinsic.Not $signature-not \construct-not make IntrinsicDescription Map:insert-assert-no-alloc assert-none
+
+    make IntrinsicSignature {
+        Array:new @generic-parameters
+        $arena make Type.I32 Array:singleton @parameters
+        Array:new @returns
+        Array:new @constraints
+    } @signature-set-stack-size
+
+    &INTRINSIC_SIGNATURES make Resolved:Intrinsic.SetStackSize $signature-set-stack-size Map:insert-assert-no-alloc assert-none
+    &INTRINSIC_DESCRIPTIONS make Resolved:Intrinsic.SetStackSize $signature-set-stack-size \construct-set-stack-size make IntrinsicDescription Map:insert-assert-no-alloc assert-none
+}
+fn uninit-intrinsic-signatures() {
+    0 $INTRINSIC_DESCRIPTIONS_INITIALIZED !i32 / drop
+    0 1 = #INTRINSIC_DESCRIPTIONS_INITIALIZED
+    &INTRINSIC_DESCRIPTIONS_ARENA Arena:shred
+}
+
+fn intrinsic-signatures() -> .Map<Resolved:Intrinsic, IntrinsicSignature> {
+    0 $INTRINSIC_DESCRIPTIONS_INITIALIZED !i32 / drop
+    &INTRINSIC_SIGNATURES
+}
+
+fn intrinsic-descriptions() -> .Map<Resolved:Intrinsic, IntrinsicDescription> {
+    0 $INTRINSIC_DESCRIPTIONS_INITIALIZED !i32 / drop
+    &INTRINSIC_DESCRIPTIONS
 }
 
 variant FunctionOrExtern {
@@ -280,7 +697,7 @@ fn SetGlobalVoid-format-shallow(fmt: .Formatter, self: .SetGlobalVoid) {
 
 struct CallVoid {
     token: Token
-    function: Resolved:FunctionHandle
+    function: SignatureHandle
     arguments: Array<Source>
     generic-arguments: Array<InferenceHole>
 }
@@ -293,7 +710,7 @@ fn CallVoid-format(fmt: .Formatter, self: .CallVoid) {
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "function=" Fmt:write
-    $fmt &self.function Resolved:FunctionHandle-format
+    $fmt &self.function SignatureHandle-format
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "arguments=" Fmt:write
@@ -314,7 +731,7 @@ fn CallVoid-format-shallow(fmt: .Formatter, self: .CallVoid) {
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "function=" Fmt:write
-    $fmt &self.function Resolved:FunctionHandle-format
+    $fmt &self.function SignatureHandle-format
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "arguments=" Fmt:write
@@ -756,7 +1173,7 @@ fn unstack-word(unstacker: .Unstacker, stack: .Stack, word: .Resolved:Word, rema
             $token make Word.Number
             $unstacker.arena $stack $token make Source.FromNumber Stack:push
         }
-        case Resolved:Word.Intrinsic -> { $unstacker flip $stack flip unstack-intrinsic make Word:Word.Intrinsic }
+        case Resolved:Word.Intrinsic -> { $unstacker flip $stack flip unstack-intrinsic }
         case Resolved:Word.MakeStruct -> {
             @word
 
@@ -816,7 +1233,12 @@ fn unstack-word(unstacker: .Unstacker, stack: .Stack, word: .Resolved:Word, rema
             } make Word:Word.InitLocal
         }
         case Resolved:Word.SetLocal -> { $unstacker flip $stack flip unstack-set-local }
-        case Resolved:Word.Call -> { $unstacker flip $stack flip unstack-call make Word:Word.Call }
+        case Resolved:Word.Call -> {
+            @word
+            $unstacker $stack &word.name $word.function make SignatureHandle.Function &word.generic-arguments unstack-call
+            $word.name flip $word.function flip make Word:Call
+            make Word:Word.Call
+        }
         case Resolved:Word.Cast -> {
             @word
             $unstacker $word.token fresh-hole @src-type
@@ -1645,14 +2067,58 @@ fn unstack-store-local(unstacker: .Unstacker, stack: .Stack, word: .Resolved:Sto
     }
 }
 
-fn unstack-call(unstacker: .Unstacker, stack: .Stack, word: .Resolved:Call) -> Word:Call {
-    $unstacker $word.function lookup-signature @signature
+variant Signature {
+    case Function -> .FunctionSignature
+    case Intrinsic -> .IntrinsicSignature
+}
+fn Signature-generic-parameters-len(signature: .Signature) -> i32 {
+    $signature match {
+        case Signature.Function -> { ~ .generic-parameters.len }
+        case Signature.Intrinsic -> { ~ .generic-parameters.len }
+    } ~
+}
+fn Signature-returns(signature: Signature) -> .Array<Type> {
+    $signature match {
+        case Signature.Function -> { .returns }
+        case Signature.Intrinsic -> { .returns }
+    }
+}
+fn Signature-parameters-len(signature: Signature) -> i32 {
+    $signature match {
+        case Signature.Function -> { .parameters.len ~ }
+        case Signature.Intrinsic -> { .parameters.len ~ }
+    }
+}
+fn Signature-parameter(signature: Signature, param: i32) -> .Type {
+    $signature match {
+        case Signature.Function -> { .parameters $param Array:get .type }
+        case Signature.Intrinsic -> { .parameters $param Array:get }
+    }
+}
+fn Signature-parameters(arena: .Arena, signature: Signature) -> Array<Type> {
+    $signature match {
+        case Signature.Function -> { $arena flip .parameters \Type:NamedType-type Array:map }
+        case Signature.Intrinsic -> { .parameters ~ }
+    }
+}
 
-    $unstacker.arena $stack $signature.parameters.len Stack:pop-n @arguments
+fn unstack-call(
+    unstacker: .Unstacker,
+    stack: .Stack,
+    token: .Token,
+    function: SignatureHandle,
+    annotated-generic-arguments: .Maybe<Array<WithHoles:Type>>,
+) -> Array<InferenceHole> {
+    $function match {
+        case SignatureHandle.Function -> { $unstacker flip lookup-signature make Signature.Function }
+        case SignatureHandle.Intrinsic -> { intrinsic-signatures flip & Map:get assert-some make Signature.Intrinsic }
+    } @signature
 
-    $unstacker $word.name $signature.generic-parameters.len fresh-holes @generic-arguments
+    $unstacker.arena $stack $signature Signature-parameters-len Stack:pop-n @arguments
 
-    &word.generic-arguments match {
+    $unstacker $token ~ &signature Signature-generic-parameters-len fresh-holes @generic-arguments
+
+    $annotated-generic-arguments match {
         case None -> {}
         case Some -> {
             @annotated-generic-arguments
@@ -1673,32 +2139,27 @@ fn unstack-call(unstacker: .Unstacker, stack: .Stack, word: .Resolved:Call) -> W
     }
 
     $unstacker
-    $word.name $word.function $generic-arguments $arguments make Source:FromCall make Source:MultiReturnNode.Call
+    $token ~ $function $generic-arguments $arguments make Source:FromCall make Source:MultiReturnNode.Call
     add-node @node-index
 
-    $signature.returns.len loop {
+    $signature Signature-returns .len ~ loop {
         @i $i 0 = if { break }
         $i 1 - @return-depth
-        $unstacker.arena $stack $word.name $node-index $return-depth make Source:FromNode make Source.FromNode Stack:push
+        $unstacker.arena $stack $token ~ $node-index $return-depth make Source:FromNode make Source.FromNode Stack:push
         $i 1 -
     }
 
-    $signature.returns.len 0 = if {
+    $signature Signature-returns .len ~ 0 = if {
         $unstacker.arena $unstacker.voids
         make CallVoid {
-            $word.name @token
-            $word.function @function
+            $token ~ @token
+            $function @function
             $arguments @arguments
             $generic-arguments @generic-arguments
         } make StackVoid.Call
         Array:push<_>
     }
-
-    make Word:Call {
-        $word.name @name
-        $word.function @function
-        $generic-arguments @generic-arguments
-    }
+    $generic-arguments
 }
 
 fn unstack-set-local(unstacker: .Unstacker, stack: .Stack, word: .Resolved:SetLocal) -> Word:Word {
@@ -1748,187 +2209,11 @@ fn unstack-set-local(unstacker: .Unstacker, stack: .Stack, word: .Resolved:SetLo
     }
 }
 
-fn unstack-intrinsic(unstacker: .Unstacker, stack: .Stack, word: .Resolved:IntrinsicWord) -> Word:Intrinsic {
-    $word.intrinsic match {
-        case Resolved:Intrinsic.Add -> {
-            make Word:Add {
-                $word.token @token
-                $unstacker $stack &word.token unstack-intrinsic-add/sub @type
-            } make Word:Intrinsic.Add
-        }
-        case Resolved:Intrinsic.Sub -> {
-            make Word:Sub {
-                $word.token @token
-                $unstacker $stack &word.token unstack-intrinsic-add/sub @type
-            } make Word:Intrinsic.Sub
-        }
-        case Resolved:Intrinsic.Eq -> {
-            make Word:Eq {
-                $word.token @token
-                $unstacker $stack &word.token unstack-intrinsic-eq/noteq @type
-            } make Word:Intrinsic.Eq
-        }
-        case Resolved:Intrinsic.NotEq -> {
-            make Word:NotEq {
-                $word.token @token
-                $unstacker $stack &word.token unstack-intrinsic-eq/noteq @type
-            } make Word:Intrinsic.NotEq
-        }
-        case Resolved:Intrinsic.Uninit -> {
-            $unstacker &word.token &word.generic-arguments 1 unstack-generic-arguments @generic-arguments
-            make Source:FromUninit {
-                $word.token @token
-                $generic-arguments @generic-arguments
-            } make Source:FromIntrinsic.Uninit make Source.FromIntrinsic
-            $unstacker.arena flip $stack flip Stack:push
-            make Word:Uninit {
-                $word.token @token
-                &generic-arguments 0 Array:get<_> ~ @type
-            } make Word:Intrinsic.Uninit
-        }
-        case Resolved:Intrinsic.Drop -> {
-            $unstacker $word.token fresh-hole @type
-            $unstacker.arena $stack Stack:pop @src
-            $unstacker.arena $unstacker.voids
-            $word.token $src make Maybe<Type:Type>.None $type make Maybe<InferenceHole>.Some make NonSpecificVoid make StackVoid.NonSpecific
-            Array:push<_>
-            make Word:Drop {
-                $word.token @token
-                $type @type
-            } make Word:Intrinsic.Drop
-        }
-        case Resolved:Intrinsic.Mod -> {
-            make Word:Mod {
-                $word.token @token
-                $unstacker $stack &word.token unstack-intrinsic-mul/div/mod @type
-            } make Word:Intrinsic.Mod
-        }
-        case Resolved:Intrinsic.Mul -> {
-            make Word:Mul {
-                $word.token @token
-                $unstacker $stack &word.token unstack-intrinsic-mul/div/mod @type
-            } make Word:Intrinsic.Mul
-        }
-        case Resolved:Intrinsic.Div -> {
-            make Word:Div {
-                $word.token @token
-                $unstacker $stack &word.token unstack-intrinsic-mul/div/mod @type
-            } make Word:Intrinsic.Div
-        }
-        case Resolved:Intrinsic.Ge -> {
-            make Word:Ge {
-                $word.token @token
-                $unstacker $stack &word.token unstack-intrinsic-lt/gt/le/ge @type
-            } make Word:Intrinsic.Ge
-        }
-        case Resolved:Intrinsic.Le -> {
-            make Word:Le {
-                $word.token @token
-                $unstacker $stack &word.token unstack-intrinsic-lt/gt/le/ge @type
-            } make Word:Intrinsic.Le
-        }
-        case Resolved:Intrinsic.Gt -> {
-            make Word:Gt {
-                $word.token @token
-                $unstacker $stack &word.token unstack-intrinsic-lt/gt/le/ge @type
-            } make Word:Intrinsic.Gt
-        }
-        case Resolved:Intrinsic.Lt -> {
-            make Word:Lt {
-                $word.token @token
-                $unstacker $stack &word.token unstack-intrinsic-lt/gt/le/ge @type
-            } make Word:Intrinsic.Lt
-        }
-        case Resolved:Intrinsic.Store -> {
-            make Word:Store {
-                $word.token @token
-                $unstacker $stack &word.token unstack-intrinsic-store @type
-            } make Word:Intrinsic.Store
-        }
-        case Resolved:Intrinsic.And -> {
-            make Word:And {
-                $word.token @token
-                $unstacker $stack &word.token unstack-intrinsic-and/or @type
-            } make Word:Intrinsic.And
-        }
-        case Resolved:Intrinsic.Or -> {
-            make Word:Or {
-                $word.token @token
-                $unstacker $stack &word.token unstack-intrinsic-and/or @type
-            } make Word:Intrinsic.Or
-        }
-        case Resolved:Intrinsic.MemCopy -> {
-            $unstacker $stack &word.token unstack-intrinsic-mem-copy
-            $word.token make Word:Intrinsic.MemCopy
-        }
-        case Resolved:Intrinsic.MemFill -> {
-            $unstacker $stack &word.token unstack-intrinsic-mem-fill
-            $word.token make Word:Intrinsic.MemFill
-        }
-        case Resolved:Intrinsic.MemGrow -> {
-            $unstacker $stack &word.token unstack-intrinsic-mem-grow
-            $word.token make Word:Intrinsic.MemGrow
-        }
-        case Resolved:Intrinsic.Flip -> {
-            $unstacker.arena $stack Stack:pop @b
-            $unstacker.arena $stack Stack:pop @a
-
-            $unstacker $word.token fresh-hole @lower
-            $unstacker $word.token fresh-hole @upper
-
-            $b match {
-                case Some -> {
-                    $unstacker.arena flip Arena:push<_>
-                    $upper make Source:FromProxied make Source.FromProxied
-                    $unstacker.arena flip $stack flip Stack:push
-                }
-                case None -> {}
-            }
-            $a match {
-                case Some -> {
-                    $unstacker.arena flip Arena:push<_>
-                    $lower make Source:FromProxied make Source.FromProxied
-                    $unstacker.arena flip $stack flip Stack:push
-                }
-                case None -> {}
-            }
-            $word.token $lower $upper make Word:Flip make Word:Intrinsic.Flip
-        }
-        case Resolved:Intrinsic.Shl -> {
-            make Word:Shl {
-                $word.token @token
-                $unstacker $stack &word.token unstack-intrinsic-mul/div/mod @type
-            } make Word:Intrinsic.Shl
-        }
-        case Resolved:Intrinsic.Shr -> {
-            make Word:Shr {
-                $word.token @token
-                $unstacker $stack &word.token unstack-intrinsic-mul/div/mod @type
-            } make Word:Intrinsic.Shr
-        }
-        case Resolved:Intrinsic.Rotl -> {
-            make Word:Rotl {
-                $word.token @token
-                $unstacker $stack &word.token unstack-intrinsic-mul/div/mod @type
-            } make Word:Intrinsic.Rotl
-        }
-        case Resolved:Intrinsic.Rotr -> {
-            make Word:Rotr {
-                $word.token @token
-                $unstacker $stack &word.token unstack-intrinsic-mul/div/mod @type
-            } make Word:Intrinsic.Rotr
-        }
-        case Resolved:Intrinsic.Not -> {
-            make Word:Not {
-                $word.token @token
-                $unstacker $stack &word.token unstack-intrinsic-not @type
-            } make Word:Intrinsic.Not
-        }
-        case Resolved:Intrinsic.SetStackSize -> {
-            $unstacker $stack &word.token unstack-intrinsic-set-stack-size
-            $word.token make Word:Intrinsic.SetStackSize
-        }
-    }
+fn unstack-intrinsic(unstacker: .Unstacker, stack: .Stack, word: .Resolved:IntrinsicWord) -> Word {
+    &word.token
+    $unstacker $stack &word.token $word.intrinsic make SignatureHandle.Intrinsic &word.generic-arguments unstack-call &
+    intrinsic-descriptions &word.intrinsic Map:get assert-some .construct ~
+    (.Token, .Array<InferenceHole> -> Word)
 }
 
 fn unstack-get-local(unstacker: .Unstacker, stack: .Stack, word: .Resolved:GetLocal) -> Word:Word {
@@ -2209,148 +2494,6 @@ fn MatchCaseUnstacked-format(fmt: .Formatter, self: .MatchCaseUnstacked) {
     $fmt $self.diverges bool-format
     $fmt Fmt:dedent
     $fmt ")" Fmt:write
-}
-
-fn unstack-intrinsic-add/sub(unstacker: .Unstacker, stack: .Stack, token: .Token) -> InferenceHole {
-    $unstacker.arena $unstacker.arena $stack Stack:pop Arena:push<_> @addition
-    $unstacker.arena $unstacker.arena $stack Stack:pop Arena:push<_> @base
-
-    $unstacker $token ~ fresh-hole @type
-
-    $token ~ $base $addition $type make Source:FromAdd make Source:FromIntrinsic.Add make Source.FromIntrinsic
-    $unstacker.arena flip $stack flip Stack:push
-    $type
-}
-
-fn unstack-intrinsic-mul/div/mod(unstacker: .Unstacker, stack: .Stack, token: .Token) -> InferenceHole {
-    $unstacker.arena $unstacker.arena $stack Stack:pop Arena:push<_> @addition
-    $unstacker.arena $unstacker.arena $stack Stack:pop Arena:push<_> @base
-
-    $unstacker $token ~ fresh-hole @type
-
-    $token ~ $base $addition $type make Source:FromMul make Source:FromIntrinsic.Mul make Source.FromIntrinsic
-    $unstacker.arena flip $stack flip Stack:push
-    $type
-}
-
-fn unstack-intrinsic-not(unstacker: .Unstacker, stack: .Stack, token: .Token) -> InferenceHole {
-    $unstacker.arena $unstacker.arena $stack Stack:pop Arena:push<_> @source
-    $unstacker $token ~ fresh-hole @type
-    $token ~ $type $source make Source:FromNot make Source:FromIntrinsic.Not make Source.FromIntrinsic
-    $unstacker.arena flip $stack flip Stack:push
-    $type
-}
-
-fn unstack-intrinsic-eq/noteq(unstacker: .Unstacker, stack: .Stack, token: .Token) -> InferenceHole {
-    $unstacker $token ~ fresh-hole @type
-    $unstacker.arena $stack make Source:FromEq {
-        $token ~ @token
-        $unstacker.arena $unstacker.arena $stack Stack:pop Arena:push<_> @a
-        $unstacker.arena $unstacker.arena $stack Stack:pop Arena:push<_> @b
-        $type @type
-    } make Source:FromIntrinsic.Eq make Source.FromIntrinsic Stack:push
-    $type
-}
-
-fn unstack-intrinsic-lt/gt/le/ge(unstacker: .Unstacker, stack: .Stack, token: .Token) -> InferenceHole {
-    $unstacker $token ~ fresh-hole @type
-    $unstacker.arena $stack make Source:FromCmp {
-        $token ~ @token
-        $unstacker.arena $unstacker.arena $stack Stack:pop Arena:push<_> @b
-        $unstacker.arena $unstacker.arena $stack Stack:pop Arena:push<_> @a
-        $type @type
-    } make Source:FromIntrinsic.Cmp make Source.FromIntrinsic Stack:push
-    $type
-}
-
-fn unstack-intrinsic-and/or(unstacker: .Unstacker, stack: .Stack, token: .Token) -> InferenceHole {
-    $unstacker $token ~ fresh-hole @type
-    $unstacker.arena $stack make Source:FromAnd {
-        $token ~ @token
-        $unstacker.arena $unstacker.arena $stack Stack:pop Arena:push<_> @b
-        $unstacker.arena $unstacker.arena $stack Stack:pop Arena:push<_> @a
-        $type @type
-    } make Source:FromIntrinsic.And make Source.FromIntrinsic Stack:push
-    $type
-}
-
-fn unstack-intrinsic-store(unstacker: .Unstacker, stack: .Stack, token: .Token) -> InferenceHole {
-    $unstacker $token ~ fresh-hole @type
-
-    $unstacker.arena $unstacker.voids
-    make StoreVoid {
-        $token ~ @token
-        $unstacker.arena $stack Stack:pop @src
-        $unstacker.arena $stack Stack:pop @dst
-        $type @type
-    } make StackVoid.Store Array:push<_>
-
-    $type
-}
-
-fn unstack-intrinsic-mem-copy(unstacker: .Unstacker, stack: .Stack, token: .Token) {
-    $unstacker.arena make Type:Type.I8 Arena:push<_> make Type:Type.Ptr @ptr-i8
-
-    $unstacker.arena $unstacker.voids make NonSpecificVoid {
-        $token ~ @token
-        $unstacker.arena $stack Stack:pop @source
-        make Type:Type.I32 make Maybe<Type:Type>.Some @known
-        make Maybe<InferenceHole>.None @type
-    } make StackVoid.NonSpecific Array:push<_>
-
-    $unstacker.arena $unstacker.voids make NonSpecificVoid {
-        $token ~ @token
-        $unstacker.arena $stack Stack:pop @source
-        $ptr-i8 make Maybe<Type:Type>.Some @known
-        make Maybe<InferenceHole>.None @type
-    } make StackVoid.NonSpecific Array:push<_>
-
-    $unstacker.arena $unstacker.voids make NonSpecificVoid {
-        $token ~ @token
-        $unstacker.arena $stack Stack:pop @source
-        $ptr-i8 make Maybe<Type:Type>.Some @known
-        make Maybe<InferenceHole>.None @type
-    } make StackVoid.NonSpecific Array:push<_>
-}
-
-fn unstack-intrinsic-mem-fill(unstacker: .Unstacker, stack: .Stack, token: .Token) {
-    $unstacker.arena $unstacker.voids make NonSpecificVoid {
-        $token ~ @token
-        $unstacker.arena $stack Stack:pop @source
-        make Type:Type.I32 make Maybe<Type:Type>.Some @known
-        make Maybe<InferenceHole>.None @type
-    } make StackVoid.NonSpecific Array:push<_>
-
-    $unstacker.arena $unstacker.voids make NonSpecificVoid {
-        $token ~ @token
-        $unstacker.arena $stack Stack:pop @source
-        make Type:Type.I8 make Maybe<Type:Type>.Some @known
-        make Maybe<InferenceHole>.None @type
-    } make StackVoid.NonSpecific Array:push<_>
-
-    $unstacker.arena $unstacker.voids make NonSpecificVoid {
-        $token ~ @token
-        $unstacker.arena $stack Stack:pop @source
-        $unstacker.arena make Type:Type.I8 Arena:push<_> make Type:Type.Ptr make Maybe<Type:Type>.Some @known
-        make Maybe<InferenceHole>.None @type
-    } make StackVoid.NonSpecific Array:push<_>
-}
-
-fn unstack-intrinsic-mem-grow(unstacker: .Unstacker, stack: .Stack, token: .Token) {
-    $unstacker.arena $unstacker.arena $stack Stack:pop Arena:push<_> @source
-
-    $unstacker.arena $stack
-    $token ~ $source make Source:FromMemGrow make Source:FromIntrinsic.MemGrow make Source.FromIntrinsic
-    Stack:push
-}
-
-fn unstack-intrinsic-set-stack-size(unstacker: .Unstacker, stack: .Stack, token: .Token) {
-    $unstacker.arena $unstacker.voids make NonSpecificVoid {
-        $token ~ @token
-        $unstacker.arena $stack Stack:pop @source
-        make Type:Type.I32 make Maybe<Type:Type>.Some @known
-        make Maybe<InferenceHole>.None @type
-    } make StackVoid.NonSpecific Array:push<_>
 }
 
 fn unstack-generic-arguments(unstacker: .Unstacker, token: .Token, generic-arguments: .Array<WithHoles:Type>, expected-arguments: i32) -> Array<InferenceHole> {

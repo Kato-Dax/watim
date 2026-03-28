@@ -13,7 +13,7 @@ import "../lexer.watim" as Lexer (Token, Token-lexeme, Token-format, Token-line,
 import "../resolving/words.watim" as Resolved (LocalId)
 import "../resolving/top-items.watim" as Resolved (LocalName-unpack)
 
-import "./source.watim" as Source (Source, FromIntrinsic, MultiReturnNode)
+import "./source.watim" as Source (Source, MultiReturnNode)
 import "./unstacker.watim" as Unstacked (StackVoid, Function)
 
 struct Grapher {
@@ -147,74 +147,6 @@ fn graph-source(grapher: .Grapher, source: .Source) {
         case Source.FromNumber -> {
             $grapher flip graph-token
             $grapher.fmt "\n" Fmt:write
-        }
-        case Source.FromIntrinsic -> {
-            match {
-                case FromIntrinsic.Add -> {
-                    @source
-                    $grapher &source.token graph-token $grapher.fmt "\n" Fmt:write
-
-                    $grapher &source.token graph-token $grapher.fmt " -> " Fmt:write
-                    $grapher $source.base Maybe:ref<_> Maybe:assert-some<_> graph-source
-
-                    $grapher &source.token graph-token $grapher.fmt " -> " Fmt:write
-                    $grapher $source.addition Maybe:ref<_> Maybe:assert-some<_> graph-source
-                }
-                case FromIntrinsic.Mul -> {
-                    @source
-                    $grapher &source.token graph-token $grapher.fmt "\n" Fmt:write
-
-                    $grapher &source.token graph-token $grapher.fmt " -> " Fmt:write
-                    $grapher $source.a Maybe:ref<_> Maybe:assert-some<_> graph-source
-
-                    $grapher &source.token graph-token $grapher.fmt " -> " Fmt:write
-                    $grapher $source.b Maybe:ref<_> Maybe:assert-some<_> graph-source
-                }
-                case FromIntrinsic.Uninit -> {
-                    @source
-                    $grapher &source.token graph-token $grapher.fmt "\n" Fmt:write
-                }
-                case FromIntrinsic.Eq -> {
-                    @source
-                    $grapher &source.token graph-token $grapher.fmt "\n" Fmt:write
-
-                    $grapher &source.token graph-token $grapher.fmt " -> " Fmt:write
-                    $grapher $source.a graph-maybe-source
-
-                    $grapher &source.token graph-token $grapher.fmt " -> " Fmt:write
-                    $grapher $source.b graph-maybe-source
-                }
-                case FromIntrinsic.Cmp -> {
-                    @source
-                    $grapher &source.token graph-token $grapher.fmt "\n" Fmt:write
-
-                    $grapher &source.token graph-token $grapher.fmt " -> " Fmt:write
-                    $grapher $source.a Maybe:ref<_> Maybe:assert-some<_> graph-source
-
-                    $grapher &source.token graph-token $grapher.fmt " -> " Fmt:write
-                    $grapher $source.b Maybe:ref<_> Maybe:assert-some<_> graph-source
-                }
-                case FromIntrinsic.And -> {
-                    @source
-                    $grapher &source.token graph-token $grapher.fmt "\n" Fmt:write
-
-                    $grapher &source.token graph-token $grapher.fmt " -> " Fmt:write
-                    $grapher $source.a Maybe:ref<_> Maybe:assert-some<_> graph-source
-
-                    $grapher &source.token graph-token $grapher.fmt " -> " Fmt:write
-                    $grapher $source.b Maybe:ref<_> Maybe:assert-some<_> graph-source
-                }
-                case FromIntrinsic.MemGrow -> {
-                    @source
-                    $grapher &source.token graph-token $grapher.fmt " -> " Fmt:write
-                    $grapher $source.source Maybe:ref<_> Maybe:assert-some<_> graph-source
-                }
-                case FromIntrinsic.Not -> {
-                    @source
-                    $grapher &source.token graph-token $grapher.fmt " -> " Fmt:write
-                    $grapher $source.source Maybe:ref<_> Maybe:assert-some<_> graph-source
-                }
-            }
         }
         case Source.FromNode -> {
             @source

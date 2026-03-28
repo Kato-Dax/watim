@@ -31,12 +31,12 @@ resolve
           (Number (NUMBER 5 2 5)),
           (Number (NUMBER 0 2 7)),
           (Number (NUMBER 1 2 9)),
-          (Intrinsic (IDENT = 2 11) Eq []),
+          (Intrinsic (IDENT = 2 11) Eq None),
           (If
             token=(IF if 2 13),
             true-branch=(Scope 1 [
               (Number (NUMBER 9 3 9))]),
             false-branch=(Scope 2 [
               (Number (NUMBER 4 5 9))])),
-          (Intrinsic (IDENT + 6 7) Add [])]))),
+          (Intrinsic (IDENT + 6 7) Add None)]))),
     static-data=""))
