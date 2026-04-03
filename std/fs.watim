@@ -21,16 +21,15 @@ extern "wasi_snapshot_preview1" "path_open" fn path_open(
     res_fd: .i32
 ) -> i32
 extern "wasi_snapshot_preview1" "fd_close" fn close(fd: i32) -> i32
+extern "wasi_snapshot_preview1" "fd_sync" fn sync(fd: i32) -> i32
 
-fn create-rights(read: bool, write: bool) -> i64 {
-    $read !i64 1 !i64 shl
-    $write !i64 6 !i64 shl
-    or
-}
+fn create-rights() -> i64 { 0 !i64 }
+fn rights-read(rights: i64)  -> i64 { $rights 1 !i64 1 !i64 shl or }
+fn rights-write(rights: i64) -> i64 { $rights 1 !i64 6 !i64 shl or }
 
-fn create-oflags(truncate: bool) -> i32 {
-    $truncate !i32 3 shl
-}
+fn create-oflags() -> i32 { 0 }
+fn oflags-truncate(oflags: i32) -> i32 { $oflags 1 3 shl or }
+fn oflags-create(oflags: i32)   -> i32 { $oflags 1 0 shl or }
 
 struct PreopenedFd {
     fd: i32
@@ -188,9 +187,9 @@ fn open-file(fs: .FileSystem, path: .i8, path_len: i32, rights: i64, inheriting_
 fn read-file(arena: .Arena, fs: .FileSystem, path: .i8, path-len: i32) -> Result<Array<i8>, Error> { block {
     $fs
     $path $path-len
-    0 0 = 0 1 = create-rights
-    0 1 = 0 1 = create-rights
-    0 1 = create-oflags
+    create-rights rights-read
+    create-rights
+    create-oflags
     open-file @code @fd
     $code 0 /= if {
         $fd close drop
