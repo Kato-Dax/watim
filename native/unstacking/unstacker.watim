@@ -143,7 +143,7 @@ fn construct-set-stack-size(token: .Token, generic-arguments: .Array<InferenceHo
     $token ~ make Intrinsic.SetStackSize make Word.Intrinsic
 }
 
-fn add-sub-generic-constraints(predicate: .Array<Maybe<Type>>) -> Maybe<ByteSlice> { block {
+fn add-sub-generic-constraints(predicate: .Array<Maybe<Type>>) -> Maybe<ByteSlice> { block (-> Maybe<ByteSlice>) {
     $predicate 0 Array:get match {
         case None -> { make Maybe.None break }
         case Some -> {}
@@ -163,6 +163,15 @@ fn add-sub-generic-constraints(predicate: .Array<Maybe<Type>>) -> Maybe<ByteSlic
             "can only add i32 to ptr" make ByteSlice make Maybe.Some break
         }
         case _ -> {}
+    }
+    Core:dup match {
+        case Type.I8 -> {}
+        case Type.I32 -> {}
+        case Type.I64 -> {}
+        case _ -> {
+            drop
+            "can only add i8, i32, i64" make ByteSlice make Maybe.Some break
+        }
     }
     $addition Type:eq not if {
         "can not add two values of differing types" make ByteSlice make Maybe.Some break
