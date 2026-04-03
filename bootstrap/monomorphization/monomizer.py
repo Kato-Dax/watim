@@ -1,4 +1,4 @@
-from typing import Tuple, List, Iterable, Sequence, assert_never
+from typing import Tuple, List, Iterable, Sequence, Dict, assert_never
 from dataclasses import dataclass, field
 
 from util import Ref, align_to
@@ -445,11 +445,11 @@ class Module(Formattable):
                 (format.Seq(f, multi_line=True) if not isinstance(f, Extern) else f for f in self.functions),
                 multi_line=True))])
 
-@dataclass(eq=True)
+@dataclass(eq=True, unsafe_hash=True)
 class CustomTypeKey(Formattable):
     handle: CustomTypeHandle
     generic_arguments: Tuple[TypeId, ...]
-    type: Type | None = field(compare=False)
+    type: Type | None = field(hash=False, compare=False)
     def format(self, fmt: Formatter):
         if self.type is None:
             fmt.unnamed_record("CustomTypeKey", [self.handle, self.generic_arguments])
@@ -500,6 +500,7 @@ class Ctx:
     function_table: List[FunctionHandle]
     type_definitions: List[TypeDefinition]
     functions: List[List[ExternOrInstancesMap]]
+    types_dict: Dict[Key, int] = field(default_factory=dict)
 
     def lookup_type(self, type: TypeId) -> Type:
         key = self.types[type.index]
@@ -589,7 +590,7 @@ class Ctx:
 
         match type:
             case inferred.PtrType():
-                key: Key | None = PtrType(self.monomize_type(type.child, generic_arguments))
+                key: Key = PtrType(self.monomize_type(type.child, generic_arguments))
             case inferred.FunctionType():
                 key = FunType(self.monomize_types(type.parameters, generic_arguments), self.monomize_types(type.returns, generic_arguments))
             case inferred.CustomTypeType():
@@ -598,12 +599,13 @@ class Ctx:
                 assert_never(other)
 
         try:
-            index = self.types.index(key)
+            index = self.types_dict[key]
             if type_id.index + 1 == len(self.types):
                 assert self.types.pop() is None
             return TypeId(index)
-        except ValueError:
+        except KeyError:
             self.types[type_id.index] = key
+            self.types_dict[key] = type_id.index
             if isinstance(key, CustomTypeKey):
                 if isinstance(type, inferred.CustomTypeType):
                     monomized_type = self.monomize_custom_type(type, key.generic_arguments)

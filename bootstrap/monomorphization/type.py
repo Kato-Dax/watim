@@ -23,7 +23,7 @@ class NamedTypeId(Formattable):
     def format(self, fmt: Formatter):
         fmt.unnamed_record("NamedTypeId", [self.name, self.taip])
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=True)
 class CustomTypeType(Formattable):
     handle: CustomTypeHandle
     def format(self, fmt: Formatter):
