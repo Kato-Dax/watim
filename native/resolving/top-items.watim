@@ -29,6 +29,17 @@ fn TypeShape-format(fmt: .Formatter, self: .TypeShape) {
         case AnyPtr -> { $fmt "AnyPtr" Fmt:write }
     }
 }
+fn TypeShape-matches-Type(shape: .TypeShape, type: .WithoutHoles:Type) -> bool {
+    $shape match {
+        case AnyPtr -> {
+            $type match {
+                case WithoutHoles:Type.Ptr -> { drop 1 1 = }
+                case _ -> { drop 0 1 = }
+            }
+        }
+        case Exact -> { $type WithoutHoles:eq }
+    }
+}
 
 struct MustBeOneOf {
     generic: i32

@@ -25,7 +25,11 @@ import "../resolving/type-without-holes.watim" as Type (
 import "../resolving/pretty-type-without-holes.watim" as Type
 
 import "../resolving/words.watim" as Resolved (LocalId, LocalId-eq, LocalId-format, FunctionHandle, VarId)
-import "../resolving/top-items.watim" as Resolved (TypeDefinition, FunctionSignature, LocalName, TypeDefinition-name)
+import "../resolving/top-items.watim" as Resolved (
+    TypeDefinition, FunctionSignature, LocalName, TypeDefinition-name,
+    ConstraintOnGeneric(MustBeOneOf, MustSatisfyPredicate),
+    TypeShape-matches-Type,
+)
 import "../resolving/module.watim" as Resolved
 import "../resolving/type-lookup.watim" as Resolved
 
@@ -1343,6 +1347,13 @@ fn check-from-node(ctx: .Ctx, source: .Source:FromNode, known: .Type) -> Maybe<I
                 case None -> {}
                 case _ -> { break }
             }
+            $signature match {
+                case Signature.Intrinsic -> {
+                    $ctx flip &source.token flip &source.generic-arguments flip &source.arguments check-generic-parameter-constraints match {
+                        case None -> {}
+                        case _ -> { break }
+                    }
+                } case _ -> { drop } }
         }
         case IfEntry -> {
             @source
@@ -1472,6 +1483,11 @@ fn check-from-node(ctx: .Ctx, source: .Source:FromNode, known: .Type) -> Maybe<I
         }
         case LoopEntry -> {
             @source
+
+            $source.arguments.len $source.next-arguments.len /= if {
+                &source.token "source.arguments.len != source.next-arguments.len" error make Maybe.Some break
+            }
+
             $source.parameters.len 1 - $return-depth - @return-index
 
             $ctx
@@ -2647,6 +2663,9 @@ fn check-make-struct-fields(ctx: .Ctx, struc: .Resolved:Struct, arguments: .Arra
 }
 
 fn infer-loop-entry(ctx: .Ctx, source: .Source:FromLoopEntry, return-depth: i32) -> Result<Maybe<Type>, InferenceError> { block {
+    $source.arguments.len $source.next-arguments.len /= if {
+        &source.token "source.arguments.len != source.next-arguments.len" error make Result.Error break
+    }
     $source.parameters.len $return-depth - 1 - @return-index
     $ctx &source.arguments $return-depth Array:get<_> infer match {
         case Success -> {}
@@ -3028,9 +3047,60 @@ fn infer-signature-application(
         case Some -> { make Result<Maybe<Type>, InferenceError>.Error break }
         case None -> {}
     }
+    $signature match {
+        case Signature.Intrinsic -> {
+            $ctx flip $token flip $generic-arguments flip $arguments check-generic-parameter-constraints match {
+                case None -> {}
+                case Some -> { make Result.Error break } }
+        } case _ -> { drop } }
     $ctx $signature Signature-returns $return-index Array:get<_> $generic-arguments try-with-generics
     make Result<Maybe<Type>, InferenceError>.Success
 } }
+
+fn check-generic-parameter-constraints(
+    ctx: .Ctx,
+    token: .Token,
+    generic-arguments: .Array<InferenceHole>,
+    signature: .Resolved:IntrinsicSignature,
+    arguments: .Array<Source>,
+) -> Maybe<InferenceError> {
+    0 loop (i32 -> Maybe<InferenceError>) {
+        Core:dup $signature.constraints.len ge if { make Maybe.None break }
+        Core:dup &signature.constraints flip Array:get match {
+            case MustBeOneOf -> {
+                @constraint
+                $ctx $generic-arguments $constraint.generic Array:get ~ lookup-hole match {
+                    case None -> {}
+                    case Some -> {
+                        &constraint.allowed flip \TypeShape-matches-Type flip Array:find not if {
+                            $ctx $arguments infer-over-array match {
+                                case Success -> {}
+                                case Error -> { make Maybe.Some break }
+                            } @argument-types
+                            $ctx $token $signature make Signature.Intrinsic $generic-arguments &argument-types call-argument-mismatch-error
+                            make Maybe.Some break
+                        } drop
+                    }
+                }
+            }
+            case MustSatisfyPredicate -> {
+                @constraint
+                // TODO: this infer-over-array is expensive and it's not only called on error
+                $ctx $arguments infer-over-array match {
+                    case Success -> {}
+                    case Error -> { make Maybe.Some break }
+                } @argument-types
+
+
+                &argument-types $constraint.predicate (_ -> _) match {
+                    case None -> {}
+                    case Some -> { $token flip ByteSlice:unpack error make Maybe.Some break }
+                }
+            }
+        }
+        1 +
+    }
+}
 
 fn Unit-format(fmt: .Formatter, unit: .Unit) {
     $fmt "Unit" Fmt:write
