@@ -1,21 +1,50 @@
 import "../../std/maybe.watim" as Maybe (Maybe(Some, None), assert-some)
 import "../../std/array.watim" as Array (Array)
 import "../../std/arena.watim" as Arena (Arena)
+import "../../std/fmt.watim" as Fmt (Formatter)
+import "../../std/util.watim" as Util (i32-format)
 
 import "../lexer.watim" as Lexer (Token)
 
-import "./source.watim" as Source (Source)
+import "./source.watim" as Source (Source, Source-format)
 
 struct Parent {
     stack: .Stack
     node: i32
     token: Token
 }
+fn Parent-format(fmt: .Formatter, self: .Parent) {
+    $fmt "(Parent " Fmt:write
+    $fmt $self.stack format
+    $fmt " " Fmt:write
+    $fmt $self.node i32-format
+    $fmt " " Fmt:write
+    $fmt &self.token Lexer:Token-format
+    $fmt ")" Fmt:write
+}
 
 struct Stack {
     parent: Maybe<Parent>
     positive: Array<Source>
     negative: Array<Source>
+}
+fn format(fmt: .Formatter, stack: .Stack) {
+    $fmt "(Stack\n" Fmt:write
+    $fmt Fmt:indent
+    $fmt Fmt:write-indent
+    $fmt "negative=" Fmt:write
+    $fmt \Source-format &stack.negative Array:format-multi-line
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "positive=" Fmt:write
+    $fmt \Source-format &stack.positive Array:format-multi-line
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "parent=" Fmt:write
+    $fmt \Parent-format &stack.parent Maybe:format
+    $fmt Fmt:dedent
+    $fmt ")" Fmt:write
+
 }
 fn root() -> Stack {
     make Maybe<Parent>.None Array:new<Source> Array:new<Source> make Stack
