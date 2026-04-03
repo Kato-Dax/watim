@@ -475,7 +475,7 @@ fn init-intrinsic-signatures() {
         make Lexer:TokenTy.TOKEN_FN 0 0 Lexer:Token-new-keyword 0 make GenericType make Type.Generic @T
         $arena $T Array:singleton @parameters
         $arena $T Array:singleton @returns
-        $arena 1 $booli8i32i64 make MustBeOneOf make ConstraintOnGeneric.MustBeOneOf Array:singleton @constraints
+        $arena 0 $booli8i32i64 make MustBeOneOf make ConstraintOnGeneric.MustBeOneOf Array:singleton @constraints
     } @signature-not
 
     &INTRINSIC_SIGNATURES make Resolved:Intrinsic.Not $signature-not Map:insert-assert-no-alloc assert-none
