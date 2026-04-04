@@ -88,7 +88,7 @@ fn main "_start" () {
         &fs &args 2 Array:get<_> ~ ByteSlice:unpack
         FS:create-rights FS:rights-write
         FS:create-rights
-        FS:create-oflags
+        FS:create-oflags FS:oflags-truncate
         FS:open-file IO:check @fd
         $fd &arena &test serialize-test & Array:unpack IO:write-all IO:check
 
