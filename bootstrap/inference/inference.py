@@ -955,6 +955,8 @@ class Ctx:
                 return_index = len(node.return_types) - return_depth - 1
                 inferred_arms: List[Type | None] = []
                 for returns in node.returns:
+                    if return_index >= len(returns.returns):
+                        self.arms_type_mismatch_error(node)
                     inferred_arms.append(self.infer(returns.returns[return_index]))
                 inferred = next((t for t in inferred_arms if t is not None), None)
                 if inferred is None:

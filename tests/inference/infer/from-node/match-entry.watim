@@ -1,0 +1,17 @@
+[== Stdin Compiler ==]
+variant Maybe { case None case Some -> i32 }
+fn main() {
+    make Maybe.None match {
+        case Some -> {}
+        case None -> {}
+    } drop
+}
+[== Args Compiler ==]
+infer
+-
+main
+--quiet
+[== Status Compiler ==]
+1
+[== Stderr Compiler ==]
+-:3:21: infer-all-case-returns TODO

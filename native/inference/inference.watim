@@ -1916,11 +1916,15 @@ fn infer-over-array(ctx: .Ctx, sources: .Array<Source>) -> Result<Array<Maybe<Ty
     }
 }
 
-fn infer-all-case-returns(ctx: .Ctx, returns: .Array<Source:ReturnsOfCase>, return-index: i32) -> Result<Array<Maybe<Type>>, InferenceError> {
+fn infer-all-case-returns(ctx: .Ctx, token: .Token, returns: .Array<Source:ReturnsOfCase>, return-index: i32) -> Result<Array<Maybe<Type>>, InferenceError> {
     $ctx.arena $returns.len Array:new-with-capacity<Maybe<Type>> @types
     0 loop {
         @i $i $returns.len = if { $types make Result<Array<Maybe<Type>>, InferenceError>.Success break }
-        $ctx $returns $i Array:get<_> .returns $return-index Array:get<_> infer match {
+        $returns $i Array:get .returns @returns
+        $returns.len $return-index le if {
+            $token "infer-all-case-returns TODO" error make Result.Error break
+        }
+        $ctx $returns $return-index Array:get<_> infer match {
             case Error -> { make Result<Array<Maybe<Type>>, InferenceError>.Error break }
             case Success -> {}
         }
@@ -2255,7 +2259,7 @@ fn infer(ctx: .Ctx, source: .Source) -> Result<Maybe<Type>, InferenceError> {
                         case MatchExit -> {
                             @source
                             $source.return-types.len $return-depth - 1 - @return-index
-                            $ctx &source.returns $return-index infer-all-case-returns match {
+                            $ctx &source.token &source.returns $return-index infer-all-case-returns match {
                                 case Success -> {}
                                 case Error -> { make Result<Maybe<Type>, InferenceError>.Error break }
                             } @inferred-arms
