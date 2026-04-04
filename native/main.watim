@@ -636,7 +636,7 @@ fn InferenceError-print(fd: i32, self: .InferenceError) -> i32 { block {
         $self.file-path $self.token Lexer:Token-location make Lexer:TokenLocation &
         Lexer:print-location Core:dup<i32> 0 /= if { break } drop
     }
-    $fd " " IO:write-all Core:dup<i32> 0 /= if { break } drop
+    $fd ": " IO:write-all Core:dup<i32> 0 /= if { break } drop
     $fd $self.msg-ptr $self.msg-len IO:write-all Core:dup<i32> 0 /= if { break } drop
     $fd "\n" IO:write-all
 } }

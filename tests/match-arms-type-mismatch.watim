@@ -15,8 +15,7 @@ fn foo() {
 [== Status Compiler ==]
 1
 [== Stderr Compiler ==]
--:8:13 arms of match case have different types:
+-:8:13: arms of match case have different types:
 	[] -> [i32] in case A
 	[] -> [bool] in case B
 	[] -> [Foo] in case _
-

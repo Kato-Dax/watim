@@ -7,7 +7,7 @@ fn bar(b: Foo) {
 [== Status Compiler ==]
 1
 [== Stderr Compiler ==]
--:4:13 call to `foo` expected the following arguments:
+-:4:13: call to `foo` expected the following arguments:
 	[i32, Foo, bool]
 but got:
 	[Foo, i32, bool]

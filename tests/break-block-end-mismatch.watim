@@ -10,6 +10,6 @@ fn foo() -> i32 {
 [== Status Compiler ==]
 1
 [== Stderr Compiler ==]
--:2:2 break stack mismatch:
+-:2:2: break stack mismatch:
 	4:6 [i32]
 	7:2 [bool]

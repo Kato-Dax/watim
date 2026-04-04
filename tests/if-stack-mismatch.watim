@@ -5,7 +5,6 @@ fn foo() -> i32 {
 [== Status Compiler ==]
 1
 [== Stderr Compiler ==]
--:2:8 stack mismatch between if and else branch:
+-:2:8: stack mismatch between if and else branch:
 	if   [i32]
 	else [bool, i32]
-

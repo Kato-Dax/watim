@@ -10,4 +10,4 @@ without-fields
 [== Status Compiler ==]
 1
 [== Stderr Compiler ==]
--:2:22 failed to infer argument
+-:2:22: failed to infer argument

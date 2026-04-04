@@ -11,6 +11,6 @@ foo
 [== Status Compiler ==]
 1
 [== Stderr Compiler ==]
--:2:4 unexpected return values:
+-:2:4: unexpected return values:
 	expected: [i32]
 	actual:   [bool, i32]

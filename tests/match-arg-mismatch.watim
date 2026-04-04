@@ -11,7 +11,7 @@ fn foo() {
 [== Status Compiler ==]
 1
 [== Stderr Compiler ==]
--:5:15 match argument mismatch.
+-:5:15: match argument mismatch.
 Expected to match on:
 	Foo
 but got:

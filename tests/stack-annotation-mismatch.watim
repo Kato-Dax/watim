@@ -12,6 +12,6 @@ foo
 [== Status Compiler ==]
 1
 [== Stderr Compiler ==]
--:4:5 Stack doesn't match annotation:
+-:4:5: Stack doesn't match annotation:
   actual:   [i32, bool]
   expected: [bool, i32]

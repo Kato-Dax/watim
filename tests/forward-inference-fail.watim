@@ -14,4 +14,4 @@ foo
 [== Status Compiler ==]
 1
 [== Stderr Compiler ==]
--:6:12 failed to infer argument
+-:6:12: failed to infer argument

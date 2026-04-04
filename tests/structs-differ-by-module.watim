@@ -10,7 +10,7 @@ fn take(foo: .Struct) {}
 [== Status Compiler ==]
 1
 [== Stderr Compiler ==]
--:6:13 call to `take` expected the following arguments:
+-:6:13: call to `take` expected the following arguments:
 	[.Struct]
 but got:
 	[.Bar]

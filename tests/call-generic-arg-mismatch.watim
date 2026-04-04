@@ -6,7 +6,7 @@ fn bar() {
 [== Status Compiler ==]
 1
 [== Stderr Compiler ==]
--:3:7 call to `dup` expected the following arguments:
+-:3:7: call to `dup` expected the following arguments:
 	[T]
 	T = i64
 but got:

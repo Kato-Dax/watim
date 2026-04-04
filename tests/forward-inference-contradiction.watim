@@ -14,7 +14,7 @@ foo
 [== Status Compiler ==]
 1
 [== Stderr Compiler ==]
--:6:38 call to `bar` expected the following arguments:
+-:6:38: call to `bar` expected the following arguments:
 	[T, T]
 	T = Array<i32>
 but got:

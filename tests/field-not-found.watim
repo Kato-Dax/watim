@@ -13,4 +13,4 @@ foo
 [== Status Compiler ==]
 1
 [== Stderr Compiler ==]
--:5:10 field not found
+-:5:10: field not found
