@@ -2,7 +2,7 @@
 set -xe
 
 # Use the python bootstrapping compiler to compile the code of the native compiler.
-python ./bootstrap compile ./native/main.watim > bootstrapped.wat
+python ./bootstrap compile ./native/main.watim --guard-stack > bootstrapped.wat
 
 # Let the bootstrapped native compiler recompile itself.
 wasmtime -C cache=n --dir=. bootstrapped.wat compile ./native/main.watim > watim0.wat

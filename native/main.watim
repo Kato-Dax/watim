@@ -276,7 +276,7 @@ fn lex(arena: .Arena, watim-code: ByteSlice) -> Array<Token> {
 global STACK_SIZE: i32
 
 fn main "_start" () {
-    20 #STACK_SIZE
+    32 #STACK_SIZE
     $STACK_SIZE 1 - mem-grow drop
     PA:page-size $STACK_SIZE * set-stack-size
     Logging:enable
