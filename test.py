@@ -12,6 +12,20 @@ sys.path.insert(0, os.path.abspath('./bootstrap'))
 from bootstrap import __main__
 bootstrap_compiler = __main__
 
+compare_stderr = True
+if "--ignore-stderr" in sys.argv:
+    compare_stderr = False
+    sys.argv.remove("--ignore-stderr")
+
+interactive = False
+if "--interactive" in sys.argv:
+    interactive = True
+    sys.argv.remove("--interactive")
+
+native = False
+if "--native" in sys.argv:
+    native = True
+    sys.argv.remove("--native")
 
 if not os.path.isfile("test.wat"):
     if subprocess.run("bash ./run.sh ./native/main.watim compile ./test.watim -q > test.wat", shell=True).returncode != 0:
@@ -36,7 +50,7 @@ class CompilerOutput:
     stderr: str
 
 watim_bin_path = None
-if "--native" in sys.argv:
+if native:
     if os.path.isfile("./watim.wasm"):
         if subprocess.run("wasmtime --dir=. -- ./watim.wasm compile ./native/main.watim > watim.wat", shell=True).returncode != 0:
             exit(1)
@@ -72,57 +86,48 @@ def run_bootstrap_compiler(args: List[str] | None, stdin: str) -> CompilerOutput
         status = 1
     return CompilerOutput(status, stdout.strip(), stderr.strip())
 
+def accept(test_path: str):
+    test = parse_test_file(test_path)
+    if test is None:
+        print(f"{path}: failed to parse test file", file=sys.stderr)
+        return
+    os.chdir("./tests/fixtures")
+    if native:
+        compiler = run_native_compiler(test['compiler-args'], test['compiler-stdin'])
+    else:
+        compiler = run_bootstrap_compiler(test['compiler-args'], test['compiler-stdin'])
+    os.chdir("../..")
+    stdout = None
+    stderr = None
+    status = None
+    if compiler.returncode == 0 and test['status'] is not None:
+        with open('./out.wat', 'wb') as outwat:
+            outwat.write(compiler.stdout.encode("UTF-8"))
+        program = subprocess.run(["wasmtime", "./out.wat"], input=bytes(test["stdin"] or "", 'UTF-8'), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout = None if test['stdout'] is None else program.stdout.decode()
+        stderr = None if test['stderr'] is None else program.stderr.decode()
+        status = None if test['status'] is None else program.returncode
+    write_test_file(path, {
+        "compiler-stdin": test['compiler-stdin'],
+        "compiler-args": test['compiler-args'],
+        "compiler-stdout": None if test['compiler-stdout'] is None else compiler.stdout,
+        "compiler-stderr": None if test['compiler-stderr'] is None else compiler.stderr,
+        "compiler-status": None if test['compiler-status'] is None else compiler.returncode,
+        "stdin": test['stdin'],
+        "stdout": stdout,
+        "stderr": stderr,
+        "status": status,
+    })
+
 if len(sys.argv) > 2 and sys.argv[1] == "accept":
     paths = sys.argv[2:]
     for path in paths:
-        if path == "--native":
-            continue
-        test = parse_test_file(path)
-        if test is None:
-            print(f"{path}: failed to parse test file", file=sys.stderr)
-            continue
-        os.chdir("./tests/fixtures")
-        if "--native" in sys.argv:
-            compiler = run_native_compiler(test['compiler-args'], test['compiler-stdin'])
-        else:
-            compiler = run_bootstrap_compiler(test['compiler-args'], test['compiler-stdin'])
-        os.chdir("../..")
-        stdout = None
-        stderr = None
-        status = None
-        if compiler.returncode == 0 and test['status'] is not None:
-            with open('./out.wat', 'wb') as outwat:
-                outwat.write(compiler.stdout.encode("UTF-8"))
-            program = subprocess.run(["wasmtime", "./out.wat"], input=bytes(test["stdin"] or "", 'UTF-8'), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            stdout = None if test['stdout'] is None else program.stdout.decode()
-            stderr = None if test['stderr'] is None else program.stderr.decode()
-            status = None if test['status'] is None else program.returncode
-        write_test_file(path, {
-            "compiler-stdin": test['compiler-stdin'],
-            "compiler-args": test['compiler-args'],
-            "compiler-stdout": None if test['compiler-stdout'] is None else compiler.stdout,
-            "compiler-stderr": None if test['compiler-stderr'] is None else compiler.stderr,
-            "compiler-status": None if test['compiler-status'] is None else compiler.returncode,
-            "stdin": test['stdin'],
-            "stdout": stdout,
-            "stderr": stderr,
-            "status": status,
-        })
+        accept(path)
     exit(0)
 
-tests = []
-
-compare_stderr = True
-if "--ignore-stderr" in sys.argv:
-    compare_stderr = False
-    sys.argv.remove("--ignore-stderr")
-
-if len(sys.argv) > 2 and sys.argv[1] == "--native":
-    tests = glob.glob(sys.argv[2])
-elif len(sys.argv) == 2 and sys.argv[1] == "--native":
-    tests = set(glob.glob("./tests/**/*.watim", recursive=True)).difference(set(glob.glob("./tests/fixtures/**", recursive=True)))
-elif len(sys.argv) > 1:
-    tests = [path for pattern in sys.argv[1:] for path in glob.glob(pattern, recursive=True)]
+tests = set()
+if len(sys.argv) > 1:
+    tests = set(path for pattern in sys.argv[1:] for path in glob.glob(pattern, recursive=True))
 else:
     tests = set(glob.glob("./tests/**/*.watim", recursive=True)).difference(set(glob.glob("./tests/fixtures/**", recursive=True)))
 
@@ -141,13 +146,8 @@ class Test:
     stdout: str | None
     stderr: str | None
 
-native_tests_exclude = list(map(lambda p: f"./tests/{p}.watim", [
-]))
-
 failed = False
 for path in tests:
-    if "--native" in sys.argv and path in native_tests_exclude:
-        continue
     test = parse_test_file(path)
     previous_failed = failed
     failed = True
@@ -158,25 +158,35 @@ for path in tests:
         print(f"{path}: compiler-stdin ist missing", file=sys.stderr)
         continue
     os.chdir("./tests/fixtures")
-    if "--native" in sys.argv:
+    if native:
         compiler = run_native_compiler(test['compiler-args'], test['compiler-stdin'])
     else:
         compiler = run_bootstrap_compiler(test['compiler-args'], test['compiler-stdin'])
     os.chdir("../..")
+
+    def on_error():
+        if interactive:
+            response = input("accept?")
+            if response == "y":
+                accept(path)
+
     if test['compiler-status'] is not None and compiler.returncode != test['compiler-status']:
         print(f"{path}: expected different compiler status:", file=sys.stderr)
         print(f"Expected:\n{test['compiler-status']}", file=sys.stderr)
         print(f"Actual:\n{compiler.returncode}", file=sys.stderr)
         print(f"compiler-stderr was: {compiler.stderr}", file=sys.stderr)
+        on_error()
         continue
     if compare_stderr and test['compiler-stderr'] is not None and compiler.stderr != test['compiler-stderr'].strip():
         print(f"{path}: expected different compiler stderr:", file=sys.stderr)
         print_mismatch(test['compiler-stderr'], compiler.stderr)
+        on_error()
         continue
     if test['compiler-stdout'] is not None and compiler.stdout != test['compiler-stdout'].strip():
         print(f"{path}: expected different compiler stdout:", file=sys.stderr)
         print_mismatch(test['compiler-stdout'], compiler.stdout)
         print(f"stderr was: {compiler.stderr}", file=sys.stderr)
+        on_error()
         continue
     with open('./out.wat', 'wb') as outwat:
         outwat.write(compiler.stdout.encode("UTF-8"))
@@ -186,11 +196,13 @@ for path in tests:
             print(f"{path}: expected different stderr:", file=sys.stderr)
             print(f"Expected:\n{test['stderr']}", file=sys.stderr)
             print(f"Actual:\n{program.stderr.decode('UTF-8')}", file=sys.stderr)
+            on_error()
             continue
         if test['stdout'] is not None and program.stdout.strip() != test['stdout'].encode('UTF-8').strip():
             print(f"{path}: expected different stdout:", file=sys.stderr)
             print(f"Expected:\n{test['stdout']}", file=sys.stderr)
             print(f"Actual:\n{program.stdout.decode('UTF-8')}", file=sys.stderr)
+            on_error()
             continue
         if test['status'] is not None and program.returncode != test['status']:
             print(f"{path}: expected different status:", file=sys.stderr)
@@ -198,6 +210,7 @@ for path in tests:
             print(f"Actual:\n{program.returncode}", file=sys.stderr)
             if test['stderr'] is None:
                 print(f"stderr was: {program.stderr.decode('UTF-8')}", file=sys.stderr)
+            on_error()
             continue
     failed = previous_failed
     print(f"{path} passed")
