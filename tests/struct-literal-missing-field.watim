@@ -11,7 +11,6 @@ fn main() {
 [== Status Compiler ==]
 1
 [== Stderr Compiler ==]
--:8:2 missing fields in struct literal:
+-:8:2: missing fields in struct literal:
 	x: i32
 	z: i32
-

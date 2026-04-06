@@ -9,4 +9,4 @@ resolve
 [== Status Compiler ==]
 1
 [== Stderr Compiler ==]
--:2:5 function `bar` not found
+-:2:5: function `bar` not found

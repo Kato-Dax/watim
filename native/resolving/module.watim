@@ -31,7 +31,7 @@ fn ResolveError-print(fd: i32, self: ResolveError, modules: .Map<ByteSlice, P:Mo
     $fd $self.line IO:print Core:dup<i32> 0 /= if { break } drop
     $fd ":" IO:write-all Core:dup<i32> 0 /= if { break } drop
     $fd $self.column IO:print Core:dup<i32> 0 /= if { break } drop
-    $fd " " IO:write-all Core:dup<i32> 0 /= if { break } drop
+    $fd ": " IO:write-all Core:dup<i32> 0 /= if { break } drop
     $fd &self.message Array:unpack<_> IO:write-all
 } }
 

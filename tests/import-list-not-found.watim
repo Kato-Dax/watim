@@ -7,4 +7,4 @@ resolve
 [== Status Compiler ==]
 1
 [== Stderr Compiler ==]
--:1:29 not found
+-:1:29: not found

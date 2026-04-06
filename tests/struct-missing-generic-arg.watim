@@ -8,4 +8,4 @@ fn foo(s: S) {
 [== Status Compiler ==]
 1
 [== Stderr Compiler ==]
--:4:11 expected 1 generic arguments, not 0
+-:4:11: expected 1 generic arguments, not 0

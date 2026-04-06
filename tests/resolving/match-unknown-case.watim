@@ -12,4 +12,4 @@ resolve
 [== Status Compiler ==]
 1
 [== Stderr Compiler ==]
--:4:18 case not found
+-:4:18: case not found

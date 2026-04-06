@@ -13,7 +13,6 @@ fn foo() {
 [== Status Compiler ==]
 1
 [== Stderr Compiler ==]
--:7:13 duplicate case in match:
+-:7:13: duplicate case in match:
 	8:8 B
 	9:8 B
-
