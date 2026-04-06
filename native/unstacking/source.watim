@@ -442,7 +442,7 @@ struct FromLoopEntry {
     token: Token
     parameters: Array<InferenceHole>
     arguments: Array<Source>
-    next-arguments: Array<Source>
+    next-arguments: Maybe<Array<Source>>
 }
 fn FromLoopEntry-format(fmt: .Formatter, self: .FromLoopEntry) {
     $fmt "(FromLoopEntry\n" Fmt:write
@@ -461,7 +461,7 @@ fn FromLoopEntry-format(fmt: .Formatter, self: .FromLoopEntry) {
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "next-arguments=" Fmt:write
-    $fmt \Source-format &self.next-arguments Array:format-multi-line<_>
+    $fmt \ArraySource-format &self.next-arguments Maybe:format
     $fmt Fmt:dedent
     $fmt ")" Fmt:write
 }

@@ -1,0 +1,21 @@
+[== Stdin Compiler ==]
+fn id<T>(a: T) -> T { $a }
+fn main() -> i32 {
+    "" drop id
+}
+[== Args Compiler ==]
+infer
+-
+main
+--quiet
+[== Status Compiler ==]
+1
+[== Stderr Compiler ==]
+-:3:5: expected this word to return a value of type:
+    i32
+  but it returns:
+    .i8
+
+  The expected type originated from:
+    -:3:13: The 1. argument of this call
+    -:2:14: The 1. return type

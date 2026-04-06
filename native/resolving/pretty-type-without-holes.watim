@@ -10,10 +10,10 @@ import "./top-items.watim" as Resolved
 
 fn pretty(fmt: .Formatter, modules: .Array<Module>, self: .Type) { block {
     $fmt $self match {
-        case Type.Bool -> { "bool" }
-        case Type.I8 -> { "i8" }
-        case Type.I32 -> { "i32" }
-        case Type.I64 -> { "i64" }
+        case Type.Bool -> { drop "bool" }
+        case Type.I8 -> { drop "i8" }
+        case Type.I32 -> { drop "i32" }
+        case Type.I64 -> { drop "i64" }
         case Type.Ptr -> { $fmt "." Fmt:write ~ $modules flip pretty break }
         case Type.Custom -> { $modules flip CustomTypeType-pretty break }
         case Type.Fun -> { $modules flip FunType-pretty break }

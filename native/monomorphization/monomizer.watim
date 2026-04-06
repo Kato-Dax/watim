@@ -433,10 +433,10 @@ fn MaybeKey-format(fmt: .Formatter, self: .Maybe<Key>) {
 }
 fn monomize-type(ctx: .Ctx, type: .Checked:Type, generic-arguments: .Array<TypeId>) -> TypeId { block {
     $type match {
-        case Checked:Type.Bool -> { Bool-id break }
-        case Checked:Type.I8 -> { I8-id break }
-        case Checked:Type.I32 -> { I32-id break }
-        case Checked:Type.I64 -> { I64-id break }
+        case Checked:Type.Bool -> { drop Bool-id break }
+        case Checked:Type.I8 -> { drop I8-id break }
+        case Checked:Type.I32 -> { drop I32-id break }
+        case Checked:Type.I64 -> { drop I64-id break }
         case Checked:Type.Generic -> { .index ~ $generic-arguments flip Array:get<TypeId> ~ break }
         case _ -> { drop }
     }

@@ -83,10 +83,10 @@ fn resolve-type(self: .TypeResolver, arena: .Arena, type: .Parsed:Type) -> Resul
             }
         }
         case Parsed:Type.Hole -> { ~ make Type.Hole make Result<Type, ResolveError>.Success }
-        case Parsed:Type.Bool -> { drop make Type.Bool make Result<Type, ResolveError>.Success }
-        case Parsed:Type.I8 -> { drop make Type.I8 make Result<Type, ResolveError>.Success }
-        case Parsed:Type.I32 -> { drop make Type.I32 make Result<Type, ResolveError>.Success }
-        case Parsed:Type.I64 -> { drop make Type.I64 make Result<Type, ResolveError>.Success }
+        case Parsed:Type.Bool -> { ~ make Type.Bool make Result<Type, ResolveError>.Success }
+        case Parsed:Type.I8 -> { ~ make Type.I8 make Result<Type, ResolveError>.Success }
+        case Parsed:Type.I32 -> { ~ make Type.I32 make Result<Type, ResolveError>.Success }
+        case Parsed:Type.I64 -> { ~ make Type.I64 make Result<Type, ResolveError>.Success }
         case Parsed:Type.Fun -> {
             @fun
             $fun.token
@@ -233,7 +233,7 @@ fn resolve-custom-type(self: .TypeResolver, arena: .Arena, type: .Parsed:CustomT
                                 make Result<Maybe<CustomTypeType>, ResolveError>.Error break
                             }
 
-                            $imp.module $j make CustomTypeHandle $generic-arguments make CustomTypeType
+                            $type.name $imp.module $j make CustomTypeHandle $generic-arguments make CustomTypeType
                             make Maybe<CustomTypeType>.Some
                             make Result<Maybe<CustomTypeType>, ResolveError>.Success break
                         }
@@ -301,7 +301,7 @@ fn resolve-custom-type(self: .TypeResolver, arena: .Arena, type: .Parsed:CustomT
                             make Result<CustomTypeType, ResolveError>.Error break
                         }
 
-                        $handle $generic-arguments make CustomTypeType
+                        $type.name $handle $generic-arguments make CustomTypeType
                         make Result<CustomTypeType, ResolveError>.Success break
                     }
                 }

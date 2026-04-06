@@ -438,9 +438,15 @@ fn graph-node(grapher: .Grapher, node-index: i32, return-index: i32) { block {
             $grapher.fmt " -> " Fmt:write
             $grapher &source.arguments $return-index Array:get<_> graph-source
 
-            $grapher.fmt $node $return-index graph-node-name
-            $grapher.fmt " -> " Fmt:write
-            $grapher &source.next-arguments $return-index Array:get<_> graph-source
+            &source.next-arguments match {
+                case None -> {}
+                case Some -> {
+                    @next-arguments
+                    $grapher.fmt $node $return-index graph-node-name
+                    $grapher.fmt " -> " Fmt:write
+                    $grapher $next-arguments $return-index Array:get graph-source
+                }
+            }
         }
         case MultiReturnNode.IndirectCall -> {
             @source

@@ -1,0 +1,50 @@
+import "../../std/fmt.watim" as Fmt (Formatter)
+import "../../std/util.watim" as Util (i32-format)
+import "../../std/byte-slice.watim" as ByteSlice (ByteSlice)
+
+import "../lexer.watim" as Token (Token, Token-location, TokenLocation, format-location)
+
+import "../unstacking/unstacker.watim" as Unstacking (StackVoid, StackVoid-format)
+import "../unstacking/source.watim" as Source
+
+struct FromReturn {
+    token: Token
+    return-index: i32
+}
+
+struct FromCall {
+    token: Token
+    argument: i32
+}
+
+variant Origin {
+    case FromReturn -> FromReturn
+    case FromCall -> FromCall
+    case FromStackVoid -> .StackVoid
+    case FromLocal
+    case TODO
+}
+
+fn display(fmt: .Formatter, self: .Origin, file-path: ByteSlice) {
+    $self match {
+        case FromReturn -> {
+            @origin
+            $fmt $file-path &origin.token Token-location make TokenLocation & format-location
+            $fmt ": The " Fmt:write
+            $fmt $origin.return-index 1 + i32-format
+            $fmt ". return type" Fmt:write
+        }
+        case FromCall -> {
+            @origin
+            $fmt $file-path &origin.token Token-location make TokenLocation & format-location
+            $fmt ": The " Fmt:write
+            $fmt $origin.argument 1 + i32-format
+            $fmt ". argument of this call" Fmt:write
+        }
+        case _ -> {
+            drop
+            $fmt "Origin-display: TODO" Fmt:write
+        }
+    }
+}
+

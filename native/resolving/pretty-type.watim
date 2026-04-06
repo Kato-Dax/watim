@@ -12,10 +12,10 @@ import "./type.watim" as Type (
 
 fn pretty(fmt: .Formatter, lookup: .Array<Module>, self: .Type) { block {
     $fmt $self match {
-        case Bool -> { "bool" }
-        case I8 -> { "i8" }
-        case I32 -> { "i32" }
-        case I64 -> { "i64" }
+        case Bool -> { drop "bool" }
+        case I8 -> { drop "i8" }
+        case I32 -> { drop "i32" }
+        case I64 -> { drop "i64" }
         case Ptr -> { $fmt "." Fmt:write ~ $lookup flip pretty break }
         case Custom -> { $lookup flip CustomTypeType-pretty break }
         case Fun -> { $lookup flip FunType-pretty break }

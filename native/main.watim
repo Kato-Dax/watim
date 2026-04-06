@@ -29,6 +29,8 @@ import "./unstacking/unstacker.watim" as Unstacker
 import "./unstacking/graph.watim" as Graph
 import "./inference/ast.watim" as Checked
 import "./inference/inference.watim" as Inference
+import "./inference/error.watim" as Inference
+import "./inference/error.watim" as InferenceError
 import "./monomorphization/monomizer.watim" as Monomizer (Monomized-format, monomize)
 import "./local-merging.watim" as LocalMerging (merge-locals)
 import "./codegen/generator.watim" as Generator
@@ -491,7 +493,7 @@ fn run-project-wide-command(fs: .FileSystem, command: ProjectWideCommand) { bloc
                     &inference-arena &resolved-modules.values &module.globals.values &function $args.log-level Inference:infer-function match {
                         case Success -> {}
                         case Error -> {
-                            & $file-path ~ InferenceError-with-file-path
+                            $file-path ~ flip &resolved-modules.values flip make InferenceError
                             2 flip & InferenceError-print drop
                             2 IO:newline
                             1 Core:exit
@@ -529,11 +531,6 @@ fn run-project-wide-command(fs: .FileSystem, command: ProjectWideCommand) { bloc
     $command match {
         case Check -> {
             drop
-            1 Fmt:to-fd @fmt
-            &arena &fmt 1024 Fmt:buffered @buf @fmt
-            &fmt \ByteSlice-format \Checked:Module-format &inferred Map:format-multi-line<_, _>
-            &fmt "\n" Fmt:write
-            $buf Fmt:flush
             Unstacker:uninit-intrinsic-signatures
             &resolving-arena Arena:shred
             &inference-arena Arena:shred
@@ -623,23 +620,14 @@ fn forbid-directly-recursive-types(modules: .Map<ByteSlice, Resolved:Module>) {
 
 struct InferenceError {
     file-path: ByteSlice
-    token: .Token
-    msg-ptr: .i8
-    msg-len: i32
+    modules: .Array<Resolved:Module>
+    error: Inference:Error
 }
-fn InferenceError-with-file-path(self: .Inference:InferenceError, file-path: ByteSlice) -> InferenceError {
-    $file-path $self.token $self.msg-ptr $self.msg-len make InferenceError
+fn InferenceError-print(fd: i32, self: .InferenceError) -> i32 {
+    $fd Fmt:to-fd @fmt
+    &fmt &self.error $self.file-path $self.modules InferenceError:display
+    0
 }
-fn InferenceError-print(fd: i32, self: .InferenceError) -> i32 { block {
-    $self.token 0 !.Token /= if {
-        $fd
-        $self.file-path $self.token Lexer:Token-location make Lexer:TokenLocation &
-        Lexer:print-location Core:dup<i32> 0 /= if { break } drop
-    }
-    $fd ": " IO:write-all Core:dup<i32> 0 /= if { break } drop
-    $fd $self.msg-ptr $self.msg-len IO:write-all Core:dup<i32> 0 /= if { break } drop
-    $fd "\n" IO:write-all
-} }
 
 fn infer-modules(arena: .Arena, resolved: .Map<ByteSlice, Resolved:Module>) -> Result<Map<ByteSlice, Checked:Module>, InferenceError> {
     $arena \ByteSlice:eq-by-ref $resolved.values.len Map:new-with-capacity<ByteSlice, Checked:Module> @inferred
@@ -658,7 +646,7 @@ fn infer-modules(arena: .Arena, resolved: .Map<ByteSlice, Resolved:Module>) -> R
         $file-path
         $arena &resolved.values &resolved.values $i Array:get<_> infer-module match {
             case Error -> {
-                & $file-path InferenceError-with-file-path
+                $file-path flip &resolved.values flip make InferenceError
                 make Result<Map<ByteSlice, Checked:Module>, InferenceError>.Error break
             }
             case Success -> {}
@@ -668,10 +656,10 @@ fn infer-modules(arena: .Arena, resolved: .Map<ByteSlice, Resolved:Module>) -> R
     }
 }
 
-fn infer-module(arena: .Arena, modules: .Array<Resolved:Module>, module: .Resolved:Module) -> Result<Checked:Module, Inference:InferenceError> { block {
+fn infer-module(arena: .Arena, modules: .Array<Resolved:Module>, module: .Resolved:Module) -> Result<Checked:Module, Inference:Error> { block {
     $arena $module.functions.values.len Array:new-with-capacity<Checked:FunctionOrExtern> @functions
-    0 loop (i32 -> Result<Array<Checked:FunctionOrExtern>, Inference:InferenceError>) {
-        @i $i $module.functions.values.len = if { $functions make Result<Array<Checked:FunctionOrExtern>, Inference:InferenceError>.Success break }
+    0 loop (i32 -> Result<Array<Checked:FunctionOrExtern>, Inference:Error>) {
+        @i $i $module.functions.values.len = if { $functions make Result<Array<Checked:FunctionOrExtern>, Inference:Error>.Success break }
         &module.functions.values $i Array:get<_> match {
             case Resolved:FunctionOrExtern.Extern -> {
                 ~ make Checked:FunctionOrExtern.Extern &functions flip Array:push-assert-no-alloc<_>
@@ -681,7 +669,7 @@ fn infer-module(arena: .Arena, modules: .Array<Resolved:Module>, module: .Resolv
                 $arena Arena:temp @temp @save
                 $temp $modules $function Unstacker:unstack-function @function
                 $arena $modules &module.globals.values &function make Inference:LogLevel.NoLogs Inference:infer-function match {
-                    case Error -> { make Result<Array<Checked:FunctionOrExtern>, Inference:InferenceError>.Error break }
+                    case Error -> { make Result<Array<Checked:FunctionOrExtern>, Inference:Error>.Error break }
                     case Success -> {}
                 } make Checked:FunctionOrExtern.Function
                 $temp $save Arena:restore
@@ -690,7 +678,7 @@ fn infer-module(arena: .Arena, modules: .Array<Resolved:Module>, module: .Resolv
         }
         $i 1 +
     } match {
-        case Error -> { make Result<Checked:Module, Inference:InferenceError>.Error break }
+        case Error -> { make Result<Checked:Module, Inference:Error>.Error break }
         case Success -> {}
     } @functions
     make Checked:Module {
@@ -700,7 +688,7 @@ fn infer-module(arena: .Arena, modules: .Array<Resolved:Module>, module: .Resolv
         $module.static-data @static-data
         $functions @functions
     }
-    make Result<Checked:Module, Inference:InferenceError>.Success
+    make Result<Checked:Module, Inference:Error>.Success
 } }
 
 fn print-byte-count(fd: i32, bytes: i32) -> i32 {

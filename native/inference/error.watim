@@ -1,0 +1,152 @@
+import "../../std/list.watim" as List (List)
+import "../../std/arena.watim" as Arena (Arena)
+import "../../std/array.watim" as Array (Array)
+import "../../std/fmt.watim" as Fmt (Formatter)
+import "../../std/byte-slice.watim" as ByteSlice (ByteSlice)
+import "../../std/util.watim" as Util (i32-format)
+
+import "../lexer.watim" as Lexer (Token)
+
+import "../resolving/module.watim" as Resolved (Module)
+import "../resolving/type-without-holes.watim" as Type (Type)
+import "../resolving/pretty-type-without-holes.watim" as Type
+
+import "./origin.watim" as Origin (Origin)
+
+struct StringError {
+    token: Token
+    origin: Array<Origin>
+    expected: Type
+    actual: Type
+}
+
+struct CallError {
+    token: Token
+    return-index: i32
+    expected: Type
+    actual: Type
+    origin: Array<Origin>
+}
+
+struct GenericsContradict {
+    generic: i32
+    previous: Type
+    now: Type
+}
+
+struct CallGenericContradictionError {
+    token: Token
+    return-index: i32
+    expected: Type
+    contradiction: GenericsContradict
+}
+
+variant Error {
+    case Deprecated -> DeprecatedError
+    case String -> StringError
+    case Call -> CallError
+    case CallGenericsContradict -> CallGenericContradictionError
+}
+struct DeprecatedError {
+    token: .Token
+    msg-ptr: .i8
+    msg-len: i32
+}
+fn error(token: .Token, msg-ptr: .i8, msg-len: i32) -> Error {
+    $token $msg-ptr $msg-len make DeprecatedError make Error.Deprecated
+}
+fn error-with-origin(arena: .Arena, token: .Token, origin: .List<Origin>, msg-ptr: .i8, msg-len: i32) -> Error {
+    $token $msg-ptr $msg-len
+    // $arena $origin copy-origin
+    error
+}
+
+fn display-origin(fmt: .Formatter, origin: .Array<Origin>, file-path: ByteSlice) {
+    $origin.len 0 /= if {
+        $fmt "\n\n" Fmt:write
+        $fmt Fmt:write-indent
+        $fmt "The expected type originated from:" Fmt:write
+        $fmt Fmt:indent
+        0 loop (i32 ->) {
+            @i $i $origin.len = if { break }
+            $fmt "\n" Fmt:write
+            $fmt Fmt:write-indent
+            $fmt $origin $i Array:get $file-path Origin:display
+            $i 1 +
+        }
+        $fmt Fmt:dedent
+    }
+}
+
+fn display(fmt: .Formatter, error: .Error, file-path: ByteSlice, modules: .Array<Resolved:Module>) {
+    $error match {
+        case Error.Deprecated ->{
+            @error
+
+            $fmt
+            $file-path $error.token Lexer:Token-location make Lexer:TokenLocation &
+            Lexer:format-location
+
+            $fmt ": " Fmt:write
+            $fmt $error.msg-ptr $error.msg-len Fmt:write
+            $fmt "\n" Fmt:write
+        }
+        case Error.String -> {
+            @error
+            $fmt $file-path &error.token Lexer:Token-location make Lexer:TokenLocation & Lexer:format-location
+            $fmt ": expected this word to return a value of type:\n" Fmt:write
+            $fmt Fmt:indent $fmt Fmt:indent
+            $fmt Fmt:write-indent
+            $fmt $modules &error.expected Type:pretty
+            $fmt "\n" Fmt:write $fmt Fmt:dedent
+            $fmt Fmt:write-indent
+            $fmt "but it returns:\n" Fmt:write
+            $fmt Fmt:indent $fmt Fmt:write-indent
+            $fmt $modules &error.actual Type:pretty
+            $fmt Fmt:dedent
+            $fmt &error.origin $file-path display-origin
+            $fmt Fmt:dedent
+        }
+        case Error.Call -> {
+            @error
+            $fmt $file-path &error.token Lexer:Token-location make Lexer:TokenLocation & Lexer:format-location
+            $fmt ": expected the " Fmt:write
+            $fmt $error.return-index 1 + i32-format
+            $fmt ". return type of this call to be:\n" Fmt:write
+            $fmt Fmt:indent $fmt Fmt:indent
+            $fmt Fmt:write-indent
+            $fmt $modules &error.expected Type:pretty
+            $fmt "\n" Fmt:write $fmt Fmt:dedent
+            $fmt Fmt:write-indent
+            $fmt "but it returns:\n" Fmt:write
+            $fmt Fmt:indent $fmt Fmt:write-indent
+            $fmt $modules &error.actual Type:pretty
+            $fmt Fmt:dedent
+            $fmt &error.origin $file-path display-origin
+            $fmt Fmt:dedent
+        }
+        case Error.CallGenericsContradict -> {
+            @error
+            $fmt $file-path &error.token Lexer:Token-location make Lexer:TokenLocation & Lexer:format-location
+            $fmt ": expected the " Fmt:write
+            $fmt $error.return-index 1 + i32-format
+            $fmt ". return type of this call to be:\n" Fmt:write
+            $fmt Fmt:indent $fmt Fmt:indent
+            $fmt Fmt:write-indent
+            $fmt $modules &error.expected Type:pretty
+            $fmt "\n" Fmt:write $fmt Fmt:dedent
+            $fmt Fmt:write-indent
+            $fmt "but that would contradict previosly inferred generic arguments:\n" Fmt:write
+            $fmt Fmt:indent $fmt Fmt:write-indent
+            $fmt $error.contradiction.generic i32-format
+            $fmt " " Fmt:write
+            $fmt $modules &error.contradiction.previous Type:pretty
+            $fmt " vs " Fmt:write
+            $fmt $modules &error.contradiction.now Type:pretty
+            $fmt Fmt:dedent
+            // $fmt &error.origin $file-path display-origin
+            $fmt Fmt:dedent
+        }
+    }
+}
+

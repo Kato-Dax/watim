@@ -11,7 +11,7 @@ import "../../std/util.watim" as Util (bool-format, i32-format, i32-format-ref)
 
 import "../../std/io.watim" as IO
 
-import "../lexer.watim" as Lexer (Token, Token-format)
+import "../lexer.watim" as Lexer (Token, Token-format, TokenTy, Token-new-synthetic)
 
 import "../parser.watim" as Parser (GenericType)
 
@@ -157,7 +157,7 @@ fn add-sub-generic-constraints(predicate: .Array<Maybe<Type>>) -> Maybe<ByteSlic
     $base match {
         case Type.Ptr -> {
             drop $addition match {
-                case Type.I32 -> { make Maybe<ByteSlice>.None break }
+                case Type.I32 -> { drop make Maybe<ByteSlice>.None break }
                 case _ -> { drop }
             }
             "can only add i32 to ptr" make ByteSlice make Maybe.Some break
@@ -165,9 +165,9 @@ fn add-sub-generic-constraints(predicate: .Array<Maybe<Type>>) -> Maybe<ByteSlic
         case _ -> {}
     }
     Core:dup match {
-        case Type.I8 -> {}
-        case Type.I32 -> {}
-        case Type.I64 -> {}
+        case Type.I8 -> { drop }
+        case Type.I32 -> { drop }
+        case Type.I64 -> { drop }
         case _ -> {
             drop
             "can only add i8, i32, i64" make ByteSlice make Maybe.Some break
@@ -190,29 +190,34 @@ fn init-intrinsic-signatures() {
     $arena \Resolved:Intrinsic-eq 26 Map:new-with-capacity #INTRINSIC_SIGNATURES
     $arena \Resolved:Intrinsic-eq 26 Map:new-with-capacity #INTRINSIC_DESCRIPTIONS
 
+    make TokenTy.TOKEN_BOOL Token-new-synthetic make Type.Bool @type-bool
+    make TokenTy.TOKEN_I8   Token-new-synthetic make Type.I8   @type-i8
+    make TokenTy.TOKEN_I32  Token-new-synthetic make Type.I32  @type-i32
+    make TokenTy.TOKEN_I64  Token-new-synthetic make Type.I64  @type-i64
+
     block {
         $arena 3 Array:new-with-capacity<TypeShape> @types
-        &types make Type.I8  make TypeShape.Exact Array:push-assert-no-alloc
-        &types make Type.I32 make TypeShape.Exact Array:push-assert-no-alloc
-        &types make Type.I64 make TypeShape.Exact Array:push-assert-no-alloc
+        &types $type-i8  make TypeShape.Exact Array:push-assert-no-alloc
+        &types $type-i32 make TypeShape.Exact Array:push-assert-no-alloc
+        &types $type-i64 make TypeShape.Exact Array:push-assert-no-alloc
         $types
     } @i8i32i64
 
     block {
         $arena 4 Array:new-with-capacity<TypeShape> @types
-        &types               make TypeShape.AnyPtr Array:push-assert-no-alloc
-        &types make Type.I8  make TypeShape.Exact  Array:push-assert-no-alloc
-        &types make Type.I32 make TypeShape.Exact  Array:push-assert-no-alloc
-        &types make Type.I64 make TypeShape.Exact  Array:push-assert-no-alloc
+        &types      make TypeShape.AnyPtr Array:push-assert-no-alloc
+        &types $type-i8  make TypeShape.Exact  Array:push-assert-no-alloc
+        &types $type-i32 make TypeShape.Exact  Array:push-assert-no-alloc
+        &types $type-i64 make TypeShape.Exact  Array:push-assert-no-alloc
         $types
     } @ptri8i32i64
 
     block {
         $arena 4 Array:new-with-capacity<TypeShape> @types
-        &types make Type.Bool make TypeShape.Exact Array:push-assert-no-alloc
-        &types make Type.I8   make TypeShape.Exact Array:push-assert-no-alloc
-        &types make Type.I32  make TypeShape.Exact Array:push-assert-no-alloc
-        &types make Type.I64  make TypeShape.Exact Array:push-assert-no-alloc
+        &types $type-bool make TypeShape.Exact Array:push-assert-no-alloc
+        &types $type-i8   make TypeShape.Exact Array:push-assert-no-alloc
+        &types $type-i32  make TypeShape.Exact Array:push-assert-no-alloc
+        &types $type-i64  make TypeShape.Exact Array:push-assert-no-alloc
         $types
     } @booli8i32i64
 
@@ -252,7 +257,7 @@ fn init-intrinsic-signatures() {
             &parameters make Lexer:TokenTy.TOKEN_FN 0 0 Lexer:Token-new-keyword 0 make GenericType make Type.Generic Array:push-assert-no-alloc
             $parameters
         } @parameters
-        $arena make Type.Bool Array:singleton @returns
+        $arena $type-bool Array:singleton @returns
 
         $arena 0 $i8i32i64 make MustBeOneOf make ConstraintOnGeneric.MustBeOneOf Array:singleton @constraints
     } @signature-cmp
@@ -278,7 +283,7 @@ fn init-intrinsic-signatures() {
             &parameters $T Array:push-assert-no-alloc
             $parameters
         } @parameters
-        $arena make Type.Bool Array:singleton @returns
+        $arena $type-bool Array:singleton @returns
         Array:new @constraints
     } @signature-eq
 
@@ -367,9 +372,9 @@ fn init-intrinsic-signatures() {
         Array:new @generic-parameters
         block {
             $arena 3 Array:new-with-capacity @parameters
-            &parameters $arena make Type.I8 Arena:push make Type.Ptr Array:push-assert-no-alloc
-            &parameters $arena make Type.I8 Arena:push make Type.Ptr Array:push-assert-no-alloc
-            &parameters make Type.I32 Array:push-assert-no-alloc
+            &parameters $arena $type-i8 Arena:push make Type.Ptr Array:push-assert-no-alloc
+            &parameters $arena $type-i8 Arena:push make Type.Ptr Array:push-assert-no-alloc
+            &parameters $type-i32 Array:push-assert-no-alloc
             $parameters
         } @parameters
         Array:new @returns
@@ -383,9 +388,9 @@ fn init-intrinsic-signatures() {
         Array:new @generic-parameters
         block {
             $arena 3 Array:new-with-capacity @parameters
-            &parameters $arena make Type.I8 Arena:push make Type.Ptr Array:push-assert-no-alloc
-            &parameters make Type.I8 Array:push-assert-no-alloc
-            &parameters make Type.I32 Array:push-assert-no-alloc
+            &parameters $arena $type-i8 Arena:push make Type.Ptr Array:push-assert-no-alloc
+            &parameters $type-i8 Array:push-assert-no-alloc
+            &parameters $type-i32 Array:push-assert-no-alloc
             $parameters
         } @parameters
         Array:new @returns
@@ -462,8 +467,8 @@ fn init-intrinsic-signatures() {
 
     make IntrinsicSignature {
         Array:new @generic-parameters
-        $arena make Type.I32 Array:singleton @parameters
-        $arena make Type.I32 Array:singleton @returns
+        $arena $type-i32 Array:singleton @parameters
+        $arena $type-i32 Array:singleton @returns
         Array:new @constraints
     } @signature-mem-grow
 
@@ -483,7 +488,7 @@ fn init-intrinsic-signatures() {
 
     make IntrinsicSignature {
         Array:new @generic-parameters
-        $arena make Type.I32 Array:singleton @parameters
+        $arena $type-i32 Array:singleton @parameters
         Array:new @returns
         Array:new @constraints
     } @signature-set-stack-size
@@ -1815,7 +1820,9 @@ fn unstack-loop(unstacker: .Unstacker, stack: .Stack, word: .Resolved:Loop) -> W
         $word.token @token
         $arguments @arguments
         $parameters @parameters
-        $loop-stack.positive @next-arguments
+        $loop-unstacker.reachable if {
+            $loop-stack.positive make Maybe.Some
+        } else { make Maybe.None } @next-arguments
     } make Source:MultiReturnNode.LoopEntry fill-node
 
     $loop-break-stacks.len 0 /= if {
@@ -1993,7 +2000,7 @@ fn unstack-if(unstacker: .Unstacker, stack: .Stack, remaining: .Array<Resolved:W
             make NonSpecificVoid {
                 $word.token @token
                 $condition @source
-                make Type:Type.Bool make Maybe<Type:Type>.Some @known
+                $word.token make Type:Type.Bool make Maybe<Type:Type>.Some @known
                 make Maybe<InferenceHole>.None @type
             } make StackVoid.NonSpecific Array:push<_>
         }
@@ -2020,7 +2027,7 @@ fn unstack-if(unstacker: .Unstacker, stack: .Stack, remaining: .Array<Resolved:W
             $unstacker.arena $unstacker.voids
             $word.token
             $condition
-            make Type:Type.Bool make Maybe<Type:Type>.Some
+            $word.token make Type:Type.Bool make Maybe<Type:Type>.Some
             make Maybe<InferenceHole>.None
             make NonSpecificVoid
             make StackVoid.NonSpecific

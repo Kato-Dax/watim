@@ -31,10 +31,10 @@ fn NamedType-contains-hole(self: .NamedType) -> bool {
 }
 
 variant Type {
-    case Bool
-    case I8
-    case I32
-    case I64
+    case Bool -> Token
+    case I8 -> Token
+    case I32 -> Token
+    case I64 -> Token
     case Ptr -> .Type
     case Custom -> CustomTypeType
     case Fun -> FunType
@@ -42,12 +42,26 @@ variant Type {
     case Generic -> P:GenericType
     case Hole -> Token
 }
+fn Type-token(self: .Type) -> .Token {
+    $self match {
+        case Bool -> {}
+        case I8 -> {}
+        case I32 -> {}
+        case I64 -> {}
+        case Ptr -> { ~ Type-token }
+        case Custom -> { .token }
+        case Fun -> { .token }
+        case Generic -> { .name }
+        case Hole -> {}
+        case Tuple -> { .token }
+    }
+}
 fn format(fmt: .Formatter, self: .Type) { block {
     $fmt $self match {
-        case Bool -> { "Bool" }
-        case I8 -> { "I8" }
-        case I32 -> { "I32" }
-        case I64 -> { "I64" }
+        case Bool -> { drop "Bool" }
+        case I8 -> { drop "I8" }
+        case I32 -> { drop "I32" }
+        case I64 -> { drop "I64" }
         case Ptr -> {
             $fmt "(Ptr " Fmt:write
             ~ format
@@ -63,10 +77,10 @@ fn format(fmt: .Formatter, self: .Type) { block {
 } }
 fn eq(a: .Type, b: .Type) -> bool {
     $a match {
-        case Bool -> { $b match { case Bool -> { 1 1 = } case _ -> { drop 0 1 = } } }
-        case I8 -> { $b match { case I8 -> { 1 1 = } case _ -> { drop 0 1 = } } }
-        case I32 -> { $b match { case I32 -> { 1 1 = } case _ -> { drop 0 1 = } } }
-        case I64 -> { $b match { case I64 -> { 1 1 = } case _ -> { drop 0 1 = } } }
+        case Bool -> { drop $b match { case Bool -> { drop 1 1 = } case _ -> { drop 0 1 = } } }
+        case I8 -> { drop $b match { case I8 -> { drop 1 1 = } case _ -> { drop 0 1 = } } }
+        case I32 -> { drop $b match { case I32 -> { drop 1 1 = } case _ -> { drop 0 1 = } } }
+        case I64 -> { drop $b match { case I64 -> { drop 1 1 = } case _ -> { drop 0 1 = } } }
         case Ptr -> {
             ~ $b match {
                 case Ptr -> { ~ eq }
@@ -107,10 +121,10 @@ fn eq(a: .Type, b: .Type) -> bool {
 }
 fn find-hole(self: .Type) -> Maybe<.Token> {
     $self match {
-        case Bool -> { make Maybe<.Token>.None }
-        case I8 -> { make Maybe<.Token>.None }
-        case I32 -> { make Maybe<.Token>.None }
-        case I64 -> { make Maybe<.Token>.None }
+        case Bool -> { drop make Maybe<.Token>.None }
+        case I8 -> { drop make Maybe<.Token>.None }
+        case I32 -> { drop make Maybe<.Token>.None }
+        case I64 -> { drop make Maybe<.Token>.None }
         case Ptr -> { ~ find-hole }
         case Generic -> { drop make Maybe<.Token>.None }
         case Hole -> { make Maybe<.Token>.Some }
@@ -130,10 +144,10 @@ fn contains-hole(self: .Type) -> bool {
 }
 fn clone(arena: .Arena, self: .Type) -> Type {
     $self match {
-        case Bool -> { make Type.Bool }
-        case I8 -> { make Type.I8 }
-        case I32 -> { make Type.I32 }
-        case I64 -> { make Type.I64 }
+        case Bool -> { ~ make Type.Bool }
+        case I8 -> { ~ make Type.I8 }
+        case I32 -> { ~ make Type.I32 }
+        case I64 -> { ~ make Type.I64 }
         case Ptr -> { ~ $arena flip clone $arena flip Arena:push<_> make Type.Ptr }
         case Generic -> { ~ make Type.Generic }
         case Hole -> { ~ make Type.Hole }
@@ -196,6 +210,7 @@ fn TupleType-clone(arena: .Arena, self: .TupleType) -> TupleType {
 }
 
 struct CustomTypeType {
+    token: Token
     type-definition: CustomTypeHandle
     generic-arguments: Array<Type>
 }
@@ -216,7 +231,7 @@ fn CustomTypeType-eq(a: .CustomTypeType, b: .CustomTypeType) -> bool {
     }
 }
 fn CustomTypeType-clone(arena: .Arena, self: .CustomTypeType) -> CustomTypeType {
-    $self.type-definition $arena &self.generic-arguments Array:clone<_> make CustomTypeType
+    $self.token $self.type-definition $arena &self.generic-arguments Array:clone<_> make CustomTypeType
 }
 
 struct CustomTypeHandle { module: ModuleId index: i32 }
@@ -233,10 +248,10 @@ fn CustomTypeHandle-eq(a: .CustomTypeHandle, b: .CustomTypeHandle) -> bool {
 
 fn contains-generic(type: .Type) -> bool {
     $type match {
-        case I8 -> { 0 1 = }
-        case I32 -> { 0 1 = }
-        case I64 -> { 0 1 = }
-        case Bool -> { 0 1 = }
+        case I8 -> { drop 0 1 = }
+        case I32 -> { drop 0 1 = }
+        case I64 -> { drop 0 1 = }
+        case Bool -> { drop 0 1 = }
         case Ptr -> { ~ contains-generic }
         case Hole -> { drop 0 1 = }
         case Fun -> {
@@ -276,6 +291,7 @@ fn with-generics(arena: .Arena, type: .Type, generics: .Array<Type>) -> Type {
         }
         case Custom -> {
             @custom
+            $custom.token
             $custom.type-definition
             $arena &custom.generic-arguments $generics all-with-generics
             make CustomTypeType

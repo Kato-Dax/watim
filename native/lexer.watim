@@ -133,6 +133,9 @@ fn Token-ty(self: .Token) -> TokenTy {
 fn Token-new-keyword(ty: TokenTy, line: i32, column: i32) -> Token {
     $ty $line $column 0 !.ImmediateString Token-new
 }
+fn Token-new-synthetic(ty: TokenTy) -> Token {
+    $ty 0 not 0 not Token-new-keyword
+}
 fn Token-line(self: .Token) -> i32 {
     $self.ty-and-line-and-column 16 shr 65535 and
 }
@@ -250,6 +253,14 @@ struct TokenLocation {
     file-path: ByteSlice
     line: i32
     column: i32
+}
+
+fn format-location(fmt: .Formatter, loc: .TokenLocation) {
+    $fmt $loc.file-path.ptr $loc.file-path.len Fmt:write
+    $fmt ":" Fmt:write
+    $fmt $loc.line Util:i32-format
+    $fmt ":" Fmt:write
+    $fmt $loc.column Util:i32-format
 }
 
 fn print-location(fd: i32, loc: .TokenLocation) -> i32 { block {
