@@ -726,7 +726,6 @@ variant Source {
     case FromMakeStruct -> FromMakeStruct
     case FromNode -> FromNode
     case FromCast -> FromCast
-    case FromLoad -> FromLoad
     case FromProxied -> FromProxied
     case FromMakeVariant -> FromMakeVariant
     case FromCase -> FromCase
@@ -742,7 +741,6 @@ fn Source-format(fmt: .Formatter, self: .Source) {
         case FromMakeStruct -> { FromMakeStruct-format }
         case FromNode -> { FromNode-format }
         case FromCast -> { FromCast-format }
-        case FromLoad -> { FromLoad-format }
         case FromProxied -> { FromProxied-format }
         case FromMakeVariant -> { FromMakeVariant-format }
         case FromCase -> { FromCase-format }
@@ -770,7 +768,6 @@ fn Source-token(self: .Source) -> .Token {
         case FromMakeStruct -> { .token }
         case FromNode -> { .token }
         case FromCast -> { .token }
-        case FromLoad -> { .token }
         case FromProxied -> { .source ~ Source-token }
         case FromMakeVariant -> { .token }
         case FromCase -> { .token }

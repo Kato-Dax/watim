@@ -1086,6 +1086,7 @@ variant Intrinsic {
     case Ge -> TypeId
     case Le -> TypeId
     case Not -> TypeId
+    case Load -> Load
     case Store -> TypeId
     case Drop -> TypeId
     case SetStackSize
@@ -1113,6 +1114,7 @@ fn Intrinsic-format(fmt: .Formatter, self: .Intrinsic) {
         case Ge -> { $fmt "(Ge " Fmt:write $fmt flip TypeId-format $fmt ")" Fmt:write }
         case Le -> { $fmt "(Le " Fmt:write $fmt flip TypeId-format $fmt ")" Fmt:write }
         case Not -> { $fmt "(Not " Fmt:write $fmt flip TypeId-format $fmt ")" Fmt:write }
+        case Load -> { $fmt flip Load-format }
         case Store -> { $fmt "(Store " Fmt:write $fmt flip TypeId-format $fmt ")" Fmt:write }
         case Drop -> { $fmt "(Drop " Fmt:write $fmt flip TypeId-format $fmt ")" Fmt:write }
         case SetStackSize -> { $fmt "SetStackSize" Fmt:write }
@@ -1437,7 +1439,6 @@ variant Word {
     case Sizeof -> TypeId
     case Uninit -> Uninit
     case FieldInit -> FieldInit
-    case Load -> Load
     case MakeTuple -> MakeTuple
     case UnpackTuple -> UnpackTuple
     case IndirectCall -> IndirectCall
@@ -1469,7 +1470,6 @@ fn Word-format(fmt: .Formatter, self: .Word) { block {
         case Word.Sizeof -> { $fmt "(Sizeof " Fmt:write TypeId-format $fmt ")" }
         case Word.Uninit -> { Uninit-format break }
         case Word.FieldInit -> { FieldInit-format break }
-        case Word.Load -> { Load-format break }
         case Word.MakeTuple -> { MakeTuple-format break }
         case Word.UnpackTuple -> { UnpackTuple-format break }
         case Word.IndirectCall -> { IndirectCall-format break }
@@ -1604,6 +1604,7 @@ fn monomize-intrinsic(ctx: .Ctx, word: .Checked:IntrinsicWord, generic-arguments
         case Checked:Intrinsic.Ge -> { $generic-arguments monomize-type make Intrinsic.Ge }
         case Checked:Intrinsic.Le -> { $generic-arguments monomize-type make Intrinsic.Le }
         case Checked:Intrinsic.Not -> { $generic-arguments monomize-type make Intrinsic.Not }
+        case Checked:Intrinsic.Load -> { $generic-arguments monomize-type 0 not make Load make Intrinsic.Load }
         case Checked:Intrinsic.Store -> { $generic-arguments monomize-type make Intrinsic.Store }
         case Checked:Intrinsic.Drop -> { $generic-arguments monomize-type make Intrinsic.Drop }
         case Checked:Intrinsic.SetStackSize -> { drop make Intrinsic.SetStackSize }
@@ -1714,12 +1715,6 @@ fn monomize-field-init(ctx: .WordCtx, word: .Checked:FieldInit, generic-argument
     make FieldInit make Word.FieldInit
 }
 
-fn monomize-load(ctx: .Ctx, word: .Checked:Load, generic-arguments: .Array<TypeId>) -> Word {
-    $ctx &word.type $generic-arguments monomize-type
-    0 not
-    make Load make Word.Load
-}
-
 fn monomize-get-field(ctx: .Ctx, word: .Checked:GetField, generic-arguments: .Array<TypeId>) -> Word {
     $word.token
     $ctx &word.fields $generic-arguments monomize-field-accesses
@@ -1822,7 +1817,6 @@ fn monomize-word(ctx: .WordCtx, word: .Checked:Word, generic-arguments: .Array<T
         case Checked:Word.Block -> { $ctx flip $generic-arguments monomize-blok }
         case Checked:Word.Sizeof -> { $ctx.ctx flip $generic-arguments monomize-sizeof }
         case Checked:Word.FieldInit -> { $ctx flip $generic-arguments monomize-field-init }
-        case Checked:Word.Load -> { $ctx.ctx flip $generic-arguments monomize-load }
         case Checked:Word.MakeTuple -> { .type $ctx.ctx flip $generic-arguments monomize-type 0 not make MakeTuple make Word.MakeTuple }
         case Checked:Word.UnpackTuple -> { .type $ctx.ctx flip $generic-arguments monomize-type 0 not make UnpackTuple make Word.UnpackTuple }
         case Checked:Word.IndirectCall -> { .type $ctx.ctx flip $generic-arguments monomize-fun-type 0 not make IndirectCall make Word.IndirectCall }
@@ -1969,7 +1963,6 @@ fn word-measure-copy-space(word: .Word, ctx: .CopySpaceCtx, offset: .i32) { bloc
             } .returns $ctx $offset call-measure-copy-space #word.copy-space-offset
             break
         }
-        case Word.Load -> { @word $word.type &word.copy-space-offset }
         case Word.Uninit -> { @word $word.type &word.copy-space-offset }
         case Word.MakeStruct -> { @word $word.type &word.copy-space-offset }
         case Word.MakeStructNamed -> {
@@ -2026,6 +2019,12 @@ fn word-measure-copy-space(word: .Word, ctx: .CopySpaceCtx, offset: .i32) { bloc
             } @items
             $items $ctx.types $ctx.sizes $offset returns-measure-copy-space #word.copy-space-offset
             break
+        }
+        case Intrinsic -> {
+            .intrinsic match {
+                case Intrinsic.Load -> { @word $word.type &word.copy-space-offset }
+                case _ -> { drop break }
+            }
         }
         case _ -> { drop break }
     } @offset-slot @type

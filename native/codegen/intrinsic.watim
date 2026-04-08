@@ -1,5 +1,6 @@
 import "../../std/fmt.watim" as Fmt (Formatter)
 import "../../std/io.watim" as IO
+import "../../std/util.watim" as Util (i32-format)
 
 import "../monomorphization/monomizer.watim" as Monomized (
     Monomized, Module, ExternOrInstances,
@@ -14,7 +15,7 @@ import "../monomorphization/type.watim" as Type (
 )
 
 import "./ctx.watim" as Ctx (Ctx, lookup-type)
-import "./common.watim" as Common (generate-store)
+import "./common.watim" as Common (generate-store, generate-type)
 
 fn generate-intrinsic(ctx: .Ctx, intrinsic: .Intrinsic) { block (->) {
     $ctx.fmt $intrinsic match {
@@ -127,6 +128,30 @@ fn generate-intrinsic(ctx: .Ctx, intrinsic: .Intrinsic) { block (->) {
         case Intrinsic.MemCopy -> { "memory.copy" }
         case Intrinsic.MemFill -> { "memory.fill" }
         case Intrinsic.MemGrow -> { "memory.grow" }
+        case Intrinsic.Load -> {
+            @word
+            $ctx.fmt $ctx.program $word.type lookup-type match {
+                case I8 -> { "i32.load8_u" }
+                case I32 -> { "i32.load" }
+                case I64 -> { "i64.load" }
+                case Bool -> { "i32.load" }
+                case _ -> {
+                    drop drop
+                    &ctx.program.sizes $word.type can-live-in-reg if {
+                        $ctx $word.type generate-type
+                        $ctx.fmt ".load" Fmt:write
+                    } else {
+                        $ctx.fmt "local.get $locl-copy-spac:e i32.const " Fmt:write
+                        $ctx.fmt $word.copy-space-offset i32-format
+                        $ctx.fmt " i32.add call $intrinsic:dupi32 call $intrinsic:rotate-left i32.const " Fmt:write
+                        $ctx.fmt &ctx.program.sizes $word.type type-size i32-format
+                        $ctx.fmt " memory.copy" Fmt:write
+                    }
+                    break
+                }
+            } Fmt:write
+            break
+        }
         case Intrinsic.Store -> { $ctx flip ~ generate-store break }
         case Intrinsic.SetStackSize -> {
             $ctx.guard-stack if { "global.set $stack-siz:e" } else { "drop" }

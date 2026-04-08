@@ -175,7 +175,12 @@ fn resolve-word(ctx: .WordCtx, word: .P:Word) -> Result<OneOrMany<Word>, Resolve
                         case None -> {}
                         case Some -> {
                             ~ @field-index
-                            &struc-literal-env.remaining-fields &field-name Map:remove<_, _> assert-some<_>
+                            &struc-literal-env.remaining-fields &field-name Map:remove<_, _> match {
+                                case Some -> { drop }
+                                case None -> {
+                                    $ctx &word.ident "field has already been initialized" abort break
+                                }
+                            }
                             $word.ident $struc-literal-env.struc $field-index make FieldInit
                             make Word.FieldInit make OneOrMany<Word>.One make Result<OneOrMany<Word>, ResolveError>.Success break
                         }
@@ -402,7 +407,6 @@ fn resolve-word(ctx: .WordCtx, word: .P:Word) -> Result<OneOrMany<Word>, Resolve
             }
             make Sizeof make Word.Sizeof
         }
-        case P:Word.Load -> { ~ make Load make Word.Load }
         case P:Word.FunRef -> {
             @word
             $ctx &word.call resolve-call match {

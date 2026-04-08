@@ -427,6 +427,7 @@ variant Intrinsic {
     case Mod -> Mod
     case Mul -> Mul
     case Div -> Div
+    case Load -> Load
     case Store -> Store
     case Le -> Le
     case Ge -> Ge
@@ -456,6 +457,7 @@ fn Intrinsic-format(fmt: .Formatter, self: .Intrinsic) {
         case Mod -> { Mod-format }
         case Mul -> { Mul-format }
         case Div -> { Div-format }
+        case Load -> { Load-format }
         case Store -> { Store-format }
         case Le -> { Le-format }
         case Ge -> { Ge-format }
@@ -848,7 +850,6 @@ variant Word {
     case InitLocal -> Resolved:InitLocal
     case Call -> Call
     case Cast -> Cast
-    case Load -> Load
     case String -> Resolved:StringWord
     case If -> If
     case Block -> Block
@@ -877,7 +878,6 @@ fn Word-format(fmt: .Formatter, self: .Word) {
         case InitLocal -> { Resolved:InitLocal-format }
         case Call -> { Call-format }
         case Cast -> { Cast-format }
-        case Load -> { Load-format }
         case String -> { Resolved:StringWord-format }
         case If -> { If-format }
         case Block -> { Block-format }

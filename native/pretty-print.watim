@@ -272,7 +272,6 @@ fn Word-pretty(self: .Word, pp: .PrettyPrinter) -> i32 { block {
         case Word.SetLocal -> { $pp SetLocal-pretty }
         case Word.InitLocal -> { $pp InitLocal-pretty }
         case Word.FunRef -> { $pp FunRef-pretty }
-        case Word.Load -> { $pp flip write-token }
         case Word.Ref -> { $pp flip write-token }
         case Word.Cast -> { $pp Cast-pretty }
         case Word.Break -> { $pp flip write-token }

@@ -169,12 +169,6 @@ fn graph-source(grapher: .Grapher, source: .Source) {
             $grapher.fmt " -> " Fmt:write
             $grapher $source.src graph-maybe-source
         }
-        case Source.FromLoad -> {
-            @source
-            $grapher &source.token graph-token
-            $grapher.fmt " -> " Fmt:write
-            $grapher $source.src graph-maybe-source
-        }
         case Source.FromString -> {
             $grapher flip graph-token
             $grapher.fmt "\n" Fmt:write

@@ -79,6 +79,27 @@ struct IntrinsicSignature {
     returns: Array<WithoutHoles:Type>
     constraints: Array<ConstraintOnGeneric>
 }
+fn IntrinsicSignature-format(fmt: .Formatter, self: .IntrinsicSignature) {
+    $fmt "(IntrinsicSignature\n" Fmt:write
+    $fmt Fmt:indent
+    $fmt Fmt:write-indent
+    $fmt "generic-parameters=" Fmt:write
+    $fmt \ByteSlice-format &self.generic-parameters Array:format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "parameters=" Fmt:write
+    $fmt \WithoutHoles:format &self.parameters Array:format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "returns=" Fmt:write
+    $fmt \WithoutHoles:format &self.returns Array:format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "constraints=" Fmt:write
+    $fmt \ConstraintOnGeneric-format &self.constraints Array:format-multi-line
+    $fmt Fmt:dedent
+    $fmt ")" Fmt:write
+}
 
 struct Struct {
     name: Token

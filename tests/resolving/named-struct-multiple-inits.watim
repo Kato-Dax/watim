@@ -1,0 +1,13 @@
+[== Stdin Compiler ==]
+struct Foo { x: i32 }
+fn foo() {
+    make Foo { 0 @x 1 @x }
+}
+[== Args Compiler ==]
+resolve
+-
+--quiet
+[== Status Compiler ==]
+1
+[== Stderr Compiler ==]
+-:3:24: field has already been initialized

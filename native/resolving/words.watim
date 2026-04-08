@@ -530,7 +530,6 @@ variant Word {
     case Break -> Token
     case Block -> Block
     case IndirectCall -> IndirectCall
-    case Load -> Load
     case Match -> Match
     case MatchVoid -> Token
     case MakeVariant -> MakeVariant
@@ -561,7 +560,6 @@ fn Word-format(fmt: .Formatter, self: .Word) {
         case Break -> { $fmt "(Break " Fmt:write $fmt flip Token-format $fmt ")" Fmt:write }
         case Block -> { $fmt flip Block-format }
         case IndirectCall -> { $fmt flip IndirectCall-format }
-        case Load -> { $fmt flip Load-format }
         case Match -> { $fmt flip Match-format }
         case MatchVoid -> { $fmt "(MatchVoid " Fmt:write $fmt flip Token-format $fmt ")" Fmt:write }
         case MakeVariant -> { $fmt flip MakeVariant-format }

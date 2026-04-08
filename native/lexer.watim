@@ -29,7 +29,6 @@ variant TokenTy {
     case TOKEN_HASH
     case TOKEN_AT
     case TOKEN_BANG
-    case TOKEN_TILDE
     case TOKEN_BACKSLASH
     case TOKEN_UNDERSCORE
     case TOKEN_LEFT_BRACKET
@@ -80,7 +79,6 @@ fn TokenTy-name(self: TokenTy) -> .i8, i32 {
         case TOKEN_HASH -> { "HASH" }
         case TOKEN_AT -> { "AT" }
         case TOKEN_BANG -> { "BANG" }
-        case TOKEN_TILDE -> { "TILDE" }
         case TOKEN_BACKSLASH -> { "BACKSLASH" }
         case TOKEN_LEFT_BRACKET -> { "LEFT_BRACKET" }
         case TOKEN_RIGHT_BRACKET -> { "RIGHT_BRACKET" }
@@ -194,7 +192,6 @@ fn Token-hardcoded-lexeme(self: .Token) -> .i8, i32 {
         case TOKEN_HASH -> { "#" }
         case TOKEN_AT -> { "@" }
         case TOKEN_BANG -> { "!" }
-        case TOKEN_TILDE -> { "~" }
         case TOKEN_BACKSLASH -> { "\\" }
         case TOKEN_UNDERSCORE -> { "_" }
         case TOKEN_NUMBER -> { 0 !.i8 0 }
@@ -349,7 +346,7 @@ fn lex(arena: .Arena:Arena, code: .ByteSlice) -> Array:Array<Token> {
                     $done not break
                 }
             }
-            "<>(){}:.,$&#@!~\\_[]" @one-char-tokens-len @one-char-tokens
+            "<>(){}:.,$&#@!\\_[]" @one-char-tokens-len @one-char-tokens
             $one-char-tokens $one-char-tokens-len $char Bytes:find if {
                 @index
                 $one-char-tokens $index + 1 make ByteSlice @lexeme
@@ -476,7 +473,7 @@ fn lex(arena: .Arena:Arena, code: .ByteSlice) -> Array:Array<Token> {
 }
 
 fn allowed-in-ident(char: i8) -> bool {
-    "#${}()<> \t\n:,.!&~\"[]" @disallowed-len @disallowed
+    "#${}()<> \t\n:,.!&\"[]" @disallowed-len @disallowed
     0 @i
     loop {
         $i $disallowed-len = if { 1 1 = break }

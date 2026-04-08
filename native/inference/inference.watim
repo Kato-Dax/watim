@@ -21,13 +21,13 @@ import "../resolving/type.watim" as WithHoles (
 )
 import "../resolving/pretty-type.watim" as WithHoles
 import "../resolving/type-without-holes.watim" as Type (
-    Type(I8, I32, I64, Ptr), NamedType, NamedType-type, Type-token,
+    Type(I8, I32, I64, Ptr), NamedType, NamedType-type,
 )
 import "../resolving/pretty-type-without-holes.watim" as Type
 
 import "../resolving/words.watim" as Resolved (LocalId, LocalId-eq, LocalId-format, FunctionHandle, VarId)
 import "../resolving/top-items.watim" as Resolved (
-    TypeDefinition, FunctionSignature, LocalName, TypeDefinition-name,
+    TypeDefinition, FunctionSignature, LocalName, LocalName-token, TypeDefinition-name,
     ConstraintOnGeneric(MustBeOneOf, MustSatisfyPredicate),
     TypeShape-matches-Type,
 )
@@ -167,7 +167,7 @@ block {
                 &function.signature.returns $i Array:get<_> @expected
 
                 List:empty @origin
-                $expected Type-token ~ $i make Origin:FromReturn make Origin.FromReturn &origin List:cons @origin
+                $i $expected ~ make Origin:FromReturn make Origin.FromReturn &origin List:cons @origin
                 &ctx $source $expected &origin check match {
                     case None -> {}
                     case Some -> { make Result<Unit, Error>.Error break }
@@ -536,7 +536,7 @@ block {
             }
         } @local-type
 
-        make Origin.FromLocal List:empty & List:cons @origin
+        &local.name LocalName-token ~ $local-type make Origin:FromLocal make Origin.FromLocal List:empty & List:cons @origin
         &ctx $local &local-type &origin check-local-assignments match {
             case None -> {}
             case _ -> { break }
@@ -876,6 +876,7 @@ fn check(ctx: .Ctx, source: .Source, known: .Type, origin: .List<Origin>) -> May
                     case Type.I32 -> { drop }
                     case _ -> {
                         drop
+                        $token ~ $ctx.arena $origin copy-origin $known ~ make Error:NumberError make Error.Number make Maybe.Some break
                         $token "check FromNumber: known /= i32" error make Maybe<Error>.Some break
                     }
                 }
@@ -888,8 +889,7 @@ fn check(ctx: .Ctx, source: .Source, known: .Type, origin: .List<Origin>) -> May
                             case Type.I8 -> { drop make Maybe<Error>.None break }
                             case _ -> { drop } } }
                     case _ -> { drop  } }
-                $ctx.arena $token make Type.I8 Arena:push make Type.Ptr @actual
-                $token $ctx.arena $origin copy-origin $known ~ $actual make Error:StringError make Error.String make Maybe.Some break
+                $token $ctx.arena $origin copy-origin $known ~ make Error:StringError make Error.String make Maybe.Some break
             }
             case Source.FromLocal -> {
                 @source
@@ -921,16 +921,19 @@ fn check(ctx: .Ctx, source: .Source, known: .Type, origin: .List<Origin>) -> May
                                     case _ -> { drop Core:unreachable<.Type> }
                                 }
                             } else { $known } @expected-local-type
+
+                            $source.token $known ~ make Origin:FromLocal make Origin.FromLocal $origin List:cons @origin
+
                             $ctx $local.type $expected-local-type fill-hole
                             &initialization.source match {
                                 case None -> { &initialization.token "expected item" error make Maybe<Error>.Some break }
                                 case Some -> {}
-                            } $ctx flip $expected-local-type $origin check match {
+                            } $ctx flip $expected-local-type &origin check match {
                                 case None -> {}
                                 case _ -> { break }
                             }
                             $ctx $source.result-type $known fill-hole
-                            $ctx $local $expected-local-type $origin check-local-assignments break
+                            $ctx $local $expected-local-type &origin check-local-assignments break
                         } else {
                             &ctx.states &whole-source Map:remove<_, _> drop
                             $ctx $whole-source infer match {
@@ -958,12 +961,13 @@ fn check(ctx: .Ctx, source: .Source, known: .Type, origin: .List<Origin>) -> May
 
 
                         &result-type $known Type:eq not if {
-                            &source.token "check FromLocal: mismatch" error make Maybe<Error>.Some break
+                            $source.token $known ~ $result-type $ctx.arena $origin copy-origin make Error:LocalError make Error.Local make Maybe.Some break
                         }
 
                         $ctx $source.result-type &result-type fill-hole
 
-                        $ctx $local $local-type $origin check-local-assignments break
+                        $source.token $known ~ make Origin:FromLocal make Origin.FromLocal $origin List:cons @origin
+                        $ctx $local $local-type &origin check-local-assignments break
                     }
                 }
             }
@@ -1045,15 +1049,6 @@ fn check(ctx: .Ctx, source: .Source, known: .Type, origin: .List<Origin>) -> May
                         $ctx $source.src-type &src-type fill-hole
                     }
                 }
-            }
-            case Source.FromLoad -> {
-                @source
-                $source.src match {
-                    case None -> { 0 !.Token "check FromLoad: src is None" error make Maybe<Error>.Some break }
-                    case Some -> {}
-                } @src
-                $ctx $source.type $known fill-hole
-                $ctx $src $known make Type.Ptr & $origin check break
             }
             case Source.FromProxied -> {
                 @source
@@ -1361,7 +1356,7 @@ fn check-from-node(ctx: .Ctx, source: .Source:FromNode, known: .Type, origin: .L
                         $arena $generic-parameter Type:generics @generics
 
                         List:empty & @empty-list
-                        $source.token $i make Origin:FromCall make Origin.FromCall
+                        $source.token $i $parameter make Origin:FromCall make Origin.FromCall
                         $generics.len 0 /= if {
                             $origin List:cons
                         } else {
@@ -2481,33 +2476,6 @@ fn infer(ctx: .Ctx, source: .Source) -> Result<Maybe<Type>, Error> {
                     $ctx $source.src-type &src-type fill-hole
                     $dst-type make Maybe<Type>.Some make Result<Maybe<Type:Type>, Error>.Success
                 }
-                case Source.FromLoad -> {
-                    @source
-                    $ctx $source.type lookup-hole match {
-                        case Some -> { ~ make Maybe<Type>.Some make Result<Maybe<Type:Type>, Error>.Success break }
-                        case None -> {}
-                    }
-                    $ctx $source.src match {
-                        case Some -> {}
-                        case None -> {
-                            &source.token "infer FromLoad expected item" error make Result<Maybe<Type>, Error>.Error break
-                        }
-                    } infer match {
-                        case Success -> {}
-                        case _ -> { break }
-                    } match {
-                        case Some -> {}
-                        case _ -> { make Result<Maybe<Type>, Error>.Success break }
-                    } match {
-                        case Type.Ptr -> {}
-                        case _ -> {
-                            drop
-                            &source.token "infer FromLoad expected ptr" error make Result<Maybe<Type>, Error>.Error break
-                        }
-                    } @type
-                    $ctx $source.type $type fill-hole
-                    $type ~ make Maybe<Type>.Some make Result<Maybe<Type:Type>, Error>.Success
-                }
                 case Source.FromCase -> {
                     @source
                     $source.scrutinee match {
@@ -3247,13 +3215,6 @@ fn fill-holes-word(ctx: .Ctx, word: .Unstacked:Word) -> Checked:Word {
                 } @dst
             } make Checked:Word.Cast
         }
-        case Unstacked:Word.Load -> {
-            @word
-            make Checked:Load {
-                $word.token @token
-                $ctx $word.type fill @type
-            } make Checked:Word.Load
-        }
         case Unstacked:Word.SetLocal -> {
             @word
             make Checked:SetLocal {
@@ -3525,6 +3486,12 @@ fn fill-holes-intrinsic(ctx: .Ctx, intrinsic: .Unstacked:Intrinsic) -> Checked:I
             $intrinsic.token
             $ctx $intrinsic.type fill
             make Checked:Intrinsic.Drop make Checked:IntrinsicWord
+        }
+        case Unstacked:Intrinsic.Load -> {
+            @intrinsic
+            $intrinsic.token
+            $ctx $intrinsic.type fill
+            make Checked:Intrinsic.Load make Checked:IntrinsicWord
         }
         case Unstacked:Intrinsic.Store -> {
             @intrinsic

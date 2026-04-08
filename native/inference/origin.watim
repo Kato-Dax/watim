@@ -1,45 +1,64 @@
 import "../../std/fmt.watim" as Fmt (Formatter)
 import "../../std/util.watim" as Util (i32-format)
 import "../../std/byte-slice.watim" as ByteSlice (ByteSlice)
+import "../../std/array.watim" as Array (Array)
 
 import "../lexer.watim" as Token (Token, Token-location, TokenLocation, format-location)
+
+import "../resolving/type-without-holes.watim" as Type (Type)
+import "../resolving/pretty-type-without-holes.watim" as Type
+import "../resolving/module.watim" as Resolved (Module)
 
 import "../unstacking/unstacker.watim" as Unstacking (StackVoid, StackVoid-format)
 import "../unstacking/source.watim" as Source
 
 struct FromReturn {
-    token: Token
     return-index: i32
+    type: Type
 }
 
 struct FromCall {
     token: Token
     argument: i32
+    expected: Type
+}
+
+struct FromLocal {
+    token: Token
+    expected: Type
 }
 
 variant Origin {
     case FromReturn -> FromReturn
     case FromCall -> FromCall
     case FromStackVoid -> .StackVoid
-    case FromLocal
+    case FromLocal -> FromLocal
     case TODO
 }
 
-fn display(fmt: .Formatter, self: .Origin, file-path: ByteSlice) {
+fn display(fmt: .Formatter, modules: .Array<Module>, self: .Origin, file-path: ByteSlice) {
     $self match {
         case FromReturn -> {
             @origin
-            $fmt $file-path &origin.token Token-location make TokenLocation & format-location
+            $fmt $file-path &origin.type Type:token Token-location make TokenLocation & format-location
             $fmt ": The " Fmt:write
             $fmt $origin.return-index 1 + i32-format
-            $fmt ". return type" Fmt:write
+            $fmt ". return type: " Fmt:write
+            $fmt $modules &origin.type Type:pretty
         }
         case FromCall -> {
             @origin
             $fmt $file-path &origin.token Token-location make TokenLocation & format-location
             $fmt ": The " Fmt:write
             $fmt $origin.argument 1 + i32-format
-            $fmt ". argument of this call" Fmt:write
+            $fmt ". argument of this call: " Fmt:write
+            $fmt $modules &origin.expected Type:pretty
+        }
+        case FromLocal -> {
+            @origin
+            $fmt $file-path &origin.token Token-location make TokenLocation & format-location
+            $fmt ": This variable lookup: " Fmt:write
+            $fmt $modules &origin.expected Type:pretty
         }
         case _ -> {
             drop

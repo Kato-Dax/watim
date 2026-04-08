@@ -257,29 +257,6 @@ fn generate-word(ctx: .Ctx, module: i32, locals: .Map<LocalId, Local>, word: .Wo
                 }
             }
         }
-        case Word.Load -> {
-            @word
-            block { $ctx.fmt $ctx.program $word.type lookup-type match {
-                case I8 -> { "i32.load8_u" }
-                case I32 -> { "i32.load" }
-                case I64 -> { "i64.load" }
-                case Bool -> { "i32.load" }
-                case _ -> {
-                    drop drop
-                    &ctx.program.sizes $word.type can-live-in-reg if {
-                        $ctx $word.type generate-type
-                        $ctx.fmt ".load" Fmt:write
-                    } else {
-                        $ctx.fmt "local.get $locl-copy-spac:e i32.const " Fmt:write
-                        $ctx.fmt $word.copy-space-offset i32-format
-                        $ctx.fmt " i32.add call $intrinsic:dupi32 call $intrinsic:rotate-left i32.const " Fmt:write
-                        $ctx.fmt &ctx.program.sizes $word.type type-size i32-format
-                        $ctx.fmt " memory.copy" Fmt:write
-                    }
-                    break
-                }
-            } Fmt:write }
-        }
         case Word.MakeStruct -> { $ctx flip generate-make-struct }
         case Word.MakeStructNamed -> { block {
             @word

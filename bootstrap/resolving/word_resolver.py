@@ -225,6 +225,8 @@ class WordResolver:
         if self.struct_literal_env is not None:
             field_name = word.ident.lexeme
             if field_name in self.struct_literal_env.all_fields:
+                if field_name not in self.struct_literal_env.remaining_fields:
+                    self.abort(word.ident, "field has already been initialized")
                 del self.struct_literal_env.remaining_fields[field_name]
                 field_index = self.struct_literal_env.all_fields[field_name]
                 return resolved.StructFieldInitWord(word.ident, self.struct_literal_env.struct, field_index)

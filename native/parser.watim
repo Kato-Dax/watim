@@ -15,7 +15,7 @@ import "./lexer.watim" as Lexer (
         TOKEN_SPACE, TOKEN_IMPORT, TOKEN_FN, TOKEN_STRUCT, TOKEN_VARIANT, TOKEN_EXTERN, TOKEN_GLOBAL, TOKEN_STRING,
         TOKEN_AS, TOKEN_IDENT, TOKEN_RIGHT_PAREN, TOKEN_LEFT_PAREN, TOKEN_COMMA, TOKEN_LEFT_TRIANGLE, TOKEN_LEFT_BRACE,
         TOKEN_RIGHT_BRACE, TOKEN_CASE, TOKEN_ARROW, TOKEN_AT, TOKEN_AMPERSAND, TOKEN_DOLLAR, TOKEN_HASH, TOKEN_NUMBER,
-        TOKEN_IF, TOKEN_MATCH, TOKEN_BLOCK, TOKEN_TILDE, TOKEN_BANG, TOKEN_BREAK, TOKEN_LOOP, TOKEN_MAKE, TOKEN_BACKSLASH,
+        TOKEN_IF, TOKEN_MATCH, TOKEN_BLOCK, TOKEN_BANG, TOKEN_BREAK, TOKEN_LOOP, TOKEN_MAKE, TOKEN_BACKSLASH,
         TOKEN_DOT, TOKEN_SIZEOF, TOKEN_DOUBLE_ARROW, TOKEN_LEFT_BRACKET, TOKEN_RIGHT_BRACKET, TOKEN_COLON,
         TOKEN_UNDERSCORE, TOKEN_ELSE, TOKEN_RIGHT_TRIANGLE, TOKEN_LEFT_TRIANGLE, TOKEN_BOOL, TOKEN_I32, TOKEN_I8,
         TOKEN_I32, TOKEN_I64,
@@ -589,7 +589,6 @@ variant Word {
     case Number -> Token
     case If -> If
     case Block -> Block
-    case Load -> Token
     case Cast -> Cast
     case Break -> Token
     case Loop -> Loop
@@ -618,7 +617,6 @@ fn Word-format(fmt: .Formatter, self: .Word) { block {
         case Number -> { "Number" }
         case If -> { $fmt flip If-format break }
         case Block -> { $fmt flip Block-format break }
-        case Load -> { "Load" }
         case Cast -> { $fmt flip Cast-format break }
         case Break -> { "Break" }
         case Loop -> { $fmt flip Loop-format break }
@@ -1390,7 +1388,6 @@ fn word(parser: .Parser, token: .Token) -> Result<Word, ParseError> { block {
         case TOKEN_NUMBER -> { $token ~ make Word.Number }
         case TOKEN_IF -> { $parser $token iff break }
         case TOKEN_BLOCK -> { $parser $token blok break }
-        case TOKEN_TILDE -> { $token ~ make Word.Load }
         case TOKEN_BANG -> { $parser $token cast break }
         case TOKEN_BREAK -> { $token ~ make Word.Break }
         case TOKEN_LOOP -> { $parser $token lop break }

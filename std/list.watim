@@ -29,7 +29,7 @@ fn head<T>(list: .List<T>) -> Maybe<.T> {
 fn tail<T>(list: .List<T>) -> Maybe<List<T>> {
     $list match {
         case Empty -> { make Maybe<List<T>>.None }
-        case Cons -> { .next~~ make Maybe<List<T>>.Some }
+        case Cons -> { .next ~ ~ make Maybe<List<T>>.Some }
     }
 }
 

@@ -29,6 +29,7 @@ variant Intrinsic {
     case Ge
     case Le
     case Not
+    case Load
     case Store
     case SetStackSize
 }
@@ -61,6 +62,7 @@ fn Intrinsic-format(fmt: .Formatter, self: .Intrinsic) {
         case Ge -> { "Ge" }
         case Le -> { "Le" }
         case Not -> { "Not" }
+        case Load -> { "Load" }
         case Store -> { "Store" }
         case SetStackSize -> { "SetStackSize" }
     } Fmt:write
@@ -93,6 +95,7 @@ fn lookup(name: .Token) -> Maybe<Intrinsic> { block {
     $ptr $len "mem-fill" Bytes:eq if { make Intrinsic.MemFill make Maybe<Intrinsic>.Some break }
     $ptr $len "mem-grow" Bytes:eq if { make Intrinsic.MemGrow make Maybe<Intrinsic>.Some break }
     $ptr $len "uninit"   Bytes:eq if { make Intrinsic.Uninit  make Maybe<Intrinsic>.Some break }
+    $ptr $len "~"        Bytes:eq if { make Intrinsic.Load    make Maybe<Intrinsic>.Some break }
     $ptr $len "store"    Bytes:eq if { make Intrinsic.Store   make Maybe<Intrinsic>.Some break }
 
     $ptr $len "set-stack-size" Bytes:eq if { make Intrinsic.SetStackSize make Maybe<Intrinsic>.Some break }

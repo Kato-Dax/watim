@@ -155,13 +155,13 @@ variant Type {
     case Fun -> FunType
     case Generic -> P:GenericType
 }
-fn Type-token(self: .Type) -> .Token {
+fn token(self: .Type) -> .Token {
     $self match {
         case Bool -> {}
         case I8 -> {}
         case I32 -> {}
         case I64 -> {}
-        case Ptr -> { ~ Type-token }
+        case Ptr -> { ~ token }
         case Custom -> { .token }
         case Fun -> { .token }
         case Generic -> { .name }

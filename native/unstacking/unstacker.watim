@@ -107,6 +107,10 @@ fn construct-flip(token: .Token, generic-arguments: .Array<InferenceHole>) -> Wo
     $token ~ $generic-arguments 0 Array:get ~ $generic-arguments 1 Array:get ~ make Word:Flip make Intrinsic.Flip make Word.Intrinsic
 }
 
+fn construct-load(token: .Token, generic-arguments: .Array<InferenceHole>) -> Word {
+    $token ~ $generic-arguments 0 Array:get ~ make Word:Load make Intrinsic.Load make Word.Intrinsic
+}
+
 fn construct-store(token: .Token, generic-arguments: .Array<InferenceHole>) -> Word {
     $token ~ $generic-arguments 0 Array:get ~ make Word:Store make Intrinsic.Store make Word.Intrinsic
 }
@@ -187,8 +191,8 @@ fn init-intrinsic-signatures() {
 
     "IntrinsicSignatures" Arena:new #INTRINSIC_DESCRIPTIONS_ARENA
     &INTRINSIC_DESCRIPTIONS_ARENA @arena
-    $arena \Resolved:Intrinsic-eq 26 Map:new-with-capacity #INTRINSIC_SIGNATURES
-    $arena \Resolved:Intrinsic-eq 26 Map:new-with-capacity #INTRINSIC_DESCRIPTIONS
+    $arena \Resolved:Intrinsic-eq 27 Map:new-with-capacity #INTRINSIC_SIGNATURES
+    $arena \Resolved:Intrinsic-eq 27 Map:new-with-capacity #INTRINSIC_DESCRIPTIONS
 
     make TokenTy.TOKEN_BOOL Token-new-synthetic make Type.Bool @type-bool
     make TokenTy.TOKEN_I8   Token-new-synthetic make Type.I8   @type-i8
@@ -448,6 +452,17 @@ fn init-intrinsic-signatures() {
 
     &INTRINSIC_SIGNATURES make Resolved:Intrinsic.Flip $signature-flip Map:insert-assert-no-alloc assert-none
     &INTRINSIC_DESCRIPTIONS make Resolved:Intrinsic.Flip $signature-flip \construct-flip make IntrinsicDescription Map:insert-assert-no-alloc assert-none
+
+    make IntrinsicSignature {
+        $arena "T" make ByteSlice Array:singleton @generic-parameters
+        make Lexer:TokenTy.TOKEN_FN Lexer:Token-new-synthetic 0 make GenericType make Type.Generic @T
+        $arena $arena $T Arena:push make Type.Ptr Array:singleton @parameters
+        $arena $T Array:singleton @returns
+        Array:new @constraints
+    } @signature-load
+
+    &INTRINSIC_SIGNATURES make Resolved:Intrinsic.Load $signature-load Map:insert-assert-no-alloc assert-none
+    &INTRINSIC_DESCRIPTIONS make Resolved:Intrinsic.Load $signature-load \construct-load make IntrinsicDescription Map:insert-assert-no-alloc assert-none
 
     make IntrinsicSignature {
         $arena "T" make ByteSlice Array:singleton @generic-parameters
@@ -1272,24 +1287,6 @@ fn unstack-word(unstacker: .Unstacker, stack: .Stack, word: .Resolved:Word, rema
                 $src-type @src-type
                 $word.dst @dst-type
             } make Word:Word.Cast
-        }
-        case Resolved:Word.Load -> {
-            @word
-            $unstacker $word.token fresh-hole @type
-            $unstacker.arena $stack Stack:pop @src
-
-            $unstacker.arena $stack
-            make Source:FromLoad {
-                $word.token @token
-                $type @type
-                $unstacker.arena $src Arena:push<_> @src
-            } make Source.FromLoad
-            Stack:push
-
-            make Word:Load {
-                $word.token @token
-                $type @type
-            } make Word:Word.Load
         }
         case Resolved:Word.String -> {
             @word

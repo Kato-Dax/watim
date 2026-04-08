@@ -17,4 +17,4 @@ main
     .i8
 
   The expected type originated from:
-    -:3:13: The 1. argument of this call
+    -:3:13: The 1. argument of this call: i32

@@ -1,6 +1,7 @@
 [== Stdin Compiler ==]
 fn main() -> i32 {
-    "" drop
+    0 @a
+    $a ~
 }
 [== Args Compiler ==]
 infer
@@ -11,9 +12,11 @@ main
 1
 [== Stderr Compiler ==]
 -:2:5: expected this word to return a value of type:
-    i32
+    .i32
   but it returns:
-    .i8
+    i32
 
   The expected type originated from:
+    -:3:6: This variable lookup: .i32
+    -:3:8: The 1. argument of this call: .i32
     -:1:14: The 1. return type: i32
