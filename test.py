@@ -2,6 +2,7 @@
 from dataclasses import dataclass
 from typing import List
 import subprocess
+import tempfile
 import glob
 import json
 import sys
@@ -166,7 +167,7 @@ for path in tests:
 
     def on_error():
         if interactive:
-            response = input("accept?")
+            response = input("accept?\ny/n:")
             if response == "y":
                 accept(path)
 
@@ -188,30 +189,33 @@ for path in tests:
         print(f"stderr was: {compiler.stderr}", file=sys.stderr)
         on_error()
         continue
-    with open('./out.wat', 'wb') as outwat:
-        outwat.write(compiler.stdout.encode("UTF-8"))
-    if compiler.returncode == 0 and test['status'] is not None:
-        program = subprocess.run(["wasmtime", "./out.wat"], input=bytes(test["stdin"] or "", 'UTF-8'), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if test['stderr'] is not None and program.stderr.strip() != test['stderr'].encode('UTF-8').strip():
-            print(f"{path}: expected different stderr:", file=sys.stderr)
-            print(f"Expected:\n{test['stderr']}", file=sys.stderr)
-            print(f"Actual:\n{program.stderr.decode('UTF-8')}", file=sys.stderr)
-            on_error()
-            continue
-        if test['stdout'] is not None and program.stdout.strip() != test['stdout'].encode('UTF-8').strip():
-            print(f"{path}: expected different stdout:", file=sys.stderr)
-            print(f"Expected:\n{test['stdout']}", file=sys.stderr)
-            print(f"Actual:\n{program.stdout.decode('UTF-8')}", file=sys.stderr)
-            on_error()
-            continue
-        if test['status'] is not None and program.returncode != test['status']:
-            print(f"{path}: expected different status:", file=sys.stderr)
-            print(f"Expected:\n{test['status']}", file=sys.stderr)
-            print(f"Actual:\n{program.returncode}", file=sys.stderr)
-            if test['stderr'] is None:
-                print(f"stderr was: {program.stderr.decode('UTF-8')}", file=sys.stderr)
-            on_error()
-            continue
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        outwat_path = os.path.join(tmpdir, 'out.wat')
+        with open(outwat_path, 'wb') as outwat:
+            outwat.write(compiler.stdout.encode("UTF-8"))
+        if compiler.returncode == 0 and test['status'] is not None:
+            program = subprocess.run(["wasmtime", outwat_path], input=bytes(test["stdin"] or "", 'UTF-8'), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            if test['stderr'] is not None and program.stderr.strip() != test['stderr'].encode('UTF-8').strip():
+                print(f"{path}: expected different stderr:", file=sys.stderr)
+                print(f"Expected:\n{test['stderr']}", file=sys.stderr)
+                print(f"Actual:\n{program.stderr.decode('UTF-8')}", file=sys.stderr)
+                on_error()
+                continue
+            if test['stdout'] is not None and program.stdout.strip() != test['stdout'].encode('UTF-8').strip():
+                print(f"{path}: expected different stdout:", file=sys.stderr)
+                print(f"Expected:\n{test['stdout']}", file=sys.stderr)
+                print(f"Actual:\n{program.stdout.decode('UTF-8')}", file=sys.stderr)
+                on_error()
+                continue
+            if test['status'] is not None and program.returncode != test['status']:
+                print(f"{path}: expected different status:", file=sys.stderr)
+                print(f"Expected:\n{test['status']}", file=sys.stderr)
+                print(f"Actual:\n{program.returncode}", file=sys.stderr)
+                if test['stderr'] is None:
+                    print(f"stderr was: {program.stderr.decode('UTF-8')}", file=sys.stderr)
+                on_error()
+                continue
     failed = previous_failed
     print(f"{path} passed")
 
