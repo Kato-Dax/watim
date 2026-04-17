@@ -840,10 +840,14 @@ fn infer-matsh-type(ctx: .WordCtx, matsh: .P:Match) -> Result<CustomTypeHandle, 
                         case Some -> {
                             ValueAtIndex-unpack<.TypeDefinition> @index match {
                                 case Struct -> { drop $ctx $varint "expected variant" abort<Unit> break }
-                                case Variant -> { drop }
-                            }
+                                case Variant -> {}
+                            } @varint
                             1 1 = #found
                             $imp.module $index make CustomTypeHandle @handle
+                            $ctx $varint &cays.name lookup-constructor-in-variant match {
+                                case None -> { $ctx &cays.name "case not found" abort<Unit> break }
+                                case Some -> { drop }
+                            }
                             &inferred match {
                                 case None -> { $handle make Maybe<CustomTypeHandle>.Some #inferred }
                                 case Some -> {

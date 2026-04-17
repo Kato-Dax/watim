@@ -1,0 +1,15 @@
+[== Stdin Compiler ==]
+import "./variant.watim" as Maybe
+fn foo() {
+    match {
+        case Maybe:Maybe.Foo -> {}
+    }
+}
+[== Args Compiler ==]
+resolve
+-
+--quiet
+[== Status Compiler ==]
+1
+[== Stderr Compiler ==]
+-:4:26: case not found
