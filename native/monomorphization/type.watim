@@ -52,7 +52,6 @@ variant Type {
     case Ptr -> TypeId
     case Custom -> CustomTypeHandle
     case Fun -> FunType
-    case Tuple -> Array<TypeId>
 }
 fn Type-eq(a: .Type, b: .Type) -> bool { block {
     $a !.i32 ~ $b !.i32 ~ /= if { // compare tags
@@ -75,10 +74,6 @@ fn Type-eq(a: .Type, b: .Type) -> bool { block {
             }
             case _ -> { drop 0 1 = }
         } }
-        case Tuple -> { \TypeId-eq flip $b match {
-            case Tuple -> { Array:eq<TypeId> }
-            case _ -> { drop drop drop 0 1 = }
-        } }
         case _ -> { drop 1 1 = }
     }
 } }
@@ -98,7 +93,6 @@ fn Type-format(fmt: .Formatter, self: .Type) { block {
             $fmt ")" Fmt:write break
         }
         case Fun -> { FunType-format break }
-        case Tuple -> { \TypeId-format flip Array:format<TypeId> break }
     } Fmt:write
 } }
 

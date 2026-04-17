@@ -38,7 +38,6 @@ variant Type {
     case Ptr -> .Type
     case Custom -> CustomTypeType
     case Fun -> FunType
-    case Tuple -> TupleType
     case Generic -> P:GenericType
     case Hole -> Token
 }
@@ -53,7 +52,6 @@ fn Type-token(self: .Type) -> .Token {
         case Fun -> { .token }
         case Generic -> { .name }
         case Hole -> {}
-        case Tuple -> { .token }
     }
 }
 fn format(fmt: .Formatter, self: .Type) { block {
@@ -70,7 +68,6 @@ fn format(fmt: .Formatter, self: .Type) { block {
         }
         case Custom -> { CustomTypeType-format break }
         case Fun -> { FunType-format break }
-        case Tuple -> { TupleType-format break }
         case Generic -> { P:GenericType-format break }
         case Hole -> { $fmt "(Hole " Fmt:write Token-format $fmt ")" Fmt:write break }
     } Fmt:write
@@ -99,12 +96,6 @@ fn eq(a: .Type, b: .Type) -> bool {
                 case _ -> { drop drop 0 1 = }
             }
         }
-        case Tuple -> {
-            $b match {
-                case Tuple -> { TupleType-eq }
-                case _ -> { drop drop 0 1 = }
-            }
-        }
         case Generic -> {
             .index ~ $b match {
                 case Generic -> { .index ~ = }
@@ -128,7 +119,6 @@ fn find-hole(self: .Type) -> Maybe<.Token> {
         case Ptr -> { ~ find-hole }
         case Generic -> { drop make Maybe<.Token>.None }
         case Hole -> { make Maybe<.Token>.Some }
-        case Tuple -> { .items \find-hole Array:find-map<Type, .Token> }
         case Fun -> {
             @fun
             &fun.parameters \find-hole Array:find-map<Type, .Token> match {
@@ -151,7 +141,6 @@ fn clone(arena: .Arena, self: .Type) -> Type {
         case Ptr -> { ~ $arena flip clone $arena flip Arena:push<_> make Type.Ptr }
         case Generic -> { ~ make Type.Generic }
         case Hole -> { ~ make Type.Hole }
-        case Tuple -> { $arena flip TupleType-clone make Type.Tuple }
         case Custom -> { $arena flip CustomTypeType-clone make Type.Custom }
         case Fun -> { $arena flip FunType-clone make Type.Fun }
     }
@@ -189,24 +178,6 @@ fn Types-format(fmt: .Formatter, self: .Array<Type>) {
 }
 fn Types-eq(a: .Array<Type>, b: .Array<Type>) -> bool {
     \eq $a $b Array:eq<Type>
-}
-
-struct TupleType {
-    token: Token
-    items: Array<Type>
-}
-fn TupleType-format(fmt: .Formatter, self: .TupleType) {
-    $fmt "(TupleType " Fmt:write
-    $fmt &self.token Token-format
-    $fmt " " Fmt:write
-    $fmt &self.items Types-format
-    $fmt ")" Fmt:write
-}
-fn TupleType-eq(a: .TupleType, b: .TupleType) -> bool {
-    &a.items &b.items Types-eq
-}
-fn TupleType-clone(arena: .Arena, self: .TupleType) -> TupleType {
-    $self.token $arena &self.items Array:clone<_> make TupleType
 }
 
 struct CustomTypeType {
@@ -260,7 +231,6 @@ fn contains-generic(type: .Type) -> bool {
             &fun.returns \contains-generic Array:any<_> or
         }
         case Custom -> { .generic-arguments \contains-generic Array:any<_> }
-        case Tuple -> { .items \contains-generic Array:any<_> }
         case Generic -> { drop 1 1 = }
     }
 }
@@ -270,13 +240,6 @@ fn with-generics(arena: .Arena, type: .Type, generics: .Array<Type>) -> Type {
         case Ptr -> {
             $arena flip ~ $generics with-generics
             $arena flip Arena:push<_> make Type.Ptr
-        }
-        case Tuple -> {
-            @tuple
-            $tuple.token
-            $arena &tuple.items $generics all-with-generics
-            make TupleType
-            make Type.Tuple
         }
         case Generic -> {
             .index $generics flip ~ Array:get<_> ~

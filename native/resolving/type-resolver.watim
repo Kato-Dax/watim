@@ -13,7 +13,7 @@ import "../../std/util.watim" as Util (i32-format)
 import "../lexer.watim" as Lexer (Token, Token-lexeme, Token-location)
 import "../parser.watim" as Parsed
 
-import "./type.watim" as Type (Type, NamedType, ModuleId, FunType, TupleType, CustomTypeType, CustomTypeHandle)
+import "./type.watim" as Type (Type, NamedType, ModuleId, FunType, CustomTypeType, CustomTypeHandle)
 import "./top-items.watim" as TopItems (
     Import,  ImportItem,
     TypeDefinition, TypeDefinition-name, TypeDefinition-generic-parameters)
@@ -101,14 +101,6 @@ fn resolve-type(self: .TypeResolver, arena: .Arena, type: .Parsed:Type) -> Resul
             make FunType
             make Type.Fun
             make Result<Type, ResolveError>.Success
-        }
-        case Parsed:Type.Tuple -> {
-            @tuple
-            $tuple.token
-            $self $arena &tuple.items resolve-types match {
-                case Error -> { flip drop make Result<Type, ResolveError>.Error }
-                case Success -> { make TupleType make Type.Tuple make Result<Type, ResolveError>.Success }
-            }
         }
         case Parsed:Type.Generic -> { ~ make Type.Generic make Result<Type, ResolveError>.Success }
         case Parsed:Type.Custom -> {

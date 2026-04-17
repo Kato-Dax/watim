@@ -9,8 +9,8 @@ import "../lexer.watim" as L (Token-lexeme)
 import "../parser.watim" as P
 
 import "./type.watim" as Type (
-    Type(Bool, I8, I32, I64, Ptr, Custom, Tuple, Fun, Generic, Hole),
-    ModuleId, CustomTypeHandle, FunType, TupleType, CustomTypeType,
+    Type(Bool, I8, I32, I64, Ptr, Custom, Fun, Generic, Hole),
+    ModuleId, CustomTypeHandle, FunType, CustomTypeType,
 )
 import "./type-without-holes.watim" as WithoutHoles
 import "./top-items.watim" as TopItems (TypeDefinition(Struct, Variant))

@@ -7,9 +7,7 @@ import "../../std/util.watim" as U (i32-format)
 import "../../std/byte-slice.watim" as ByteSlice (ByteSlice)
 
 import "../lexer.watim" as Lexer (Token, Token-format)
-import "../parser.watim" as P (
-    MakeTuple, MakeTuple-format, GetField, GetField-format,
-)
+import "../parser.watim" as P (GetField, GetField-format)
 
 import "./type.watim" as Type (
     ModuleId, CustomTypeHandle, Type, NamedType, CustomTypeType,
@@ -534,8 +532,6 @@ variant Word {
     case MatchVoid -> Token
     case MakeVariant -> MakeVariant
     case GetField -> GetField
-    case MakeTuple -> MakeTuple
-    case UnpackTuple -> Token
     case StackAnnotation -> StackAnnotation
 }
 fn Word-format(fmt: .Formatter, self: .Word) {
@@ -564,8 +560,6 @@ fn Word-format(fmt: .Formatter, self: .Word) {
         case MatchVoid -> { $fmt "(MatchVoid " Fmt:write $fmt flip Token-format $fmt ")" Fmt:write }
         case MakeVariant -> { $fmt flip MakeVariant-format }
         case GetField -> { $fmt flip GetField-format }
-        case MakeTuple -> { $fmt flip MakeTuple-format }
-        case UnpackTuple -> { $fmt "(UnpackTuple " Fmt:write $fmt flip Token-format $fmt ")" Fmt:write }
         case StackAnnotation -> { $fmt flip StackAnnotation-format }
     }
 }

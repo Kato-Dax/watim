@@ -7,8 +7,8 @@ import "../parser.watim" as P
 import "./top-items.watim" as TopItems (TypeDefinition(Struct, Variant))
 import "./module.watim" as Module (Module)
 import "./type.watim" as Type (
-    Type(Bool, I8, I32, I64, Ptr, Custom, Fun, Tuple, Generic, Hole),
-    CustomTypeType, TupleType, FunType)
+    Type(Bool, I8, I32, I64, Ptr, Custom, Fun, Generic, Hole),
+    CustomTypeType, FunType)
 
 fn pretty(fmt: .Formatter, lookup: .Array<Module>, self: .Type) { block {
     $fmt $self match {
@@ -19,7 +19,6 @@ fn pretty(fmt: .Formatter, lookup: .Array<Module>, self: .Type) { block {
         case Ptr -> { $fmt "." Fmt:write ~ $lookup flip pretty break }
         case Custom -> { $lookup flip CustomTypeType-pretty break }
         case Fun -> { $lookup flip FunType-pretty break }
-        case Tuple -> { $lookup flip TupleType-pretty break }
         case Generic -> { P:GenericType-pretty break }
         case Hole -> { drop "_" }
     } Fmt:write
@@ -47,10 +46,6 @@ fn Types-pretty-bracketed(fmt: .Formatter, modules: .Array<Module>, self: .Array
     $fmt "[" Fmt:write
     $fmt $modules $self Types-pretty
     $fmt "]" Fmt:write
-}
-
-fn TupleType-pretty(fmt: .Formatter, thr: .Array<Module>, self: .TupleType) {
-    $fmt $thr &self.items Types-pretty-bracketed
 }
 
 fn CustomTypeType-pretty(fmt: .Formatter, modules: .Array<Module>, self: .CustomTypeType) {

@@ -27,7 +27,7 @@ import "../resolving/top-items.watim" as Resolved (LocalName, LocalName-format)
 import "../inference/ast.watim" as Checked
 
 import "./type.watim" as Type (
-    Type(Ptr, Bool, I8, I32, I64, Tuple, Fun, Custom), Type-format, Type-eq,
+    Type(Ptr, Bool, I8, I32, I64, Fun, Custom), Type-format, Type-eq,
     TypeId, TypeId-eq, TypeId-format, TypeIds-eq, TypeIds-format,
     NamedTypeId, NamedTypeId-eq, NamedTypeId-format,
     FunType, CustomType, Struct, Variant, CustomType-format, VariantCase,
@@ -834,14 +834,6 @@ fn compute-size(modules: .Map<ByteSlice, Module>, sizes: .Array<i32>, types: .Ar
                         &modules.values $handle.module.index Array:get<Module> .custom-types
                         $handle.index Array:get<CustomType> compute-custom-type-size
                     }
-                    case Tuple -> {
-                        @items 0 @size 0 @i
-                        loop {
-                            $i $items.len = if { $size break }
-                            $modules $sizes $types $items $i Array:get<TypeId> ~ compute-typeid-size $size + #size
-                            $i 1 + #i
-                        }
-                    }
                     case Fun -> { drop 4 }
                 }
             }
@@ -1381,30 +1373,6 @@ fn IndirectCall-format(fmt: .Formatter, self: .IndirectCall) {
     $fmt ")" Fmt:write
 }
 
-struct MakeTuple {
-    type: TypeId
-    copy-space-offset: i32
-}
-fn MakeTuple-format(fmt: .Formatter, self: .MakeTuple) {
-    $fmt "(MakeTuple " Fmt:write
-    $fmt &self.type TypeId-format
-    $fmt " " Fmt:write
-    $fmt $self.copy-space-offset i32-format
-    $fmt ")" Fmt:write
-}
-
-struct UnpackTuple {
-    type: TypeId
-    copy-space-offset: i32
-}
-fn UnpackTuple-format(fmt: .Formatter, self: .UnpackTuple) {
-    $fmt "(UnpackTuple " Fmt:write
-    $fmt &self.type TypeId-format
-    $fmt " " Fmt:write
-    $fmt $self.copy-space-offset i32-format
-    $fmt ")" Fmt:write
-}
-
 struct Flip {
     token: Token
     lower: TypeId
@@ -1439,8 +1407,6 @@ variant Word {
     case Sizeof -> TypeId
     case Uninit -> Uninit
     case FieldInit -> FieldInit
-    case MakeTuple -> MakeTuple
-    case UnpackTuple -> UnpackTuple
     case IndirectCall -> IndirectCall
     case GetField -> GetField
     case FunRef -> FunRef
@@ -1470,8 +1436,6 @@ fn Word-format(fmt: .Formatter, self: .Word) { block {
         case Word.Sizeof -> { $fmt "(Sizeof " Fmt:write TypeId-format $fmt ")" }
         case Word.Uninit -> { Uninit-format break }
         case Word.FieldInit -> { FieldInit-format break }
-        case Word.MakeTuple -> { MakeTuple-format break }
-        case Word.UnpackTuple -> { UnpackTuple-format break }
         case Word.IndirectCall -> { IndirectCall-format break }
         case Word.GetField -> { GetField-format break }
         case Word.FunRef -> { FunRef-format break }
@@ -1817,8 +1781,6 @@ fn monomize-word(ctx: .WordCtx, word: .Checked:Word, generic-arguments: .Array<T
         case Checked:Word.Block -> { $ctx flip $generic-arguments monomize-blok }
         case Checked:Word.Sizeof -> { $ctx.ctx flip $generic-arguments monomize-sizeof }
         case Checked:Word.FieldInit -> { $ctx flip $generic-arguments monomize-field-init }
-        case Checked:Word.MakeTuple -> { .type $ctx.ctx flip $generic-arguments monomize-type 0 not make MakeTuple make Word.MakeTuple }
-        case Checked:Word.UnpackTuple -> { .type $ctx.ctx flip $generic-arguments monomize-type 0 not make UnpackTuple make Word.UnpackTuple }
         case Checked:Word.IndirectCall -> { .type $ctx.ctx flip $generic-arguments monomize-fun-type 0 not make IndirectCall make Word.IndirectCall }
         case Checked:Word.Break -> { ~ make Word.Break }
         case Checked:Word.GetField -> { $ctx.ctx flip $generic-arguments monomize-get-field }
@@ -2010,16 +1972,6 @@ fn word-measure-copy-space(word: .Word, ctx: .CopySpaceCtx, offset: .i32) { bloc
             break
         }
         case GetField -> { @word $word.type &word.copy-space-offset }
-        case MakeTuple -> { @word $word.type &word.copy-space-offset }
-        case UnpackTuple -> {
-            @word
-            $ctx.types $word.type.index Array:get<Maybe<Key>> Maybe:ref<Key> assert-some<.Key> Key-type match {
-                case Tuple -> {}
-                case _ -> { drop Core:unreachable<.Array<TypeId>> }
-            } @items
-            $items $ctx.types $ctx.sizes $offset returns-measure-copy-space #word.copy-space-offset
-            break
-        }
         case Intrinsic -> {
             .intrinsic match {
                 case Intrinsic.Load -> { @word $word.type &word.copy-space-offset }

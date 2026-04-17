@@ -12,7 +12,7 @@ import "../../std/util.watim" as Util (i32-format)
 
 import "../../std/io.watim" as IO
 
-import "../parser.watim" as P (MakeTuple)
+import "../parser.watim" as P
 import "../lexer.watim" as L (Token, Token-lexeme, Token-location, Token-format)
 
 import "./top-items.watim" as TopItem (
@@ -383,7 +383,6 @@ fn resolve-word(ctx: .WordCtx, word: .P:Word) -> Result<OneOrMany<Word>, Resolve
                 case Error -> { make Result<OneOrMany<Word>, ResolveError>.Error break }
             }
         }
-        case P:Word.MakeTuple -> { ~ make Word.MakeTuple }
         case P:Word.GetField -> { ~ make Word.GetField }
         case P:Word.Match -> { $ctx flip resolve-matsh break }
         case P:Word.Cast -> {
@@ -419,7 +418,6 @@ fn resolve-word(ctx: .WordCtx, word: .P:Word) -> Result<OneOrMany<Word>, Resolve
                 case Some -> {}
             } make FunRef make Word.FunRef
         }
-        case P:Word.UnpackTuple -> { ~ make Word.UnpackTuple }
         case P:Word.Ref -> {
             ~ @token
             make Local {

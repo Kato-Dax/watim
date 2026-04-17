@@ -519,30 +519,6 @@ fn GetField-format(fmt: .Formatter, self: .GetField) {
     $fmt ")" Fmt:write
 }
 
-struct MakeTuple {
-    token: Token
-    type: Type
-}
-fn MakeTuple-format(fmt: .Formatter, self: .MakeTuple) {
-    $fmt "(MakeTuple " Fmt:write
-    $fmt &self.token Token-format
-    $fmt " " Fmt:write
-    $fmt &self.type Type:format
-    $fmt ")" Fmt:write
-}
-
-struct UnpackTuple {
-    token: Token
-    type: Type
-}
-fn UnpackTuple-format(fmt: .Formatter, self: .UnpackTuple) {
-    $fmt "(UnpackTuple " Fmt:write
-    $fmt &self.token Token-format
-    $fmt " " Fmt:write
-    $fmt &self.type Type:format
-    $fmt ")" Fmt:write
-}
-
 struct Call {
     name: Token
     function: FunctionHandle
@@ -592,8 +568,6 @@ variant Word {
     case MatchVoid -> Token
     case VariantWord -> VariantWord
     case GetField -> GetField
-    case MakeTuple -> MakeTuple
-    case UnpackTuple -> UnpackTuple
 }
 fn Word-format(fmt: .Formatter, self: .Word) {
     $self match {
@@ -621,8 +595,6 @@ fn Word-format(fmt: .Formatter, self: .Word) {
         case MatchVoid -> { $fmt "(MatchVoid " Fmt:write $fmt flip Token-format $fmt ")" Fmt:write }
         case VariantWord -> { $fmt flip VariantWord-format }
         case GetField -> { $fmt flip GetField-format }
-        case MakeTuple -> { $fmt flip MakeTuple-format }
-        case UnpackTuple -> { $fmt flip UnpackTuple-format }
     }
 }
 fn Words-format(fmt: .Formatter, self: .Array<Word>) {

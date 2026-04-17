@@ -4,7 +4,7 @@ import "../std/maybe.watim" as Maybe (Maybe(None, Some))
 import "../std/array.watim" as Array (Array)
 import "../std/arena.watim" as Arena (Arena)
 import "../std/list.watim" as List (List)
-import "./parser.watim" as Parser (Module, Import, Function, Signature, Words, Word, NamedType, Type, LocalCustomType, ForeignCustomType, Call, LocalCall, ForeignCall, If, Block, Loop, GetLocal, RefLocal, SetLocal, FunRef, InitLocal, Struct, Cast, MakeStruct, CustomType, MakeStructNamed, Variant, VariantCase, MakeVariant, Match, MatchCase, GetField, BlockAnnotation, Sizeof, FunType, Extern, Global, Store, MakeTuple, TupleType, StackAnnotation, ImportItem, FunctionOrExtern, TypeDefinition, TopItem, TopItem-start-token, IndirectCall)
+import "./parser.watim" as Parser (Module, Import, Function, Signature, Words, Word, NamedType, Type, LocalCustomType, ForeignCustomType, Call, LocalCall, ForeignCall, If, Block, Loop, GetLocal, RefLocal, SetLocal, FunRef, InitLocal, Struct, Cast, MakeStruct, CustomType, MakeStructNamed, Variant, VariantCase, MakeVariant, Match, MatchCase, GetField, BlockAnnotation, Sizeof, FunType, Extern, Global, Store, StackAnnotation, ImportItem, FunctionOrExtern, TypeDefinition, TopItem, TopItem-start-token, IndirectCall)
 import "./lexer.watim" as Lexer (Token, Token-lexeme, Token-location, Token-print, Token-line, Token-column)
 
 struct PrettyPrinter {
@@ -283,8 +283,6 @@ fn Word-pretty(self: .Word, pp: .PrettyPrinter) -> i32 { block {
         case Word.Sizeof -> { $pp Sizeof-pretty }
         case Word.IndirectCall -> { $pp IndirectCall-pretty }
         case Word.Store -> { $pp Store-pretty }
-        case Word.UnpackTuple -> { $pp UnpackTuple-pretty }
-        case Word.MakeTuple -> { $pp MakeTuple-pretty }
         case Word.StackAnnotation -> { $pp StackAnnotation-pretty }
     }
 } }
@@ -292,18 +290,6 @@ fn Word-pretty(self: .Word, pp: .PrettyPrinter) -> i32 { block {
 fn IndirectCall-pretty(self: .IndirectCall, pp: .PrettyPrinter) -> i32 {
     $self.token $self.parameters $self.returns make FunType & $pp FunType-pretty
 }
-
-fn UnpackTuple-pretty(self: .Token, pp: .PrettyPrinter) -> i32 { block {
-    $pp $self write-token Core:dup<i32> 0 /= if { break } drop
-    $pp ",]" write
-} }
-
-fn MakeTuple-pretty(self: .MakeTuple, pp: .PrettyPrinter) -> i32 { block {
-    $pp &self.token write-token Core:dup<i32> 0 /= if { break } drop
-    $pp "," write Core:dup<i32> 0 /= if { break } drop
-    $pp &self.items write-token Core:dup<i32> 0 /= if { break } drop
-    $pp "]" write
-} }
 
 fn Sizeof-pretty(self: .Sizeof, pp: .PrettyPrinter) -> i32 { block {
     $pp &self.token write-token Core:dup<i32> 0 /= if { break } drop
@@ -560,23 +546,9 @@ fn Type-pretty(self: .Type, pp: .PrettyPrinter) -> i32 { block (-> i32) {
         }
         case Type.Custom -> { flip CustomType-pretty break }
         case Type.Fun -> { flip FunType-pretty break }
-        case Type.Tuple -> { flip TupleType-pretty break }
         case Type.Generic -> { .name }
         case Type.Hole -> {}
     } write-token
-} }
-
-fn TupleType-pretty(self: .TupleType, pp: .PrettyPrinter) -> i32 { block (-> i32) {
-    $pp "[" write Core:dup<i32> 0 /= if { break } drop
-    0 @i
-    loop (-> i32) {
-        $self.items.len $i = if { 0 break }
-        &self.items $i Array:get<Type> $pp Type-pretty Core:dup<i32> 0 /= if { break } drop
-        $i 1 + #i
-        $i $self.items.len = if { 0 break }
-        $pp ", " write Core:dup<i32> 0 /= if { break } drop
-    } Core:dup<i32> 0 /= if { break } drop
-    $pp "]" write
 } }
 
 fn FunType-pretty(self: .FunType, pp: .PrettyPrinter) -> i32 { block {

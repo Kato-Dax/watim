@@ -11,7 +11,7 @@ import "../resolving/top-items.watim" as Resolved (LocalName-unpack)
 import "../resolving/words.watim" as Resolved (LocalId, root-scope, VarId(Local, Global))
 import "../monomorphization/monomizer.watim" as Monomized (type-size, Local)
 import "../monomorphization/type.watim" as Type (
-    Type(I32, I64, Bool, I8, Ptr, Tuple, Fun, Custom), TypeId, CustomType-name,
+    Type(I32, I64, Bool, I8, Ptr, Fun, Custom), TypeId, CustomType-name,
 )
 
 import "./ctx.watim" as Ctx (Ctx, lookup-type, lookup-globl, lookup-custom-type)
@@ -79,21 +79,6 @@ fn generate-type-pretty(ctx: .Ctx, type: TypeId) { block {
         case Bool -> { "bool" }
         case I8 -> { "i8" }
         case Ptr -> { $ctx.fmt "." Fmt:write $ctx flip ~ generate-type-pretty drop break }
-        case Tuple -> {
-            @items
-            "[" Fmt:write
-            0 @i
-            loop {
-                $i $items.len = if { break }
-                $ctx $items $i Array:get<TypeId> ~ generate-type-pretty
-                $i 1 + #i
-                $items.len $i /= if {
-                    $ctx.fmt ", " Fmt:write
-                }
-            }
-            $ctx.fmt "]" Fmt:write
-            break
-        }
         case Fun -> {
             @type
             "(" Fmt:write

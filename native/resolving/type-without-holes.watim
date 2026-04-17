@@ -87,12 +87,6 @@ fn without-holes(arena: .Arena, type: .WithHoles:Type) -> Result<Type, Token> { 
             } make FunType make Type.Fun
         }
         case WithHoles:Type.Generic -> { ~ make Type.Generic }
-        case WithHoles:Type.Tuple -> {
-            2 Fmt:to-fd @fmt
-            &fmt flip WithHoles:TupleType-format
-            &fmt "\n" Fmt:write
-            Core:unreachable<Type>
-        }
         case WithHoles:Type.Hole -> { ~ make Result<Type, Token>.Error break }
     } make Result<Type, Token>.Success
 } }
