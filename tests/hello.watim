@@ -8,7 +8,7 @@ struct Iov {
 	len: i32
 }
 fn write(file: i32, ptr: .i8, len: i32) -> i32 {
-	uninit<Iov> @iov
+	uninit @iov
 	0 @written
 	$ptr #iov.ptr
 	$len #iov.len
@@ -22,7 +22,7 @@ fn write(file: i32, ptr: .i8, len: i32) -> i32 {
 
 fn read(file: i32, buf-addr: .i8, buf-size: i32) -> i32 {
 	0 @nread
-	uninit<Iov> @iov
+	uninit @iov
 	$buf-addr #iov.ptr
 	$buf-size #iov.len
 	$file &iov 1 &nread raw_read drop
@@ -61,8 +61,7 @@ fn print(n: i32) {
 }
 
 fn write_byte(file: i32, b: i8) {
-    $b @buf
-	$file &buf !.i8 1 write drop
+	$file &b !.i8 1 write drop
 }
 
 fn parse(pt: .i8, len: i32) -> i32 {
@@ -97,7 +96,7 @@ fn main "_start" () {
 		$buf $nread 1 - + ~ "\n" drop ~ = if { $nread 1 - #nread }
 	}
 	$buf $nread parse
-	dup<i32> print 
+	dup print
 	1 "\n" write drop
 	exit
 }
@@ -296,14 +295,11 @@ compile
 		local.get $stac:k global.set $stac:k
 	)
 	(func $0:write_byte (param $file i32) (param $b i32)
-		(local $buf i32)
 		(local $stac:k i32)
 		global.get $stac:k local.set $stac:k
-		global.get $stac:k global.get $stac:k i32.const 4 i32.add global.set $stac:k local.set $buf
-		local.get $b
-		local.get $buf call $intrinsic:flip i32.store8
+		global.get $stac:k global.get $stac:k local.get $b i32.store local.tee $b i32.const 1 i32.add global.set $stac:k
 		local.get $file
-		local.get $buf
+		local.get $b
 		;; cast to .i8
 		i32.const 1
 		call $0:write

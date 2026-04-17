@@ -1,4 +1,4 @@
-# Watim 
+# Watim
 
 Watim is a simple, low level, stack-based language which compiles to [Webassembly Text Format (WAT)](https://developer.mozilla.org/en-US/docs/WebAssembly/Understanding_the_text_format).
 Which can then be compiled to wasm and run in your favorite browser or by runtimes like [wasmtime](https://github.com/bytecodealliance/wasmtime) and [wasm3](https://github.com/wasm3/wasm3).
@@ -18,15 +18,17 @@ Watim = WAT Improved
 - if expression
 - static type checking
 - generics using monomorphization
+- type inference
 - file imports
 
 ## TODO
 - [ ] `continue` instruction for loops.
 - [X] Variable declaration and initiliziation anywhere in function.
 - [X] Generics using monomorphization.
-- [ ] Bidirectional Type inference sort of like [this](https://jimmyhmiller.github.io/pdfs/bidirectional.pdf)
+- [x] Bidirectional Type inference sort of like [this](https://jimmyhmiller.github.io/pdfs/bidirectional.pdf)
 - [X] function pointers
 - [X] struct literals
+- [ ] error messages that don't just say 'TODO'
 - [ ] closures?
 - [ ] Some sort of Typeclass/Trait system perhaps?
 
@@ -78,9 +80,8 @@ struct Iov {
     ptr: .i8
     len: i32
 }
-
 fn write(file: i32, ptr: .i8, len: i32) -> i32 {
-    uninit<Iov> @iov
+    uninit @iov
     0 @written
     $ptr #iov.ptr
     $len #iov.len
@@ -94,22 +95,22 @@ fn write(file: i32, ptr: .i8, len: i32) -> i32 {
 
 fn read(file: i32, buf-addr: .i8, buf-size: i32) -> i32 {
     0 @nread
-    uninit<Iov> @iov
+    uninit @iov
     $buf-addr #iov.ptr
     $buf-size #iov.len
     $file &iov 1 &nread raw_read drop
     $nread
 }
 
+struct Buf { a: i32 b: i32 c: i32 d: i32 e: i32 f: i32 g: i32 h: i32 }
+
 fn print(n: i32) {
-    // Watim doesn't (yet?) have arrays, so to allocate 32 bytes on the stack
-    // we can take the pointer of an unitialized tuple with four i64s.
-    uninit<[i64, i64, i64, i64]> @buf &buf !.i8 @buf
-    uninit<[i64, i64, i64, i64]> @buf-reversed &buf-reversed !.i8 @buf-reversed
+    uninit<Buf> @buf &buf !.i8 @buf
+    uninit<Buf> @buf-reversed &buf-reversed !.i8 @buf-reversed
     0 @l
     $n 0 = if {
         1 #l // length = 1
-        48 !i8 =>buf // put '0' in buf
+        $buf 48 !i8 store // put '0' in buf
     } else {
         loop {
             $n 0 = if { break }
@@ -132,9 +133,8 @@ fn print(n: i32) {
     1 $buf-reversed $l write drop
 }
 
-fn write_byte(file: i32, b: i32) {
-    $b @buf
-    $file &buf !.i8 1 write drop
+fn write_byte(file: i32, b: i8) {
+    $file &b !.i8 1 write drop
 }
 
 fn parse(pt: .i8, len: i32) -> i32 {
@@ -150,7 +150,7 @@ fn parse(pt: .i8, len: i32) -> i32 {
             1 $original-ptr $original-len write drop
             1 "'" write drop
             //1 "\n" write drop
-            1 10 write_byte
+            1 10 !i8 write_byte
             1 exit
         }
         $pt 1 + #pt // advance pointer
@@ -163,13 +163,13 @@ fn parse(pt: .i8, len: i32) -> i32 {
 fn dup<T>(a: T) -> T, T { $a $a }
 
 fn main "_start" () {
-    uninit<[i64, i64, i64, i64]> @buf &buf !.i8 @buf
+    uninit<Buf> @buf &buf !.i8 @buf
     0 $buf 32 read @nread
     $nread 0 /= if {
         $buf $nread 1 - + ~ "\n" drop ~ = if { $nread 1 - #nread }
     }
     $buf $nread parse
-    dup<_> print
+    dup print
     1 "\n" write drop
     exit
 }
