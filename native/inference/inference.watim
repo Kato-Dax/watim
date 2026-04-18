@@ -88,7 +88,7 @@ fn infer-function(
         Array:new<Maybe<i32>> @field-holes
         $arena make TokenTy.TOKEN_BOOL Token-new-synthetic make Type.Bool Arena:push<_> @type-bool
         $arena make TokenTy.TOKEN_I32  Token-new-synthetic make Type.I32  Arena:push<_> @type-i32
-        \CustomTypeHandle-eq Map:new @struct-signatures
+        \CustomTypeHandle-eq Map:new @custom-type-signatures
         Array:new<DeferredInferAtProgress> @deferred-infers
         1 @progress
         0 1 = @ignore-being-inferred
@@ -653,7 +653,7 @@ struct Ctx {
     field-holes: Array<Maybe<i32>>
     type-bool: .Type
     type-i32: .Type
-    struct-signatures: Map<CustomTypeHandle, FunctionSignature>
+    custom-type-signatures: Map<CustomTypeHandle, FunctionSignature>
     deferred-infers: Array<DeferredInferAtProgress>
     progress: i32
     ignore-being-inferred: bool
@@ -670,7 +670,7 @@ fn lookup-hole(ctx: .Ctx, hole: InferenceHole) -> Maybe<.Type> {
 }
 
 fn Struct-signature(ctx: .Ctx, handle: CustomTypeHandle) -> .FunctionSignature { block {
-    &ctx.struct-signatures &handle Map:get<_, _> match {
+    &ctx.custom-type-signatures &handle Map:get<_, _> match {
         case Some -> { break }
         case None -> {}
     }
@@ -680,23 +680,53 @@ fn Struct-signature(ctx: .Ctx, handle: CustomTypeHandle) -> .FunctionSignature {
         case TypeDefinition.Variant -> { drop Core:unreachable<.Resolved:Struct> }
     } @struc
 
-    $ctx.arena $struc.generic-parameters.len Array:new-with-capacity<Type> @generic-arguments
-    0 loop {
-        @i $i $struc.generic-parameters.len = if { break }
-        &generic-arguments
-        $struc.name $i make Parser:GenericType make Type.Generic
-        Array:push-assert-no-alloc<_>
-        $i 1 +
-    }
-    $struc.name $handle $generic-arguments make Type:CustomTypeType make Type.Custom @type
+    $struc.name $handle
+    $ctx.arena $struc.name &struc.generic-parameters generic-parameters-to-arguments
+    make Type:CustomTypeType make Type.Custom @type
 
     make FunctionSignature {
         $struc.generic-parameters @generic-parameters
         $struc.fields @parameters
         $ctx.arena $type Array:singleton<_> @returns
-    } $ctx.arena flip &ctx.struct-signatures flip $handle flip Map:insert<_, _> drop
+    } $ctx.arena flip &ctx.custom-type-signatures flip $handle flip Map:insert<_, _> drop
     $ctx $handle Struct-signature
 } }
+
+fn Variant-signature(ctx: .Ctx, handle: CustomTypeHandle, tag: i32) -> .FunctionSignature { block {
+    &ctx.custom-type-signatures &handle Map:get<_, _> match {
+        case Some -> { break }
+        case None -> {}
+    }
+    $ctx.modules $handle.module.index Array:get<_> @module
+    &module.type-definitions.values $handle.index Array:get<_> match {
+        case TypeDefinition.Struct -> { drop Core:unreachable<.Resolved:Variant> }
+        case TypeDefinition.Variant -> {}
+    } @varint
+
+    $varint.name $handle
+    $ctx.arena $varint.name &varint.generic-parameters generic-parameters-to-arguments
+    make Type:CustomTypeType make Type.Custom @type
+
+    &varint.cases $tag Array:get @cays
+    make FunctionSignature {
+        $varint.generic-parameters @generic-parameters
+        $ctx.arena $cays.name &cays.type Maybe:ref Maybe:assert-some ~ make NamedType Array:singleton @parameters
+        $ctx.arena $type Array:singleton<_> @returns
+    } $ctx.arena flip &ctx.custom-type-signatures flip $handle flip Map:insert<_, _> drop
+    $ctx $handle $tag Variant-signature
+} }
+
+fn generic-parameters-to-arguments(arena: .Arena, token: Token, generic-parameters: .Array<Token>) -> Array<Type> {
+    $arena $generic-parameters.len Array:new-with-capacity<Type> @generic-arguments
+    0 loop {
+        @i $i $generic-parameters.len = if { break }
+        &generic-arguments
+        $token $i make Parser:GenericType make Type.Generic
+        Array:push-assert-no-alloc<_>
+        $i 1 +
+    }
+    $generic-arguments
+}
 
 fn get-node(ctx: .Ctx, index: i32) -> .MultiReturnNode {
     $ctx.nodes $index Array:get<_>
@@ -1124,6 +1154,7 @@ fn check(ctx: .Ctx, source: .Source, known: .Type, origin: .List<Origin>) -> May
                     case _ -> { drop &source.token "`match` can only match on variants" error make Maybe<Error>.Some break }
                 } @scrutinee-custom-type
                 $scrutinee-custom-type.type-definition $source.varint /= if {
+                    // TODO: proper error message
                     &source.token "`match` expected to match on a different type" error make Maybe<Error>.Some break
                 }
                 $ctx.arena $case-type &scrutinee-custom-type.generic-arguments Type:with-generics &
@@ -2110,8 +2141,22 @@ fn infer(ctx: .Ctx, source: .Source) -> Result<Maybe<Type>, Error> {
                         case Some -> {}
                     } @case-source
 
-                    // TODO: infer &source.source and try to determine the generic-arguments from that, before giving up.
-                    make Maybe<Type>.None make Result<Maybe<Type:Type>, Error>.Success
+                    $ctx $source.type-definition $source.tag Variant-signature @signature
+                    $source.source match {
+                        case Some -> { $ctx.arena flip ~ Array:singleton }
+                        case None -> { Array:new }
+                    } @arguments
+                    $ctx &source.token &source.generic-arguments &arguments $signature make Signature.Function 0 infer-signature-application match {
+                        case Success -> {}
+                        case _ -> { break }
+                    } match {
+                        case None -> { make Maybe.None make Result.Success }
+                        case Some -> {
+                            @inferred
+                            $ctx $source.type &inferred fill-hole
+                            $inferred make Maybe.Some make Result.Success
+                        }
+                    }
                 }
                 case Source.FromNumber -> { ~ make Type.I32 make Maybe<Type:Type>.Some make Result<Maybe<Type:Type>, Error>.Success }
                 case Source.FromString -> { $ctx.arena flip ~ make Type.I8 Arena:push<_> make Type:Type.Ptr make Maybe<Type:Type>.Some make Result<Maybe<Type:Type>, Error>.Success }

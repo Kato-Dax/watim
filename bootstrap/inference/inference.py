@@ -13,7 +13,7 @@ from resolving.words import LocalId, IntrinsicType
 from resolving.top_items import TypeDefinition, Variant, Struct, MustBeOneOf, MustSatisfyPredicate, IntrinsicSignature, Signature
 from resolving.types import CustomTypeHandle
 from resolving.type_resolver import TypeLookup
-from resolving.type_without_holes import Type, PtrType, CustomTypeType, GenericType, FunctionType, I8, I32, I64, Bool
+from resolving.type_without_holes import Type, PtrType, CustomTypeType, GenericType, FunctionType, I8, I32, I64, Bool, NamedType
 import resolving.type_without_holes as without_holes
 
 import unstacking as unstacked
@@ -845,7 +845,9 @@ class Ctx:
                 if inferred is not None:
                     return inferred
                 variant = self.lookup_type_definition(source.type_definition)
-                assert(not isinstance(variant, Struct))
+                if isinstance(variant, Struct):
+                    self.abort(source.token, "`make` expected variant")
+
                 cays = variant.cases[source.tag]
                 generic_arguments = self.lookup_holes(source.generic_arguments)
                 if generic_arguments is not None:
@@ -860,9 +862,17 @@ class Ctx:
                     return inferred
                 if cays.taip is None:
                     return None
-                if source.source is None:
-                    self.abort(source.token, "infer FromMakeVariant expected input")
-                return None
+
+                signature: Signature = self.signature_of_variant(source.type_definition, source.tag)
+                if source.source is not None:
+                    arguments = (source.source,)
+                else:
+                    arguments = ()
+                inferred = self.infer_signature_application(source.token, source.generic_arguments, arguments, signature, 0)
+                if inferred is None:
+                    return None
+                self.fill_hole(source.taip, inferred)
+                return inferred
             case FromGetField():
                 if source.source is None:
                     self.abort(source.token, "infer FromGetField: expected item on stack")
@@ -909,6 +919,15 @@ class Ctx:
         generic_arguments = tuple(GenericType(struct.name, i) for i in range(len(struct.generic_parameters)))
         taip = CustomTypeType(handle, generic_arguments)
         return FunctionSignature(generic_parameters=struct.generic_parameters, parameters=struct.fields, returns=(taip,))
+
+    def signature_of_variant(self, handle: CustomTypeHandle, case_index: int) -> FunctionSignature:
+        variant = self.lookup_type_definition(handle)
+        assert(not isinstance(variant, Struct))
+        generic_arguments = tuple(GenericType(variant.name, i) for i in range(len(variant.generic_parameters)))
+        taip = CustomTypeType(handle, generic_arguments)
+        case = variant.cases[case_index]
+        assert case.taip is not None
+        return FunctionSignature(generic_parameters=variant.generic_parameters, parameters=(NamedType(case.name, case.taip),), returns=(taip,))
 
     def infer_from_node(self, source: FromNode) -> Type | None:
         node = self.nodes[source.index]
