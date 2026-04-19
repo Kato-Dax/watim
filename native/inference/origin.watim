@@ -9,7 +9,8 @@ import "../resolving/type-without-holes.watim" as Type (Type)
 import "../resolving/pretty-type-without-holes.watim" as Type
 import "../resolving/module.watim" as Resolved (Module)
 
-import "../unstacking/unstacker.watim" as Unstacking (StackVoid, StackVoid-format)
+import "../unstacking/unstacker.watim" as Unstacker
+import "../unstacking/voids.watim" as Voids (StackVoid)
 import "../unstacking/source.watim" as Source
 
 struct FromReturn {

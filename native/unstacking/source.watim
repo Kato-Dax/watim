@@ -10,7 +10,7 @@ import "../resolving/type.watim" as Resolved (CustomTypeHandle, CustomTypeHandle
 import "../resolving/type-without-holes.watim" as WithoutHoles
 import "../resolving/words.watim" as Resolved (
     GlobalId, LocalId, GlobalId-format, LocalId-format,
-    FunctionHandle, FunctionHandle-format,
+    FunctionHandle, FunctionHandle-format, Scope, Scope-format,
 )
 import "../resolving/intrinsics.watim" as Resolved
 
@@ -717,6 +717,49 @@ fn FromGetField-format(fmt: .Formatter, self: .FromGetField) {
     $fmt ")" Fmt:write
 }
 
+struct FromClosure {
+    token: Token
+    parameters: Array<InferenceHole>
+    return-types: Array<InferenceHole>
+    returns: Array<Source>
+}
+fn FromClosure-format(fmt: .Formatter, self: .FromClosure) {
+    $fmt "(FromClosure\n" Fmt:write
+    $fmt Fmt:indent
+    $fmt Fmt:write-indent
+    $fmt "token=" Fmt:write
+    $fmt &self.token Token-format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "parameters=" Fmt:write
+    $fmt \InferenceHole-format &self.parameters Array:format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "return-types=" Fmt:write
+    $fmt \InferenceHole-format &self.return-types Array:format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "returns=" Fmt:write
+    $fmt \Source-format &self.returns Array:format-multi-line
+    $fmt Fmt:dedent
+    $fmt ")" Fmt:write
+}
+
+struct FromClosureParameter {
+    token: Token
+    parameter: InferenceHole
+    parameter-depth: i32
+}
+
+fn FromClosureParameter-format(fmt: .Formatter, self: .FromClosureParameter) {
+    $fmt "(FromClosureParameter " Fmt:write
+    $fmt &self.token Token-format
+    $fmt " " Fmt:write
+    $fmt &self.parameter InferenceHole-format
+    $fmt " " Fmt:write
+    $fmt $self.parameter-depth i32-format
+    $fmt ")" Fmt:write
+}
 
 variant Source {
     case FromLocal -> FromLocal
@@ -731,6 +774,8 @@ variant Source {
     case FromCase -> FromCase
     case FromFunRef -> FromFunRef
     case FromGetField -> FromGetField
+    case FromClosure -> FromClosure
+    case FromClosureParameter -> FromClosureParameter
 }
 fn Source-format(fmt: .Formatter, self: .Source) {
     $fmt $self match {
@@ -746,6 +791,8 @@ fn Source-format(fmt: .Formatter, self: .Source) {
         case FromCase -> { FromCase-format }
         case FromFunRef -> { FromFunRef-format }
         case FromGetField -> { FromGetField-format }
+        case FromClosure -> { FromClosure-format }
+        case FromClosureParameter -> { FromClosureParameter-format }
     }
 }
 fn Source-format-shallow(fmt: .Formatter, self: .Source) {
@@ -773,5 +820,7 @@ fn Source-token(self: .Source) -> .Token {
         case FromCase -> { .token }
         case FromFunRef -> { .token }
         case FromGetField -> { .token }
+        case FromClosure -> { .token }
+        case FromClosureParameter -> { .token }
     }
 }

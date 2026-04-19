@@ -6,21 +6,46 @@ import "../../std/util.watim" as Util (i32-format)
 
 import "../lexer.watim" as Lexer (Token)
 
+import "./word.watim" as Word (InferenceHole, InferenceHole-format)
 import "./source.watim" as Source (Source, Source-format)
+import "./unstacker.watim" as Unstacker (Unstacker, fresh-hole)
 
-struct Parent {
+struct StackParent {
     stack: .Stack
     node: i32
     token: Token
 }
-fn Parent-format(fmt: .Formatter, self: .Parent) {
-    $fmt "(Parent " Fmt:write
+fn StackParent-format(fmt: .Formatter, self: .StackParent) {
+    $fmt "(StackParent " Fmt:write
     $fmt $self.stack format
     $fmt " " Fmt:write
     $fmt $self.node i32-format
     $fmt " " Fmt:write
     $fmt &self.token Lexer:Token-format
     $fmt ")" Fmt:write
+}
+
+struct ClosureParent {
+    token: Token
+    parameters: .Array<InferenceHole>
+}
+fn ClosureParent-format(fmt: .Formatter, self: .ClosureParent) {
+    $fmt "(ClosureParent " Fmt:write
+    $fmt &self.token Lexer:Token-format
+    $fmt " " Fmt:write
+    $fmt \InferenceHole-format $self.parameters Array:format
+    $fmt ")" Fmt:write
+}
+
+variant Parent {
+    case Stack -> StackParent
+    case Closure -> ClosureParent
+}
+fn Parent-format(fmt: .Formatter, self: .Parent) {
+    $fmt $self match {
+        case Stack -> { StackParent-format }
+        case Closure -> { ClosureParent-format }
+    }
 }
 
 struct Stack {
@@ -49,17 +74,27 @@ fn format(fmt: .Formatter, stack: .Stack) {
 fn root() -> Stack {
     make Maybe<Parent>.None Array:new<Source> Array:new<Source> make Stack
 }
+fn closure-root(arena: .Arena, token: Token) -> Stack, .Array<InferenceHole> {
+    $arena Array:new Arena:push @parameters
+    $token $parameters make ClosureParent make Parent.Closure
+    make Maybe.Some Array:new Array:new make Stack $parameters
+}
 fn child(self: .Stack, parent-node: i32, parent-token: Token) -> Stack {
-    $self $parent-node $parent-token make Parent
+    $self $parent-node $parent-token make StackParent make Parent.Stack
     make Maybe<Parent>.Some Array:new<Source> Array:new<Source> make Stack
 }
 fn clone(arena: .Arena, self: .Stack) -> Stack {
     $self.parent match {
         case None -> { make Maybe<Parent>.None }
         case Some -> {
-            @parent
-            $arena $arena $parent.stack clone Arena:push<Stack>
-            $parent.node $parent.token make Parent make Maybe<Parent>.Some
+            match {
+                case Stack -> {
+                    @parent
+                    $arena $arena $parent.stack clone Arena:push
+                    $parent.node $parent.token make StackParent make Parent.Stack make Maybe.Some
+                }
+                case Closure -> { make Parent.Closure make Maybe.Some }
+            }
         }
     }
     $arena &self.positive Array:clone<_>
@@ -77,19 +112,32 @@ fn push-many(arena: .Arena, self: .Stack, sources: .Array<Source>) {
         $i 1 + #i
     }
 }
-fn pop(arena: .Arena, self: .Stack) -> Maybe<Source> {
+fn pop(unstacker: .Unstacker, self: .Stack) -> Maybe<Source> {
     $self.positive.len 0 = if {
         $self.parent match {
             case None -> { make Maybe<Source>.None }
             case Some -> {
-                @parent
-                $parent.stack $arena flip pop match {
-                    case None -> { make Maybe<Source>.None }
-                    case Some -> {
-                        @source
-                        $parent.token $parent.node $self.negative.len make Source:FromNode
-                        make Source.FromNode make Maybe<Source>.Some
-                        $arena &self.negative $source Array:push<_>
+                match {
+                    case Stack -> {
+                        @parent
+                        $parent.stack $unstacker flip pop match {
+                            case None -> { make Maybe<Source>.None }
+                            case Some -> {
+                                @source
+                                $parent.token $parent.node $self.negative.len make Source:FromNode
+                                $unstacker.arena &self.negative $source Array:push<_>
+                                make Source.FromNode make Maybe.Some
+                            }
+                        }
+                    }
+                    case Closure -> {
+                        @parent
+                        $unstacker $parent.token fresh-hole @hole
+                        $unstacker.arena $parent.parameters $hole Array:push
+
+                        $parent.token $hole $self.negative.len make Source:FromClosureParameter make Source.FromClosureParameter @source
+                        $unstacker.arena &self.negative $source Array:push
+                        $source make Maybe.Some
                     }
                 }
             }
@@ -98,11 +146,11 @@ fn pop(arena: .Arena, self: .Stack) -> Maybe<Source> {
         &self.positive Array:pop<_> make Maybe<Source>.Some
     }
 }
-fn pop-n(arena: .Arena, self: .Stack, n: i32) -> Array<Source> {
-    $arena $n Array:new-with-capacity<Source> @popped
+fn pop-n(unstacker: .Unstacker, self: .Stack, n: i32) -> Array<Source> {
+    $unstacker.arena $n Array:new-with-capacity<Source> @popped
     $n loop {
         @n $n 0 = if { break }
-        $arena $self pop match {
+        $unstacker $self pop match {
             case None -> { break }
             case Some -> {}
         }
@@ -112,22 +160,34 @@ fn pop-n(arena: .Arena, self: .Stack, n: i32) -> Array<Source> {
     &popped Array:reverse<_>
     $popped
 }
-fn ensure-negatives(arena: .Arena, self: .Stack, n-negative: i32) {
+fn ensure-negatives(unstacker: .Unstacker, self: .Stack, n-negative: i32) {
     loop {
         $self.negative.len $n-negative ge if { break }
         &self.parent match {
             case None -> { break }
-            case Some -> { .stack ~ }
-        } $arena flip pop match {
-            case None -> { break }
-            case Some -> {}
+            case Some -> {
+                match {
+                    case Stack -> {
+                        .stack ~ $unstacker flip pop match {
+                            case None -> { break }
+                            case Some -> {}
+                        }
+                    }
+                    case Closure -> {
+                        @parent
+                        $unstacker $parent.token fresh-hole @hole
+                        $unstacker.arena $parent.parameters $hole Array:push
+                        $parent.token $hole $self.negative.len make Source:FromClosureParameter make Source.FromClosureParameter
+                    }
+                }
+            }
         } @type
-        $arena &self.negative $type Array:push<_>
-        $arena &self.positive $type Array:push-front<_>
+        $unstacker.arena &self.negative $type Array:push<_>
+        $unstacker.arena &self.positive $type Array:push-front<_>
     }
 }
-fn dump(arena: .Arena, self: .Stack) -> Array<Source> {
-    $arena $self $self size pop-n
+fn dump(unstacker: .Unstacker, self: .Stack) -> Array<Source> {
+    $unstacker $self $self size pop-n
 }
 fn to-array(arena: .Arena, self: .Stack) -> Array<Source> {
     $arena $self size Array:new-with-capacity<Source> @array
@@ -137,7 +197,12 @@ fn to-array(arena: .Arena, self: .Stack) -> Array<Source> {
 fn to-array-helper(self: .Stack, array: .Array<Source>) {
     &self.parent match {
         case None -> {}
-        case Some -> { .stack ~ $array to-array-helper }
+        case Some -> {
+            match {
+                case Stack -> { .stack ~ $array to-array-helper }
+                case Closure -> { drop }
+            }
+        }
     }
     0 loop {
         @i $i $self.positive.len = if { break }
@@ -149,13 +214,21 @@ fn size(self: .Stack) -> i32 {
     $self.positive.len
     $self.parent match {
         case None -> {}
-        case Some -> { .stack size + }
+        case Some -> {
+            match {
+                case Stack -> { .stack size + }
+                case Closure -> { drop }
+            }
+        }
     }
 }
 fn index(self: .Stack, index: i32) -> .Source {
     $index $self.positive.len lt if {
         &self.positive $self.positive.len $index - 1 - Array:get<_>
     } else {
-        &self.parent Maybe:ref<_> assert-some<.Parent> .stack ~ $index $self.positive.len - index
+        &self.parent Maybe:ref<_> assert-some<.Parent> match {
+            case Stack -> { .stack ~ $index $self.positive.len - index }
+            case Closure -> { 0 0 / drop drop uninit }
+        }
     }
 }

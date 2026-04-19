@@ -500,10 +500,22 @@ struct StackAnnotation {
     types: Array<Type>
 }
 fn StackAnnotation-format(fmt: .Formatter, self: .StackAnnotation) {
-    $fmt "(StackAnnotation" Fmt:write
+    $fmt "(StackAnnotation " Fmt:write
     $fmt &self.token Token-format
     $fmt " " Fmt:write
     $fmt \Type:format &self.types Array:format<_>
+    $fmt ")" Fmt:write
+}
+
+struct Closure {
+    token: Token
+    scope: Scope
+}
+fn Closure-format(fmt: .Formatter, self: .Closure) {
+    $fmt "(Closure " Fmt:write
+    $fmt &self.token Token-format
+    $fmt " " Fmt:write
+    $fmt &self.scope Scope-format
     $fmt ")" Fmt:write
 }
 
@@ -533,6 +545,7 @@ variant Word {
     case MakeVariant -> MakeVariant
     case GetField -> GetField
     case StackAnnotation -> StackAnnotation
+    case Closure -> Closure
 }
 fn Word-format(fmt: .Formatter, self: .Word) {
     $self match {
@@ -561,6 +574,7 @@ fn Word-format(fmt: .Formatter, self: .Word) {
         case MakeVariant -> { $fmt flip MakeVariant-format }
         case GetField -> { $fmt flip GetField-format }
         case StackAnnotation -> { $fmt flip StackAnnotation-format }
+        case Closure -> { $fmt flip Closure-format }
     }
 }
 fn Words-format(fmt: .Formatter, self: .Array<Word>) {

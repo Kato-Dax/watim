@@ -44,8 +44,14 @@ import "../unstacking/source.watim" as Source (
     SignatureHandle,
 )
 import "../unstacking/word.watim" as Unstacked (InferenceHole, InferenceFieldHole)
-import "../unstacking/unstacker.watim" as Unstacked (Holes, Holes-lookup, Holes-fill, StackVoid, StackVoid-format, NonSpecificVoid, StoreVoid, Local, Signature, intrinsic-signatures, Signature-parameters-len, Signature-parameter, Signature-parameters, Signature-returns)
+import "../unstacking/unstacker.watim" as Unstacked (Holes, Holes-lookup, Holes-fill)
+import "../unstacking/unstacking.watim" as Unstacked (
+    intrinsic-signatures,
+    Signature, Signature-returns, Signature-parameters, Signature-parameters-len
+)
 import "../unstacking/graph.watim" as Graph
+import "../unstacking/voids.watim" as Unstacked (StackVoid)
+import "../unstacking/ast.watim" as Unstacked
 
 import "./ast.watim" as Checked (Module, FunctionOrExtern, Function)
 import "./origin.watim" as Origin (Origin())
@@ -374,7 +380,7 @@ block {
                     @i $i $signature Signature-parameters-len = if {
                         make Result<bool, Error>.Success break
                     }
-                    $signature $i Signature-parameter @expected
+                    $signature $i Unstacked:Signature-parameter @expected
                     $expected Type:contains-generic not if {
                         &argument-types $i Array:get<_> match {
                             case None -> {
@@ -425,7 +431,7 @@ block {
                             0 loop {
                                 @i $i $signature Signature-parameters-len = if { make Maybe<Error>.None break }
                                 $ctx.arena
-                                $signature $i Signature-parameter
+                                $signature $i Unstacked:Signature-parameter
                                 &generic-arguments Type:with-generics @parameter
                                 &argument-types $i Array:get<_> match {
                                     case None -> {
@@ -452,7 +458,7 @@ block {
                                 @i $i $signature Signature-parameters-len = if { make Maybe<Error>.None break }
                                 &ctx
                                 &void.generic-arguments
-                                $signature $i Signature-parameter
+                                $signature $i Unstacked:Signature-parameter
                                 &argument-types $i Array:get<_> match {
                                     case None -> { &void.token "failed to infer argument" error make Maybe<Error>.Some break }
                                     case Some -> {}
@@ -564,7 +570,7 @@ block {
 fn call-argument-mismatch-error(
     ctx: .Ctx,
     token: .Token,
-    signature: Signature,
+    signature: Unstacked:Signature,
     generic-arguments: .Array<InferenceHole>,
     argument-types: .Array<Maybe<Type>>,
 ) -> Error {
@@ -580,11 +586,11 @@ fn call-argument-mismatch-error(
         &fmt "\n\t" Fmt:write
         $generic-arguments $i Array:get<_> @generic-argument
         $signature match {
-            case Signature.Function -> {
+            case Unstacked:Signature.Function -> {
                 .generic-parameters $i Array:get
                 &fmt flip Token-lexeme Fmt:write
             }
-            case Signature.Intrinsic -> {
+            case Unstacked:Signature.Intrinsic -> {
                 .generic-parameters $i Array:get
                 &fmt flip ~ ByteSlice:unpack Fmt:write
             }
@@ -768,13 +774,13 @@ fn lookup-function-signature(ctx: .Ctx, function: .FunctionHandle) -> .FunctionS
     Resolved:FunctionOrExtern-signature
 }
 
-fn lookup-signature(ctx: .Ctx, function: SignatureHandle) -> Signature {
+fn lookup-signature(ctx: .Ctx, function: SignatureHandle) -> Unstacked:Signature {
     $function match {
         case SignatureHandle.Function -> {
-            $ctx flip & lookup-function-signature make Signature.Function
+            $ctx flip & lookup-function-signature make Unstacked:Signature.Function
         }
         case SignatureHandle.Intrinsic -> {
-            intrinsic-signatures flip & Map:get assert-some make Signature.Intrinsic
+            intrinsic-signatures flip & Map:get assert-some make Unstacked:Signature.Intrinsic
         }
     }
 }
@@ -1232,6 +1238,51 @@ fn check(ctx: .Ctx, source: .Source, known: .Type, origin: .List<Origin>) -> May
                     &source.token "expected different" error make Maybe<Error>.Some break
                 }
             }
+            case Source.FromClosure -> {
+                @source
+                $known match {
+                    case Type.Fun -> {}
+                    case _ -> { drop &source.token "check FromClosure: TODO" error make Maybe.Some break }
+                } @known
+
+                $known.parameters.len $source.parameters.len /= if {
+                    &source.token "check FromClosure: TODO known.parameters.len /= source.parameters.len" error make Maybe.Some break
+                }
+                $known.returns.len $source.return-types.len /= if {
+                    &source.token "check FromClosure: TODO $known.returns.len /= $source.return-types.len" error make Maybe.Some break
+                }
+
+                0 loop {
+                    @i $i $known.parameters.len = if { break }
+                    $ctx
+                    &source.parameters $i Array:get ~
+                    &known.parameters $i Array:get
+                    fill-hole
+                    $i 1 +
+                }
+
+                0 loop {
+                    @i $i $known.returns.len = if { make Maybe.None break }
+                    $ctx &source.return-types $i Array:get ~ &known.returns $i Array:get fill-hole
+
+                    $ctx
+                    &source.returns $i Array:get
+                    &known.returns $i Array:get
+                    $origin
+                    check match {
+                        case None -> {}
+                        case _ -> { break }
+                    }
+                    $i 1 +
+                } match {
+                    case None -> {}
+                    case _ -> { break }
+                }
+            }
+            case Source.FromClosureParameter -> {
+                @source
+                $ctx $source.parameter $known fill-hole
+            }
         }
         make Maybe<Error>.None
     }
@@ -1277,6 +1328,10 @@ fn check-from-make-variant(ctx: .Ctx, source: .Source:FromMakeVariant, known: .T
             &source.token "check FromMakeVariant expected different" error make Maybe<Error>.Some break
         }
     } @known
+
+    $known.type-definition $source.type-definition /= if {
+        &source.token "check FromMakeVariant expected different" error make Maybe<Error>.Some break
+    }
 
     $ctx &source.type-definition lookup-type-definition match {
         case TypeDefinition.Struct -> { drop Core:unreachable<.Resolved:Variant> }
@@ -1352,7 +1407,7 @@ fn check-from-node(ctx: .Ctx, source: .Source:FromNode, known: .Type, origin: .L
             0 loop {
                 @i $i $source.arguments.len = if { make Maybe<Error>.None break }
                 &source.arguments $i Array:get<_> @argument
-                $signature $i Signature-parameter @generic-parameter
+                $signature $i Unstacked:Signature-parameter @generic-parameter
                 $ctx $generic-parameter &source.generic-arguments try-with-generics match {
                     case None -> {
                         $ctx $argument infer match {
@@ -1735,7 +1790,7 @@ fn stack-annotation-mismatch-error(ctx: .Ctx, source: .Source:FromStackAnnotatio
     &source.token $msg Array:unpack<_> error
 } }
 
-fn check-local-assignments(ctx: .Ctx, local: .Local, expected-local-type: .Type, origin: .List<Origin>) -> Maybe<Error> { block {
+fn check-local-assignments(ctx: .Ctx, local: .Unstacked:Local, expected-local-type: .Type, origin: .List<Origin>) -> Maybe<Error> { block {
     $local.assignments-checked if {
         make Maybe<Error>.None break
     }
@@ -2657,6 +2712,14 @@ fn infer(ctx: .Ctx, source: .Source) -> Result<Maybe<Type>, Error> {
 
                     $type make Maybe<Type>.Some make Result<Maybe<Type:Type>, Error>.Success
                 }
+                case Source.FromClosure -> { $ctx flip infer-closure }
+                case Source.FromClosureParameter -> {
+                    @source
+                    $ctx $source.parameter lookup-hole match {
+                        case None -> { make Maybe.None make Result.Success }
+                        case Some -> { ~ make Maybe.Some make Result.Success }
+                    } break
+                }
                 case _ -> {
                     @source
                     $ctx logging if { $ctx.fmt $source Source:Source-format }
@@ -2703,6 +2766,35 @@ fn infer(ctx: .Ctx, source: .Source) -> Result<Maybe<Type>, Error> {
         $res
     }
 }
+
+fn infer-closure(ctx: .Ctx, closure: .Source:FromClosure) -> Result<Maybe<Type>, Error> { block (-> _) {
+    $closure.token
+    $ctx.arena $closure.returns.len Array:new-with-capacity<Type> @return-types
+    0 loop {
+        @i $i $closure.returns.len = if { $return-types make Maybe.Some make Result<Maybe<Array<Type>>, Error>.Success break }
+        $ctx &closure.returns $i Array:get infer match {
+            case Error -> { make Result.Error break }
+            case Success -> {}
+        } match {
+            case None -> { make Maybe.None make Result.Success break }
+            case Some -> {}
+        } @return-type
+        &return-types $return-type Array:push-assert-no-alloc
+        $ctx &closure.return-types $i Array:get ~ &return-type fill-hole
+        $i 1 +
+    } match {
+        case Error -> { make Result.Error break }
+        case Success -> {}
+    } match {
+        case None -> { make Maybe.None make Result.Success break }
+        case Some -> {}
+    }
+    $ctx &closure.parameters lookup-holes match {
+        case None -> { make Maybe.None make Result.Success break }
+        case Some -> {}
+    } flip make Type:FunType make Type.Fun
+    make Maybe.Some make Result.Success
+} }
 
 fn check-make-struct-fields(ctx: .Ctx, struc: .Resolved:Struct, arguments: .Array<Source>, known: .Type:CustomTypeType) -> Maybe<Error> {
     0 loop {
@@ -3076,7 +3168,7 @@ fn infer-signature-application(
     token: .Token,
     generic-arguments: .Array<InferenceHole>,
     arguments: .Array<Source>,
-    signature: Signature,
+    signature: Unstacked:Signature,
     return-index: i32,
 ) -> Result<Maybe<Type>, Error> { block {
     $arguments.len $signature Signature-parameters-len /= if {
@@ -3454,6 +3546,14 @@ fn fill-holes-word(ctx: .Ctx, word: .Unstacked:Word) -> Checked:Word {
             } make Checked:Word.GetField
         }
         case Unstacked:Word.MatchVoid -> { ~ make Checked:Word.MatchVoid }
+        case Unstacked:Word.Closure -> {
+            @word
+            $word.token
+            $ctx &word.parameters fill-holes
+            $ctx &word.returns fill-holes
+            $ctx &word.body fill-holes-scope
+            make Checked:Closure make Checked:Word.Closure
+        }
     }
 }
 

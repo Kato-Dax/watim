@@ -14,7 +14,8 @@ import "../resolving/words.watim" as Resolved (LocalId)
 import "../resolving/top-items.watim" as Resolved (LocalName-unpack)
 
 import "./source.watim" as Source (Source, MultiReturnNode)
-import "./unstacker.watim" as Unstacked (StackVoid, Function)
+import "./unstacking.watim" as Unstacked (Function)
+import "./voids.watim" as Voids (StackVoid)
 
 struct Grapher {
     arena: .Arena

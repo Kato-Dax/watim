@@ -551,6 +551,18 @@ fn IndirectCall-format(fmt: .Formatter, self: .IndirectCall) {
     $fmt ")" Fmt:write
 }
 
+struct Closure {
+    token: Token
+    body: Words
+}
+fn Closure-format(fmt: .Formatter, self: .Closure) {
+    $fmt "(Closure " Fmt:write
+    $fmt &self.token Token-format
+    $fmt " " Fmt:write
+    $fmt &self.body Words-format
+    $fmt ")" Fmt:write
+}
+
 variant Word {
     case Call -> Call
     case String -> StringWord
@@ -575,6 +587,7 @@ variant Word {
     case IndirectCall -> IndirectCall
     case Store -> Store
     case StackAnnotation -> StackAnnotation
+    case Closure -> Closure
 }
 fn Word-format(fmt: .Formatter, self: .Word) { block {
     $self match {
@@ -601,6 +614,7 @@ fn Word-format(fmt: .Formatter, self: .Word) { block {
         case Store -> { $fmt flip Store-format break }
         case IndirectCall -> { $fmt flip IndirectCall-format break }
         case StackAnnotation -> { $fmt flip StackAnnotation-format break }
+        case Closure -> { $fmt flip Closure-format break }
     } @name-len @name-ptr
     $fmt "(" Fmt:write
     $fmt $name-ptr $name-len Fmt:write
@@ -1109,7 +1123,7 @@ fn top-item(parser: .Parser, token: .Token) -> Result<TopItem, ParseError> { blo
                 case None -> { $parser "expected `{`" abort<TopItem> break }
                 case Some -> {}
             } @brace
-            $parser $brace words match {
+            $parser words match {
                 case Error -> { make Result<TopItem, ParseError>.Error break }
                 case Success -> {}
             } @body
@@ -1326,7 +1340,7 @@ fn top-item(parser: .Parser, token: .Token) -> Result<TopItem, ParseError> { blo
     }
 } }
 
-fn words(parser: .Parser, token: .Token) -> Result<Words, ParseError> { block {
+fn words(parser: .Parser) -> Result<Words, ParseError> { block {
     Array:new<Word> @words
     loop {
         $parser advance match {
@@ -1369,11 +1383,20 @@ fn word(parser: .Parser, token: .Token) -> Result<Word, ParseError> { block {
         case TOKEN_DOUBLE_ARROW -> { $parser $token stor break }
         case TOKEN_COLON -> { $parser $token stack-annotation break }
         case TOKEN_LEFT_PAREN -> { $parser $token indirect-call break }
+        case TOKEN_LEFT_BRACE -> { $parser $token anon-fun break }
         case _ -> {
             drop
             $parser "expected a word" abort<Word> break
         }
     } make Result<Word, ParseError>.Success
+} }
+
+fn anon-fun(parser: .Parser, token: .Token) -> Result<Word, ParseError> { block {
+    $parser words match {
+        case Success -> {}
+        case Error -> { make Result.Error break }
+    }
+    $token ~ flip make Closure make Word.Closure make Result.Success
 } }
 
 fn indirect-call(parser: .Parser, token: .Token) -> Result<Word, ParseError> {
@@ -1540,9 +1563,9 @@ fn matsh(parser: .Parser, token: .Token) -> Result<Word, ParseError> { block (->
         }
         $parser make TokenTy.TOKEN_LEFT_BRACE expect-token match {
             case Error -> { make Result<Word, ParseError>.Error break }
-            case Success -> { }
+            case Success -> { drop }
         }
-        $parser flip words match {
+        $parser words match {
             case Error -> { make Result<Word, ParseError>.Error break }
             case Success -> {}
         } @body
@@ -1582,7 +1605,7 @@ fn mayk(parser: .Parser, token: .Token) -> Result<Word, ParseError> { block (-> 
         }
         case TOKEN_LEFT_BRACE -> {
             $parser advance assert-some<.Token> @brace
-            $parser $brace words match {
+            $parser words match {
                 case Error -> { make Result<Word, ParseError>.Error break }
                 case Success -> {
                     &type CustomType-name ~ flip $type flip make MakeStructNamed make Word.MakeStructNamed make Result<Word, ParseError>.Success break
@@ -1648,7 +1671,7 @@ fn iff(parser: .Parser, start: .Token) -> Result<Word, ParseError> { block {
         case Error -> { make Result<Word, ParseError>.Error break }
         case Success -> {}
     } @brace
-    $parser $brace words match {
+    $parser words match {
         case Error -> { make Result<Word, ParseError>.Error break }
         case Success -> {}
     } @if-words
@@ -1663,7 +1686,7 @@ fn iff(parser: .Parser, start: .Token) -> Result<Word, ParseError> { block {
         case Error -> { make Result<Word, ParseError>.Error break }
         case Success -> {}
     } @brace
-    $parser $brace words match {
+    $parser words match {
         case Error -> { make Result<Word, ParseError>.Error break }
         case Success -> {}
     } @else-words
@@ -1691,8 +1714,9 @@ fn lop(parser: .Parser, start: .Token) -> Result<Word, ParseError> { block {
     } @annotation
     $parser make TokenTy.TOKEN_LEFT_BRACE expect-token match {
         case Error -> { make Result<Word, ParseError>.Error break }
-        case Success -> {}
-    } $parser flip words match {
+        case Success -> { drop }
+    }
+    $parser words match {
         case Error -> { make Result<Word, ParseError>.Error break }
         case Success -> {}
     } @words
@@ -1793,9 +1817,9 @@ fn blok(parser: .Parser, start: .Token) -> Result<Word, ParseError> { block {
     } @annotation
     $parser make TokenTy.TOKEN_LEFT_BRACE expect-token match {
         case Error -> { make Result<Word, ParseError>.Error break }
-        case Success -> {}
-    } @brace
-    $parser $brace words match {
+        case Success -> { drop }
+    }
+    $parser words match {
         case Error -> { make Result<Word, ParseError>.Error break }
         case Success -> {}
     } @words

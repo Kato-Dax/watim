@@ -837,6 +837,35 @@ fn GetField-format(fmt: .Formatter, self: .GetField) {
     $fmt ")" Fmt:write
 }
 
+struct Closure {
+    token: Token
+    parameters: Array<InferenceHole>
+    returns: Array<InferenceHole>
+    body: Scope
+}
+
+fn Closure-format(fmt: .Formatter, self: .Closure) {
+    $fmt "(Closure\n" Fmt:write
+    $fmt Fmt:indent
+    $fmt Fmt:write-indent
+    $fmt "token=" Fmt:write
+    $fmt &self.token Token-format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "parameters=" Fmt:write
+    $fmt \InferenceHole-format &self.parameters Array:format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "returns=" Fmt:write
+    $fmt \InferenceHole-format &self.returns Array:format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "body=" Fmt:write
+    $fmt &self.body Scope-format
+    $fmt Fmt:dedent
+    $fmt ")" Fmt:write
+}
+
 variant Word {
     case GetLocal -> GetLocal
     case RefLocal -> RefLocal
@@ -863,6 +892,7 @@ variant Word {
     case FunRef -> FunRef
     case GetField -> GetField
     case MatchVoid -> Token
+    case Closure -> Closure
 }
 fn Word-format(fmt: .Formatter, self: .Word) {
     $fmt $self match {
@@ -891,6 +921,7 @@ fn Word-format(fmt: .Formatter, self: .Word) {
         case FunRef -> { FunRef-format }
         case GetField -> { GetField-format }
         case MatchVoid -> { $fmt "(MatchVoid " Fmt:write Token-format $fmt ")" Fmt:write }
+        case Closure -> { Closure-format }
     }
 }
 fn Words-format(fmt: .Formatter, self: .Array<Word>) {

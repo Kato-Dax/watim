@@ -1,0 +1,84 @@
+import "../../std/fmt.watim" as Fmt (Formatter)
+import "../../std/maybe.watim" as Maybe (Maybe(Some, None))
+import "../../std/array.watim" as Array (Array)
+import "../../std/util.watim" as Util (bool-format)
+
+import "../lexer.watim" as Lexer (Token, Token-format)
+
+import "../resolving/top-items.watim" as Resolved (LocalName)
+import "../resolving/type-without-holes.watim" as Type (Type)
+
+import "./source.watim" as Source (Source, Source-format)
+import "./word.watim" as Word (InferenceHole, InferenceHole-format)
+
+struct Assignment {
+    token: Token
+    source: Maybe<Source>
+    fields: Array<Word:FieldAccess>
+    type: InferenceHole
+    is-store: bool
+}
+fn Assignment-format(fmt: .Formatter, self: .Assignment) {
+    $fmt "(Assignment\n" Fmt:write
+    $fmt Fmt:indent
+    $fmt Fmt:write-indent
+    $fmt "token=" Fmt:write
+    $fmt &self.token Token-format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "source=" Fmt:write
+    $fmt \Source-format &self.source Maybe:format<_>
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "fields=" Fmt:write
+    $fmt \Word:FieldAccess-format &self.fields Array:format-multi-line<_>
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "type=" Fmt:write
+    $fmt &self.type InferenceHole-format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "is-store=" Fmt:write
+    $fmt $self.is-store bool-format
+    $fmt Fmt:dedent
+    $fmt ")" Fmt:write
+}
+
+struct Local {
+    name: LocalName
+    type: InferenceHole
+    // if this local is a parameter, then this will be non-None
+    parameter: Maybe<Type>
+    assignments: Array<Assignment>
+    reffed: bool
+    assignments-checked: bool
+}
+fn Local-format(fmt: .Formatter, self: .Local) {
+    $fmt "(Local\n" Fmt:write
+    $fmt Fmt:indent
+    $fmt Fmt:write-indent
+    $fmt "name=" Fmt:write
+    $fmt &self.name Resolved:LocalName-format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "type=" Fmt:write
+    $fmt &self.type InferenceHole-format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "parameter=" Fmt:write
+    $fmt \Type:format &self.parameter Maybe:format<_>
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "reffed=" Fmt:write
+    $fmt $self.reffed bool-format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "assignments=" Fmt:write
+    $fmt \Assignment-format &self.assignments Array:format-multi-line<_>
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "assignments-checked=" Fmt:write
+    $fmt $self.assignments-checked bool-format
+    $fmt Fmt:dedent
+    $fmt ")" Fmt:write
+}

@@ -10,6 +10,34 @@ fn apply(f: (i32 -> i32), a: i32) -> i32 {
 fn main "_start" () {
 	\mul2 4 apply proc_exit
 }
+[== Stdout Compiler ==]
+(module
+	(import "wasi_snapshot_preview1" "proc_exit" (func $0:proc_exit (param $code i32)))
+	(memory 1 65536)
+	(export "memory" (memory 0))
+	(table funcref (elem $intrinsic:flip
+		$0:mul2))
+	(global $stac:k (mut i32) (i32.const 0))
+	(data (i32.const 0) "")
+	(func $0:mul2 (param $a i32) (result i32)
+		local.get $a
+		local.get $a
+		i32.add
+	)
+	(func $0:apply (param $f i32) (param $a i32) (result i32)
+		local.get $a
+		local.get $f
+		(call_indirect (param i32) (result i32))
+	)
+	(func $0:main (export "_start")
+		i32.const 1
+		i32.const 4
+		call $0:apply
+		call $0:proc_exit
+	)
+	(func $intrinsic:flip (param $a i32) (param $b i32) (result i32 i32) local.get $b local.get $a)
+	(func $intrinsic:dupi32 (param $a i32) (result i32 i32) local.get $a local.get $a)
+	(func $intrinsic:rotate-left (param $a i32) (param $b i32) (param $c i32) (result i32 i32 i32) local.get $b local.get $c local.get $a)
+)
 [== Status ==]
 8
-

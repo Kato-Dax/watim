@@ -29,7 +29,8 @@ Watim = WAT Improved
 - [X] function pointers
 - [X] struct literals
 - [ ] error messages that don't just say 'TODO'
-- [ ] closures?
+- [ ] anonymous functions
+- [ ] closures
 - [ ] Some sort of Typeclass/Trait system perhaps?
 
 ## How to run

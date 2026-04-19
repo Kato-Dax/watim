@@ -4,7 +4,7 @@ import "../std/maybe.watim" as Maybe (Maybe(None, Some))
 import "../std/array.watim" as Array (Array)
 import "../std/arena.watim" as Arena (Arena)
 import "../std/list.watim" as List (List)
-import "./parser.watim" as Parser (Module, Import, Function, Signature, Words, Word, NamedType, Type, LocalCustomType, ForeignCustomType, Call, LocalCall, ForeignCall, If, Block, Loop, GetLocal, RefLocal, SetLocal, FunRef, InitLocal, Struct, Cast, MakeStruct, CustomType, MakeStructNamed, Variant, VariantCase, MakeVariant, Match, MatchCase, GetField, BlockAnnotation, Sizeof, FunType, Extern, Global, Store, StackAnnotation, ImportItem, FunctionOrExtern, TypeDefinition, TopItem, TopItem-start-token, IndirectCall)
+import "./parser.watim" as Parser (Module, Import, Function, Signature, Words, Word, NamedType, Type, LocalCustomType, ForeignCustomType, Call, LocalCall, ForeignCall, If, Block, Loop, GetLocal, RefLocal, SetLocal, FunRef, InitLocal, Struct, Cast, MakeStruct, CustomType, MakeStructNamed, Variant, VariantCase, MakeVariant, Match, MatchCase, GetField, BlockAnnotation, Sizeof, FunType, Extern, Global, Store, StackAnnotation, ImportItem, FunctionOrExtern, TypeDefinition, TopItem, TopItem-start-token, IndirectCall, Closure)
 import "./lexer.watim" as Lexer (Token, Token-lexeme, Token-location, Token-print, Token-line, Token-column)
 
 struct PrettyPrinter {
@@ -284,7 +284,13 @@ fn Word-pretty(self: .Word, pp: .PrettyPrinter) -> i32 { block {
         case Word.IndirectCall -> { $pp IndirectCall-pretty }
         case Word.Store -> { $pp Store-pretty }
         case Word.StackAnnotation -> { $pp StackAnnotation-pretty }
+        case Word.Closure -> { $pp Closure-pretty }
     }
+} }
+
+fn Closure-pretty(self: .Closure, pp: .PrettyPrinter) -> i32 { block {
+    $pp &self.token write-token Core:dup 0 /= if { break } drop
+    &self.body $pp Words-pretty
 } }
 
 fn IndirectCall-pretty(self: .IndirectCall, pp: .PrettyPrinter) -> i32 {

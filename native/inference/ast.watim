@@ -543,6 +543,34 @@ fn FunRef-format(fmt: .Formatter, self: .FunRef) {
     $fmt ")" Fmt:write
 }
 
+struct Closure {
+    token: Token
+    parameters: Array<Type>
+    returns: Array<Type>
+    body: Scope
+}
+fn Closure-format(fmt: .Formatter, self: .Closure) {
+    $fmt "(Closure\n" Fmt:write
+    $fmt Fmt:indent
+    $fmt Fmt:write-indent
+    $fmt "token=" Fmt:write
+    $fmt &self.token Token-format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "parameters=" Fmt:write
+    $fmt \Type:format &self.parameters Array:format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "returns=" Fmt:write
+    $fmt \Type:format &self.returns Array:format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "body=" Fmt:write
+    $fmt &self.body Scope-format
+    $fmt Fmt:dedent
+    $fmt ")" Fmt:write
+}
+
 variant Word {
     case Number -> Token
     case GetLocal -> GetLocal
@@ -568,6 +596,7 @@ variant Word {
     case MatchVoid -> Token
     case VariantWord -> VariantWord
     case GetField -> GetField
+    case Closure -> Closure
 }
 fn Word-format(fmt: .Formatter, self: .Word) {
     $self match {
@@ -595,6 +624,7 @@ fn Word-format(fmt: .Formatter, self: .Word) {
         case MatchVoid -> { $fmt "(MatchVoid " Fmt:write $fmt flip Token-format $fmt ")" Fmt:write }
         case VariantWord -> { $fmt flip VariantWord-format }
         case GetField -> { $fmt flip GetField-format }
+        case Closure -> { $fmt flip Closure-format }
     }
 }
 fn Words-format(fmt: .Formatter, self: .Array<Word>) {

@@ -1,0 +1,315 @@
+import "../../std/maybe.watim" as Maybe (Maybe(Some, None), assert-none, assert-some)
+import "../../std/arena.watim" as Arena (Arena)
+import "../../std/array.watim" as Array (Array)
+import "../../std/fmt.watim" as Fmt (Formatter)
+import "../../std/util.watim" as Util (bool-format, i32-format, i32-format-ref)
+
+import "../lexer.watim" as Lexer (Token, Token-format)
+
+import "../resolving/type-without-holes.watim" as Type (Type)
+
+import "./word.watim" as Word (InferenceHole, InferenceHole-format)
+import "./source.watim" as Source (Source, SignatureHandle, SignatureHandle-format, Source-format, Source-format-shallow)
+
+struct IndirectCallVoid {
+    token: Token
+    function: Maybe<Source>
+    parameters: Array<InferenceHole>
+    returns: Array<InferenceHole>
+}
+fn IndirectCallVoid-format(fmt: .Formatter, self: .IndirectCallVoid) {
+    $fmt "(IndirectCallVoid\n" Fmt:write
+    $fmt Fmt:indent
+    $fmt Fmt:write-indent
+    $fmt "token=" Fmt:write
+    $fmt &self.token Token-format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "parameters=" Fmt:write
+    $fmt \InferenceHole-format &self.parameters Array:format-multi-line<_>
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "returns=" Fmt:write
+    $fmt \InferenceHole-format &self.returns Array:format-multi-line<_>
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "function=" Fmt:write
+    $fmt \Source-format &self.function Maybe:format<_>
+    $fmt Fmt:dedent
+    $fmt ")" Fmt:write
+}
+fn IndirectCallVoid-format-shallow(fmt: .Formatter, self: .IndirectCallVoid) {
+    $fmt "(IndirectCallVoid\n" Fmt:write
+    $fmt Fmt:indent
+    $fmt Fmt:write-indent
+    $fmt "token=" Fmt:write
+    $fmt &self.token Token-format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "parameters=" Fmt:write
+    $fmt \InferenceHole-format &self.parameters Array:format-multi-line<_>
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "returns=" Fmt:write
+    $fmt \InferenceHole-format &self.returns Array:format-multi-line<_>
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "function=" Fmt:write
+    $fmt \Source-format-shallow &self.function Maybe:format<_>
+    $fmt Fmt:dedent
+    $fmt ")" Fmt:write
+}
+
+struct SetGlobalVoid {
+    token: Token
+    global-type: Type:Type
+    fields: Array<Word:FieldAccess>
+    type: InferenceHole
+    source: Maybe<Source>
+}
+fn SetGlobalVoid-format(fmt: .Formatter, self: .SetGlobalVoid) {
+    $fmt "(SetGlobalVoid\n" Fmt:write
+    $fmt Fmt:indent
+    $fmt Fmt:write-indent
+    $fmt "token=" Fmt:write
+    $fmt &self.token Token-format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "global-type=" Fmt:write
+    $fmt &self.global-type Type:format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "fields=" Fmt:write
+    $fmt \Word:FieldAccess-format &self.fields Array:format-multi-line<_>
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "type=" Fmt:write
+    $fmt &self.type InferenceHole-format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "source=" Fmt:write
+    $fmt \Source-format &self.source Maybe:format<_>
+    $fmt Fmt:dedent
+    $fmt ")" Fmt:write
+}
+
+fn SetGlobalVoid-format-shallow(fmt: .Formatter, self: .SetGlobalVoid) {
+    $fmt "(SetGlobalVoid\n" Fmt:write
+    $fmt Fmt:indent
+    $fmt Fmt:write-indent
+    $fmt "token=" Fmt:write
+    $fmt &self.token Token-format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "global-type=" Fmt:write
+    $fmt &self.global-type Type:format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "fields=" Fmt:write
+    $fmt \Word:FieldAccess-format &self.fields Array:format-multi-line<_>
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "type=" Fmt:write
+    $fmt &self.type InferenceHole-format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "source=" Fmt:write
+    $fmt \Source-format-shallow &self.source Maybe:format<_>
+    $fmt Fmt:dedent
+    $fmt ")" Fmt:write
+}
+
+struct CallVoid {
+    token: Token
+    function: SignatureHandle
+    arguments: Array<Source>
+    generic-arguments: Array<InferenceHole>
+}
+fn CallVoid-format(fmt: .Formatter, self: .CallVoid) {
+    $fmt "(CallVoid\n" Fmt:write
+    $fmt Fmt:indent
+    $fmt Fmt:write-indent
+    $fmt "token=" Fmt:write
+    $fmt &self.token Token-format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "function=" Fmt:write
+    $fmt &self.function SignatureHandle-format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "arguments=" Fmt:write
+    $fmt \Source-format &self.arguments Array:format-multi-line<_>
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "generic-arguments=" Fmt:write
+    $fmt \InferenceHole-format &self.generic-arguments Array:format-multi-line<_>
+    $fmt Fmt:dedent
+    $fmt ")" Fmt:write
+}
+fn CallVoid-format-shallow(fmt: .Formatter, self: .CallVoid) {
+    $fmt "(CallVoid\n" Fmt:write
+    $fmt Fmt:indent
+    $fmt Fmt:write-indent
+    $fmt "token=" Fmt:write
+    $fmt &self.token Token-format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "function=" Fmt:write
+    $fmt &self.function SignatureHandle-format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "arguments=" Fmt:write
+    $fmt \Source-format-shallow &self.arguments Array:format-multi-line<_>
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "generic-arguments=" Fmt:write
+    $fmt \InferenceHole-format &self.generic-arguments Array:format-multi-line<_>
+    $fmt Fmt:dedent
+    $fmt ")" Fmt:write
+}
+
+struct ImpossibleMatchVoid {
+    token: Token
+    source: Maybe<Source>
+}
+fn ImpossibleMatchVoid-format(fmt: .Formatter, self: .ImpossibleMatchVoid) {
+    $fmt "(ImpossibleMatchVoid " Fmt:write
+    $fmt &self.token Token-format
+    $fmt " " Fmt:write
+    $fmt \Source-format &self.source Maybe:format<_>
+    $fmt ")" Fmt:write
+}
+fn ImpossibleMatchVoid-format-shallow(fmt: .Formatter, self: .ImpossibleMatchVoid) {
+    $fmt "(ImpossibleMatchVoid " Fmt:write
+    $fmt &self.token Token-format
+    $fmt " " Fmt:write
+    $fmt \Source-format-shallow &self.source Maybe:format<_>
+    $fmt ")" Fmt:write
+}
+
+variant StackVoid {
+    case Store -> StoreVoid
+    case NonSpecific -> NonSpecificVoid
+    case IndirectCall -> IndirectCallVoid
+    case SetGlobal -> SetGlobalVoid
+    case Call -> CallVoid
+    case ImpossibleMatch -> ImpossibleMatchVoid
+}
+fn StackVoid-format(fmt: .Formatter, self: .StackVoid) {
+    $fmt $self match {
+        case Store -> { StoreVoid-format }
+        case NonSpecific -> { NonSpecificVoid-format }
+        case IndirectCall -> { IndirectCallVoid-format }
+        case SetGlobal -> { SetGlobalVoid-format }
+        case Call -> { CallVoid-format }
+        case ImpossibleMatch -> { ImpossibleMatchVoid-format }
+    }
+}
+fn StackVoid-format-shallow(fmt: .Formatter, self: .StackVoid) {
+    $fmt $self match {
+        case Store -> { StoreVoid-format-shallow }
+        case NonSpecific -> { NonSpecificVoid-format-shallow }
+        case IndirectCall -> { IndirectCallVoid-format-shallow }
+        case SetGlobal -> { SetGlobalVoid-format-shallow }
+        case Call -> { CallVoid-format-shallow }
+        case ImpossibleMatch -> { ImpossibleMatchVoid-format-shallow }
+    }
+}
+
+struct StoreVoid {
+    token: Token
+    dst: Maybe<Source>
+    src: Maybe<Source>
+    type: InferenceHole
+}
+fn StoreVoid-format(fmt: .Formatter, self: .StoreVoid) {
+    $fmt "(StoreVoid\n" Fmt:write
+    $fmt Fmt:indent
+    $fmt Fmt:write-indent
+    $fmt "token=" Fmt:write
+    $fmt &self.token Token-format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "dst=" Fmt:write
+    $fmt \Source-format &self.dst Maybe:format<_>
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "src=" Fmt:write
+    $fmt \Source-format &self.src Maybe:format<_>
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "type=" Fmt:write
+    $fmt &self.type InferenceHole-format
+    $fmt Fmt:dedent
+    $fmt ")" Fmt:write
+}
+fn StoreVoid-format-shallow(fmt: .Formatter, self: .StoreVoid) {
+    $fmt "(StoreVoid\n" Fmt:write
+    $fmt Fmt:indent
+    $fmt Fmt:write-indent
+    $fmt "token=" Fmt:write
+    $fmt &self.token Token-format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "dst=" Fmt:write
+    $fmt \Source-format-shallow &self.dst Maybe:format<_>
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "src=" Fmt:write
+    $fmt \Source-format-shallow &self.src Maybe:format<_>
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "type=" Fmt:write
+    $fmt &self.type InferenceHole-format
+    $fmt Fmt:dedent
+    $fmt ")" Fmt:write
+}
+
+struct NonSpecificVoid {
+    token: Token
+    source: Maybe<Source>
+    known: Maybe<Type:Type>
+    type: Maybe<InferenceHole>
+}
+fn NonSpecificVoid-format(fmt: .Formatter, self: .NonSpecificVoid) {
+    $fmt "(NonSpecificVoid\n" Fmt:write
+    $fmt Fmt:indent
+    $fmt Fmt:write-indent
+    $fmt "token=" Fmt:write
+    $fmt &self.token Token-format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "type=" Fmt:write
+    $fmt \InferenceHole-format &self.type Maybe:format<_>
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "source=" Fmt:write
+    $fmt \Source-format &self.source Maybe:format<_>
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "known=" Fmt:write
+    $fmt \Type:format &self.known Maybe:format<_>
+    $fmt Fmt:dedent
+    $fmt ")" Fmt:write
+}
+fn NonSpecificVoid-format-shallow(fmt: .Formatter, self: .NonSpecificVoid) {
+    $fmt "(NonSpecificVoid\n" Fmt:write
+    $fmt Fmt:indent
+    $fmt Fmt:write-indent
+    $fmt "token=" Fmt:write
+    $fmt &self.token Token-format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "source=" Fmt:write
+    $fmt \Source-format-shallow &self.source Maybe:format<_>
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "known=" Fmt:write
+    $fmt \Type:format &self.known Maybe:format<_>
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "type=" Fmt:write
+    $fmt \InferenceHole-format &self.type Maybe:format<_>
+    $fmt Fmt:dedent
+    $fmt ")" Fmt:write
+}

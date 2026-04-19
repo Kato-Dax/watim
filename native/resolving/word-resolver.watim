@@ -38,7 +38,7 @@ import "./words.watim" as Words (
     If, MakeVariant, Match, MatchCase, Cast, Sizeof, InitLocal,
     FieldInit, Load, SetLocal, Call, FunctionHandle, RefLocal,
     StoreLocal, Block, IndirectCall, MakeStructNamed, FunRef,
-    MakeStruct, DefaultCase, StackAnnotation,
+    MakeStruct, DefaultCase, StackAnnotation, Closure,
 )
 import "./env.watim" as Env (Env)
 import "./intrinsics.watim" as Intrinsics
@@ -437,6 +437,15 @@ fn resolve-word(ctx: .WordCtx, word: .P:Word) -> Result<OneOrMany<Word>, Resolve
                 case Success -> {}
             }
             make StackAnnotation make Word.StackAnnotation
+        }
+        case P:Word.Closure -> {
+            @word
+            $word.token
+            $ctx &word.body.words resolve-scope match {
+                case Error -> { make Result<OneOrMany<Word>, ResolveError>.Error break }
+                case Success -> {}
+            }
+            make Closure make Word.Closure
         }
     }
     make OneOrMany<Word>.One

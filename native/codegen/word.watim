@@ -666,6 +666,10 @@ fn generate-word(ctx: .Ctx, module: i32, locals: .Map<LocalId, Local>, word: .Wo
             $ctx $word.type generate-store
             $temp $temp-save Arena:restore
         }
+        case Word.Closure -> {
+            @word
+            $ctx.fmt "closure" Fmt:write
+        }
     }
     $ctx.fmt "\n" Fmt:write
 }

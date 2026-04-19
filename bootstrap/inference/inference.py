@@ -544,10 +544,22 @@ class Ctx:
         assert(not isinstance(variant, Struct))
         cays = variant.cases[source.tag]
         if cays.taip is not None:
+            if known.type_definition != source.type_definition:
+                self.abort(source.token, "check FromMakeVariant expected different")
             source_type = without_holes.with_generics(cays.taip, known.generic_arguments)
             if source.source is None:
                 self.abort(source.token, "check FromMakeVariant expected input")
             self.check(source.source, source_type)
+
+        signature = self.signature_of_variant(source.type_definition, source.tag)
+        res = self.unify_types(source.generic_arguments, signature.returns[0], known)
+        if res != "Success":
+            if source.source is not None:
+                argument_types: Tuple[Type | None, ...] = (self.infer(source.source),)
+            else:
+                argument_types = ()
+            self.call_argument_mismatch_error(source.token, signature, source.generic_arguments, argument_types)
+
         self.fill_hole(source.taip, known)
 
     def check_from_node(self, source: FromNode, known: Type):
@@ -863,9 +875,9 @@ class Ctx:
                 if cays.taip is None:
                     return None
 
-                signature: Signature = self.signature_of_variant(source.type_definition, source.tag)
+                signature = self.signature_of_variant(source.type_definition, source.tag)
                 if source.source is not None:
-                    arguments = (source.source,)
+                    arguments: Tuple[Source, ...] = (source.source,)
                 else:
                     arguments = ()
                 inferred = self.infer_signature_application(source.token, source.generic_arguments, arguments, signature, 0)
@@ -926,8 +938,11 @@ class Ctx:
         generic_arguments = tuple(GenericType(variant.name, i) for i in range(len(variant.generic_parameters)))
         taip = CustomTypeType(handle, generic_arguments)
         case = variant.cases[case_index]
-        assert case.taip is not None
-        return FunctionSignature(generic_parameters=variant.generic_parameters, parameters=(NamedType(case.name, case.taip),), returns=(taip,))
+        if case.taip is not None:
+            parameters: Tuple[NamedType, ...] = (NamedType(case.name, case.taip),)
+        else:
+            parameters = ()
+        return FunctionSignature(generic_parameters=variant.generic_parameters, parameters=parameters, returns=(taip,))
 
     def infer_from_node(self, source: FromNode) -> Type | None:
         node = self.nodes[source.index]
@@ -1226,7 +1241,7 @@ class Ctx:
                     return "TypeMismatch"
                 return "Success"
             case without_holes.CustomTypeType():
-                if not isinstance(known, without_holes.CustomTypeType):
+                if not isinstance(known, without_holes.CustomTypeType) or known.type_definition != holey.type_definition:
                     return "TypeMismatch"
                 return self.unify_types_all(generic_arguments, holey.generic_arguments, known.generic_arguments)
             case without_holes.FunctionType():

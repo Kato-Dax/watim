@@ -1388,6 +1388,34 @@ fn Flip-format(fmt: .Formatter, self: .Flip) {
     $fmt ")" Fmt:write
 }
 
+struct Closure {
+    token: Token
+    parameters: Array<TypeId>
+    returns: Array<TypeId>
+    body: Scope
+}
+fn Closure-format(fmt: .Formatter, self: .Closure) {
+    $fmt "(Closure\n" Fmt:write
+    $fmt Fmt:indent
+    $fmt Fmt:write-indent
+    $fmt "token=" Fmt:write
+    $fmt &self.token Token-format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "parameters=" Fmt:write
+    $fmt \TypeId-format &self.parameters Array:format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "returns=" Fmt:write
+    $fmt \TypeId-format &self.returns Array:format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "body=" Fmt:write
+    $fmt &self.body Scope-format
+    $fmt Fmt:dedent
+    $fmt ")" Fmt:write
+}
+
 variant Word {
     case Number -> Token
     case String -> StringWord
@@ -1415,6 +1443,7 @@ variant Word {
     case MakeStruct -> MakeStruct
     case MakeStructNamed -> MakeStructNamed
     case Variant -> VariantWord
+    case Closure -> Closure
 }
 fn Word-format(fmt: .Formatter, self: .Word) { block {
     $fmt $self match {
@@ -1444,6 +1473,7 @@ fn Word-format(fmt: .Formatter, self: .Word) { block {
         case Word.MakeStruct -> { MakeStruct-format break }
         case Word.MakeStructNamed -> { MakeStructNamed-format break }
         case Word.Variant -> { VariantWord-format break }
+        case Word.Closure -> { Closure-format break }
     } Fmt:write
 } }
 struct Scope {
@@ -1764,6 +1794,14 @@ fn monomize-fun-ref(ctx: .Ctx, word: .Checked:FunRef, generic-arguments: .Array<
     make FunRef make Word.FunRef
 }
 
+fn monomize-closure(ctx: .WordCtx, word: .Checked:Closure, generic-arguments: .Array<TypeId>) -> Word {
+    $word.token
+    $ctx.ctx &word.parameters $generic-arguments monomize-types
+    $ctx.ctx &word.returns $generic-arguments monomize-types
+    $ctx &word.body $generic-arguments monomize-scope
+    make Closure make Word.Closure
+}
+
 fn monomize-word(ctx: .WordCtx, word: .Checked:Word, generic-arguments: .Array<TypeId>) -> Word {
     $word match {
         case Checked:Word.Number -> { ~ make Word.Number }
@@ -1790,6 +1828,7 @@ fn monomize-word(ctx: .WordCtx, word: .Checked:Word, generic-arguments: .Array<T
         case Checked:Word.MakeStruct -> { $ctx.ctx flip $generic-arguments monomize-make-struct }
         case Checked:Word.MakeStructNamed -> { $ctx flip $generic-arguments monomize-make-struct-named }
         case Checked:Word.VariantWord -> { $ctx.ctx flip $generic-arguments monomize-varint-word }
+        case Checked:Word.Closure -> { $ctx flip $generic-arguments monomize-closure }
     }
 }
 fn monomize-words(ctx: .WordCtx, words: .Array<Checked:Word>, generic-arguments: .Array<TypeId>) -> Array<Word> {

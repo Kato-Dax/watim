@@ -26,6 +26,8 @@ import "./resolving/top-items.watim" as Resolved
 import "./resolving/type.watim" as Resolved (ModuleId)
 import "./resolving/type-lookup.watim" as Resolved (TypeLookup)
 import "./unstacking/unstacker.watim" as Unstacker
+import "./unstacking/unstacking.watim" as Unstacking (init-intrinsic-signatures)
+import "./unstacking/unstacking.watim" as Unstacked
 import "./unstacking/graph.watim" as Graph
 import "./inference/ast.watim" as Checked
 import "./inference/inference.watim" as Inference
@@ -420,7 +422,7 @@ fn run-project-wide-command(fs: .FileSystem, command: ProjectWideCommand) { bloc
 
     &resolved-modules forbid-directly-recursive-types
 
-    Unstacker:init-intrinsic-signatures
+    init-intrinsic-signatures
 
     $command match {
         case Unstack -> {
@@ -431,17 +433,17 @@ fn run-project-wide-command(fs: .FileSystem, command: ProjectWideCommand) { bloc
                 case Resolved:FunctionOrExtern.Extern -> { drop }
                 case Resolved:FunctionOrExtern.Function -> {
                     @function
-                    &arena &resolved-modules.values $function Unstacker:unstack-function @function
+                    &arena &resolved-modules.values $function Unstacking:unstack-function @function
 
                     1 Fmt:to-fd @fmt
                     &arena &fmt 1024 Fmt:buffered @buf @fmt
-                    &fmt &function Unstacker:Function-format
+                    &fmt &function Unstacked:Function-format
                     &fmt "\n" Fmt:write
                     $buf Fmt:flush
                 }
             }
 
-            Unstacker:uninit-intrinsic-signatures
+            Unstacking:uninit-intrinsic-signatures
             &resolving-arena Arena:shred
             &arena Arena:shred
             break
@@ -458,7 +460,7 @@ fn run-project-wide-command(fs: .FileSystem, command: ProjectWideCommand) { bloc
                 case Resolved:FunctionOrExtern.Extern -> { drop }
                 case Resolved:FunctionOrExtern.Function -> {
                     @function
-                    &arena &resolved-modules.values $function Unstacker:unstack-function @function
+                    &arena &resolved-modules.values $function Unstacking:unstack-function @function
 
                     1 Fmt:to-fd @fmt
                     &arena &fmt 1024 Fmt:buffered @buf @fmt
@@ -467,7 +469,7 @@ fn run-project-wide-command(fs: .FileSystem, command: ProjectWideCommand) { bloc
                     $buf Fmt:flush
                 }
             }
-            Unstacker:uninit-intrinsic-signatures
+            Unstacking:uninit-intrinsic-signatures
             &resolving-arena Arena:shred
             &arena Arena:shred
             break
@@ -488,7 +490,7 @@ fn run-project-wide-command(fs: .FileSystem, command: ProjectWideCommand) { bloc
                 case Resolved:FunctionOrExtern.Extern -> { drop }
                 case Resolved:FunctionOrExtern.Function -> {
                     @function
-                    &arena &resolved-modules.values $function Unstacker:unstack-function @function
+                    &arena &resolved-modules.values $function Unstacking:unstack-function @function
 
                     &inference-arena &resolved-modules.values &module.globals.values &function $args.log-level Inference:infer-function match {
                         case Success -> {}
@@ -509,7 +511,7 @@ fn run-project-wide-command(fs: .FileSystem, command: ProjectWideCommand) { bloc
                 }
             }
 
-            Unstacker:uninit-intrinsic-signatures
+            Unstacking:uninit-intrinsic-signatures
             &resolving-arena Arena:shred
             &inference-arena Arena:shred
             &arena Arena:shred
@@ -531,7 +533,7 @@ fn run-project-wide-command(fs: .FileSystem, command: ProjectWideCommand) { bloc
     $command match {
         case Check -> {
             drop
-            Unstacker:uninit-intrinsic-signatures
+            Unstacking:uninit-intrinsic-signatures
             &resolving-arena Arena:shred
             &inference-arena Arena:shred
             &arena Arena:shred
@@ -542,7 +544,7 @@ fn run-project-wide-command(fs: .FileSystem, command: ProjectWideCommand) { bloc
 
     "Monomizing" Arena:new @monomizing-arena
     &monomizing-arena &inferred monomize @monomized
-    Unstacker:uninit-intrinsic-signatures
+    Unstacking:uninit-intrinsic-signatures
     &resolving-arena Arena:shred
     &inference-arena Arena:shred
     $command match {
@@ -667,7 +669,7 @@ fn infer-module(arena: .Arena, modules: .Array<Resolved:Module>, module: .Resolv
             case Resolved:FunctionOrExtern.Function -> {
                 @function
                 $arena Arena:temp @temp @save
-                $temp $modules $function Unstacker:unstack-function @function
+                $temp $modules $function Unstacking:unstack-function @function
                 $arena $modules &module.globals.values &function make Inference:LogLevel.NoLogs Inference:infer-function match {
                     case Error -> { make Result<Array<Checked:FunctionOrExtern>, Inference:Error>.Error break }
                     case Success -> {}
