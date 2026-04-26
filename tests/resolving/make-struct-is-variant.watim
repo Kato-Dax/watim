@@ -1,0 +1,13 @@
+[== Stdin Compiler ==]
+variant Foo { case Bar }
+fn foo() {
+    make Foo
+}
+[== Args Compiler ==]
+resolve
+-
+--quiet
+[== Status Compiler ==]
+1
+[== Stderr Compiler ==]
+-:3:5: expected a struct

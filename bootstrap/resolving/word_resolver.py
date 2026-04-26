@@ -147,7 +147,10 @@ class WordResolver:
             case parsing.StackAnnotation():
                 return resolved.StackAnnotation(word.token, self.type_resolver.resolve_types(word.types)),
             case parsing.StructWord():
-                return resolved.StructWord(word.token, word.name, self.type_resolver.resolve_custom_type(word.taip)),
+                custom_type = self.type_resolver.resolve_custom_type(word.taip)
+                if isinstance(self.type_lookup.lookup(custom_type.type_definition), Variant):
+                    self.abort(word.token, "expected a struct")
+                return resolved.StructWord(word.token, word.name, custom_type),
             case parsing.StructWordNamed():
                 return self.resolve_struct_word_named(word),
             case parsing.MatchWord():

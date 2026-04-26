@@ -375,7 +375,12 @@ fn resolve-word(ctx: .WordCtx, word: .P:Word) -> Result<OneOrMany<Word>, Resolve
             $ctx.type-resolver $ctx.arena &word.type TypeResolver:resolve-custom-type match {
                 case Error -> { make Result<OneOrMany<Word>, ResolveError>.Error break }
                 case Success -> {}
-            } make MakeStruct make Word.MakeStruct
+            } Core:dup
+            .type-definition & $ctx.type-lookup flip TypeLookup:lookup match {
+                case Variant -> { drop $ctx &word.token "expected a struct" abort break }
+                case Struct -> { drop }
+            }
+            make MakeStruct make Word.MakeStruct
         }
         case P:Word.MakeStructNamed -> {
             $ctx flip resolve-make-struct-named match {

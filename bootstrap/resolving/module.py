@@ -42,5 +42,5 @@ class ResolveException(Exception):
     def display(self) -> str:
         line = self.token.line
         column = self.token.column
-        return f"{self.path}:{line}:{column} {self.message}"
+        return f"{self.path}:{line}:{column}: {self.message}"
 
