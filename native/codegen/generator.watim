@@ -11,7 +11,7 @@ import "../../std/fmt-utils.watim" as Fmt (ByteSlice-format)
 import "../../std/util.watim" as Util (i32-format, bool-format)
 
 import "../lexer.watim" as Lexer (Token, Token-lexeme, Token-format)
-import "../resolving/top-items.watim" as TopItems (LocalName-unpack)
+import "../resolving/local.watim" as Local (LocalName-unpack)
 import "../resolving/words.watim" as Resolved (ScopeId, root-scope, LocalId, LocalId-eq, GlobalId, VarId)
 import "../monomorphization/monomizer.watim" as Monomized (
     Monomized, Module, ExternOrInstances(Extern, Instances),

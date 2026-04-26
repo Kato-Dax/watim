@@ -13,6 +13,7 @@ import "./type.watim" as Type (
     ModuleId,
 )
 import "./type-without-holes.watim" as WithoutHoles
+import "./local.watim" as Local (Local, Local-format)
 import "./words.watim" as Words (
     LocalId, LocalId-format, GlobalId,
     Scope, ScopeId, Scope-format,
@@ -311,54 +312,6 @@ fn Extern-format(fmt: .Formatter, self: .Extern) {
     $fmt &self.extrn-name ByteSlice-format
     $fmt " " Fmt:write
     $fmt &self.signature FunctionSignature-format
-    $fmt ")" Fmt:write
-}
-
-struct SyntheticName {
-    token: Token
-    name: ByteSlice
-}
-fn SyntheticName-format(fmt: .Formatter, self: .SyntheticName) {
-    $fmt "(SyntheticName " Fmt:write
-    $fmt &self.token Token-format
-    $fmt " " Fmt:write
-    $fmt &self.name Fmt:ByteSlice-format
-    $fmt ")" Fmt:write
-}
-
-variant LocalName {
-    case FromSource -> Token
-    case Synthetic -> SyntheticName
-}
-fn LocalName-format(fmt: .Formatter, self: .LocalName) {
-    $fmt $self match {
-        case FromSource -> { Token-format }
-        case Synthetic -> { SyntheticName-format }
-    }
-}
-fn LocalName-unpack(self: .LocalName) -> .i8, i32 {
-    $self match {
-        case FromSource -> { Token-lexeme }
-        case Synthetic -> { .name ~ ByteSlice:unpack }
-    }
-}
-fn LocalName-token(self: .LocalName) -> .Token {
-    $self match {
-        case FromSource -> {}
-        case Synthetic -> { .token }
-    }
-}
-
-struct Local {
-    name: LocalName
-    // if this local is a parameter, then this will be non-None
-    parameter: Maybe<WithoutHoles:Type>
-}
-fn Local-format(fmt: .Formatter, self: .Local) {
-    $fmt "(Local " Fmt:write
-    $fmt &self.name LocalName-format
-    $fmt " " Fmt:write
-    $fmt \WithoutHoles:format &self.parameter Maybe:format<_>
     $fmt ")" Fmt:write
 }
 

@@ -15,13 +15,13 @@ import "../../std/io.watim" as IO
 import "../parser.watim" as P
 import "../lexer.watim" as L (Token, Token-lexeme, Token-location, Token-format)
 
+import "./local.watim" as Local (Local, LocalName, SyntheticName)
 import "./top-items.watim" as TopItem (
     TypeDefinition(Struct, Variant), Import, Global,
     FunctionOrExtern, FunctionOrExtern-signature,
     ImportItem, StructImport, VariantImport, FunctionImport,
     Variant, Struct, VariantCase, TypeDefinition-name,
     Function, FunctionOrExtern, Extern, FunctionSignature,
-    Local, LocalName, SyntheticName,
 )
 import "./type.watim" as Type (
     Type, ModuleId, NamedType, with-generics,
@@ -445,11 +445,15 @@ fn resolve-word(ctx: .WordCtx, word: .P:Word) -> Result<OneOrMany<Word>, Resolve
         }
         case P:Word.Closure -> {
             @word
+            \LocalId-eq Map:new @locals
+            $ctx.env &locals Env:with-locals $ctx flip & with-env @ctx
             $word.token
-            $ctx &word.body.words resolve-scope match {
+            &ctx &word.body.words resolve-scope match {
                 case Error -> { make Result<OneOrMany<Word>, ResolveError>.Error break }
                 case Success -> {}
             }
+            $locals
+            flip
             make Closure make Word.Closure
         }
     }

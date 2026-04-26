@@ -12,11 +12,13 @@ import "../../std/array.watim" as Array (Array)
 import "../parser.watim" as P
 import "../lexer.watim" as L (Token, Token-lexeme, Token-location)
 
+import "./local.watim" as Local (Local, LocalName)
 import "./top-items.watim" as TopItem (
     TypeDefinition, Import, Global, FunctionOrExtern, TopItemHandle,
     ImportItem, StructImport, VariantImport, FunctionImport,
     Variant, Struct, VariantCase, TypeDefinition-name,
-    Function, FunctionOrExtern, Extern, FunctionSignature, Local, LocalName)
+    Function, FunctionOrExtern, Extern, FunctionSignature,
+)
 import "./type.watim" as Type (Type, ModuleId, NamedType)
 import "./type-without-holes.watim" as WithoutHoles
 import "./type-resolver.watim" as TypeResolver (TypeResolver)

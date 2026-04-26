@@ -17,12 +17,13 @@ import "../parser.watim" as Parser (GenericType)
 
 import "../resolving/type.watim" as WithHoles (CustomTypeHandle)
 import "../resolving/type-without-holes.watim" as Type (Type)
+import "../resolving/local.watim" as Resolved (LocalName-token)
 import "../resolving/words.watim" as Resolved (VarId, LocalId, LocalId-format)
 import "../resolving/intrinsics.watim" as Resolved
 import "../resolving/top-items.watim" as Resolved (
     FunctionSignature, FunctionSignature-format,
     IntrinsicSignature, MustBeOneOf, ConstraintOnGeneric, TypeShape, MustSatisfyPredicate,
-    LocalName, LocalName-token)
+)
 import "../resolving/module.watim" as Resolved
 
 import "./stack.watim" as Stack (Stack, Parent)
@@ -584,7 +585,7 @@ fn Function-format(fmt: .Formatter, self: .Function) {
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "locals=" Fmt:write
-    $fmt \LocalId-format \Local-format &self.locals Map:format-multi-line<_, _>
+    $fmt \LocalId-format \Local-format &self.locals Map:format-multi-line
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "voids=" Fmt:write

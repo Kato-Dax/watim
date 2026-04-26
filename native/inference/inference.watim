@@ -25,9 +25,10 @@ import "../resolving/type-without-holes.watim" as Type (
 )
 import "../resolving/pretty-type-without-holes.watim" as Type
 
+import "../resolving/local.watim" as Resolved (LocalName, LocalName-token)
 import "../resolving/words.watim" as Resolved (LocalId, LocalId-eq, LocalId-format, FunctionHandle, VarId)
 import "../resolving/top-items.watim" as Resolved (
-    TypeDefinition, FunctionSignature, LocalName, LocalName-token, TypeDefinition-name,
+    TypeDefinition, FunctionSignature, TypeDefinition-name,
     ConstraintOnGeneric(MustBeOneOf, MustSatisfyPredicate),
     TypeShape-matches-Type,
 )

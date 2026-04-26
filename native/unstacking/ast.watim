@@ -5,7 +5,8 @@ import "../../std/util.watim" as Util (bool-format)
 
 import "../lexer.watim" as Lexer (Token, Token-format)
 
-import "../resolving/top-items.watim" as Resolved (LocalName)
+import "../resolving/top-items.watim" as Resolved
+import "../resolving/local.watim" as Resolved
 import "../resolving/type-without-holes.watim" as Type (Type)
 
 import "./source.watim" as Source (Source, Source-format)
@@ -45,7 +46,7 @@ fn Assignment-format(fmt: .Formatter, self: .Assignment) {
 }
 
 struct Local {
-    name: LocalName
+    name: Resolved:LocalName
     type: InferenceHole
     // if this local is a parameter, then this will be non-None
     parameter: Maybe<Type>

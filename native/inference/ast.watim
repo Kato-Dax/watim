@@ -12,11 +12,12 @@ import "../resolving/words.watim" as Resolved (
     LocalId-format, FunctionHandle, FunctionHandle-format,
     VarId, VarId-format, StringWord, StringWord-format,
 )
+import "../resolving/local.watim" as Resolved (LocalName, LocalName-format)
 import "../resolving/top-items.watim" as Resolved (
     Global, Global-format,
     TypeDefinition, TypeDefinition-format,
     Import, Import-format, Extern, Extern-format,
-    FunctionSignature, FunctionSignature-format, LocalName, LocalName-format,
+    FunctionSignature, FunctionSignature-format,
 )
 import "../resolving/type.watim" as ResolvedType (
     ModuleId, CustomTypeHandle, CustomTypeHandle-format,

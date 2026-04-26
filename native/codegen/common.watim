@@ -7,7 +7,8 @@ import "../../std/util.watim" as Util (i32-format)
 import "../../std/byte-slice.watim" as ByteSlice (ByteSlice)
 
 import "../lexer.watim" as Lexer (Token-lexeme)
-import "../resolving/top-items.watim" as Resolved (LocalName-unpack)
+import "../resolving/top-items.watim" as Resolved
+import "../resolving/local.watim" as Resolved (LocalName-unpack)
 import "../resolving/words.watim" as Resolved (LocalId, root-scope, VarId(Local, Global))
 import "../monomorphization/monomizer.watim" as Monomized (type-size, Local)
 import "../monomorphization/type.watim" as Type (

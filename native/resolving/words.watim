@@ -5,6 +5,7 @@ import "../../std/bytes.watim" as Bytes
 import "../../std/array.watim" as Array (Array)
 import "../../std/util.watim" as U (i32-format)
 import "../../std/byte-slice.watim" as ByteSlice (ByteSlice)
+import "../../std/map.watim" as Map (Map)
 
 import "../lexer.watim" as Lexer (Token, Token-format)
 import "../parser.watim" as P (GetField, GetField-format)
@@ -13,6 +14,7 @@ import "./type.watim" as Type (
     ModuleId, CustomTypeHandle, Type, NamedType, CustomTypeType,
     FunType, CustomTypeHandle-format, NamedType-format,
     Types-format, CustomTypeType-format, FunType-format)
+import "./local.watim" as Local (Local, Local-format)
 import "./type-without-holes.watim" as WithoutHoles
 import "./intrinsics.watim" as Intrinsics (Intrinsic, Intrinsic-format)
 
@@ -509,13 +511,24 @@ fn StackAnnotation-format(fmt: .Formatter, self: .StackAnnotation) {
 
 struct Closure {
     token: Token
+    locals: Map<LocalId, Local>
     scope: Scope
 }
 fn Closure-format(fmt: .Formatter, self: .Closure) {
-    $fmt "(Closure " Fmt:write
+    $fmt "(Closure\n" Fmt:write
+    $fmt Fmt:indent
+    $fmt Fmt:write-indent
+    $fmt "token=" Fmt:write
     $fmt &self.token Token-format
-    $fmt " " Fmt:write
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "locals=" Fmt:write
+    $fmt \LocalId-format \Local-format &self.locals Map:format-multi-line
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "scope=" Fmt:write
     $fmt &self.scope Scope-format
+    $fmt Fmt:dedent
     $fmt ")" Fmt:write
 }
 

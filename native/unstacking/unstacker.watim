@@ -22,7 +22,7 @@ import "../resolving/intrinsics.watim" as Resolved
 import "../resolving/top-items.watim" as Resolved (
     FunctionSignature, FunctionSignature-format,
     IntrinsicSignature, MustBeOneOf, ConstraintOnGeneric, TypeShape, MustSatisfyPredicate,
-    LocalName, LocalName-token)
+)
 import "../resolving/module.watim" as Resolved
 
 import "./source.watim" as Source (Source, Source-format, Source-format-shallow, MultiReturnNode, SignatureHandle, SignatureHandle-format)

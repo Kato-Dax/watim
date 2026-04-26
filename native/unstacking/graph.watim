@@ -11,7 +11,6 @@ import "../../std/arena.watim" as Arena (Arena)
 import "../lexer.watim" as Lexer (Token, Token-lexeme, Token-format, Token-line, Token-column)
 
 import "../resolving/words.watim" as Resolved (LocalId)
-import "../resolving/top-items.watim" as Resolved (LocalName-unpack)
 
 import "./source.watim" as Source (Source, MultiReturnNode)
 import "./unstacking.watim" as Unstacked (Function)
