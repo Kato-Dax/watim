@@ -34,6 +34,9 @@ def generate_store(ctx: Ctx, type: TypeId):
     if size == 1:
         ctx.fmt.write("i32.store8")
         return
+    if size == 0:
+        ctx.fmt.write("drop drop")
+        return
     ctx.fmt.write("i32.store")
 
 def generate_type(ctx: Ctx, type: TypeId):

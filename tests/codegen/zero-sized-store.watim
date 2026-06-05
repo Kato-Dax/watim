@@ -1,0 +1,31 @@
+[== Stdin Compiler ==]
+struct Unit {}
+fn main "_start" (ptr: .Unit) {
+    $ptr make Unit store
+
+    make Unit =>ptr
+}
+[== Args Compiler ==]
+compile
+-
+--quiet
+[== Status Compiler ==]
+0
+[== Stdout Compiler ==]
+(module
+	(memory 1 65536)
+	(export "memory" (memory 0))
+	(table funcref (elem))
+	(global $stac:k (mut i32) (i32.const 0))
+	(data (i32.const 0) "")
+	(func $0:main (export "_start") (param $ptr i32)
+		local.get $ptr
+		i32.const 0 ;; make Unit
+		drop drop
+		i32.const 0 ;; make Unit
+		local.get $ptr call $intrinsic:flip drop drop
+	)
+	(func $intrinsic:flip (param $a i32) (param $b i32) (result i32 i32) local.get $b local.get $a)
+	(func $intrinsic:dupi32 (param $a i32) (result i32 i32) local.get $a local.get $a)
+	(func $intrinsic:rotate-left (param $a i32) (param $b i32) (param $c i32) (result i32 i32 i32) local.get $b local.get $c local.get $a)
+)

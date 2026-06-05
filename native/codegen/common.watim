@@ -31,6 +31,9 @@ fn generate-store(ctx: .Ctx, type: TypeId) { block {
     $type-size 1 = if {
         $ctx.fmt "i32.store8" Fmt:write break
     }
+    $type-size 0 = if {
+        $ctx.fmt "drop drop" Fmt:write break
+    }
     $ctx.fmt "i32.store" Fmt:write
 } }
 
