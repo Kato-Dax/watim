@@ -634,6 +634,7 @@ fn unstack-function(arena: .Arena, modules: .Array<Resolved:Module>, function: .
     1 1 =
     0 &
     Array:new &
+    &function.signature.generic-parameters
     make Unstacker @unstacker
     0 loop {
         @i $i $function.locals.values.len = if { break }
@@ -1105,6 +1106,7 @@ fn unstack-word(unstacker: .Unstacker, stack: .Stack, word: .Resolved:Word, rema
                 $parameters Array:reverse
                 $parameters ~ @parameters
                 $return-types @returns
+                $unstacker.generic-parameters ~ @generic-parameters
             } make Maybe.Some =>closure-slot
 
             $unstacker.arena $stack $word.token $parameters ~ $return-types $returns make Source:FromClosure make Source.FromClosure Stack:push

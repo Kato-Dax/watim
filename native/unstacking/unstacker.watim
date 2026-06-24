@@ -102,6 +102,7 @@ struct UnClosure {
     body: Scope
     parameters: Array<InferenceHole>
     returns: Array<InferenceHole>
+    generic-parameters: Array<Token>
 }
 fn UnClosure-format(fmt: .Formatter, self: .UnClosure) {
     $fmt "(UnClosure\n" Fmt:write
@@ -135,6 +136,10 @@ fn UnClosure-format(fmt: .Formatter, self: .UnClosure) {
     $fmt \InferenceHole-format &self.returns Array:format
     $fmt "\n" Fmt:write
     $fmt Fmt:write-indent
+    $fmt "generic-parameters=" Fmt:write
+    $fmt \Token-format &self.generic-parameters Array:format
+    $fmt "\n" Fmt:write
+    $fmt Fmt:write-indent
     $fmt "body=" Fmt:write
     $fmt &self.body Scope-format
     $fmt Fmt:dedent
@@ -158,6 +163,7 @@ struct Unstacker {
     reachable: bool
     next-closure-index: .i32
     closures: .Array<Maybe<UnClosure>>
+    generic-parameters: .Array<Token>
 }
 fn next-closure-slot(unstacker: .Unstacker) -> i32, .Maybe<UnClosure> {
     $unstacker.closures.len

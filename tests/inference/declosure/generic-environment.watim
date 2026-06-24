@@ -1,0 +1,71 @@
+[== Stdin Compiler ==]
+fn main "_start" () {
+    0 generic-function drop
+}
+
+fn generic-function<T>(t: T) -> T {
+    { $t } \(-> T)
+}
+[== Args Compiler ==]
+check
+-
+--quiet
+[== Status Compiler ==]
+0
+[== Stdout Compiler ==]
+(Map
+  "-"=(Module
+    imports=(Map),
+    type-definitions=[
+      (Struct
+        name=(LEFT_BRACE { 6 5),
+        generic-parameters=[(IDENT T 5 21)],
+        fields=[
+          (NamedType (User (IDENT t 5 24)) (Ptr (GenericType (IDENT T 5 27) 0)))])],
+    globals=[],
+    functions=[
+      (Function
+        name=(User (IDENT main 1 4)),
+        export=(Some (STRING "_start" 1 9)),
+        signature=(Signature
+          generic-parameters=[],
+          parameters=[],
+          returns=[]),
+        locals=(Map),
+        body=(Scope 0 [
+          (Number (NUMBER 0 2 5)),
+          (Call (IDENT generic-function 2 7) (FunctionHandle 0 1) [I32]),
+          (Intrinsic (IDENT drop 2 24) (Drop I32))])),
+      (Function
+        name=(User (IDENT generic-function 5 4)),
+        export=None,
+        signature=(Signature
+          generic-parameters=[(IDENT T 5 21)],
+          parameters=[
+            (Parameter (User (IDENT t 5 24)) 0 (GenericType (IDENT T 5 27) 0))],
+          returns=[(GenericType (IDENT T 5 33) 0)]),
+        locals=(Map
+          (LocalId "t" 0 0)=(Local (User (IDENT t 5 24)) (GenericType (IDENT T 5 27) 0) (Some 0))),
+        body=(Scope 0 [
+          (Closure
+            token=(LEFT_BRACE { 6 5),
+            parameters=[],
+            returns=[(GenericType (IDENT T 6 17) 0)],
+            function=(FunctionHandle 0 2),
+            environment=(CustomType 0 0 [(GenericType (IDENT T 5 21) 0)]),
+            captured=[(LocalId "t" 0 0)]),
+          (ClosureCall (BACKSLASH \ 6 12) (FunType (BACKSLASH \ 6 12) [] [(GenericType (IDENT T 6 17) 0)]) [(GenericType (BACKSLASH \ 6 12) 0)])])),
+      (Function
+        name=(AnonymousFunctionName 0 (IDENT generic-function 5 4) (LEFT_BRACE { 6 5)),
+        export=None,
+        signature=(Signature
+          generic-parameters=[(IDENT T 5 21)],
+          parameters=[
+            (Parameter (AnonymousFunctionName 0 (IDENT generic-function 5 4) (LEFT_BRACE { 6 5)) 0 (Ptr (CustomType 0 0 [(GenericType (IDENT T 5 21) 0)])))],
+          returns=[(GenericType (IDENT T 6 17) 0)]),
+        locals=(Map
+          (LocalId "c;losure" 1 0)=(Local (ClosureParam (LEFT_BRACE { 6 5)) (CustomType 0 0 [(GenericType (IDENT T 5 21) 0)]) (Some 0))),
+        body=(Scope 2 [
+          (GetLocal (IDENT t 6 8) (LocalId "c;losure" 1 0) (GenericType (IDENT T 5 27) 0) (GenericType (IDENT T 5 27) 0) [
+            (FieldAccess (IDENT t 6 8) (Ptr (CustomType 0 0 [(GenericType (IDENT T 5 21) 0)])) (Ptr (GenericType (IDENT T 5 27) 0)) 0),
+            (Load (GenericType (IDENT T 5 27) 0))])]))]))

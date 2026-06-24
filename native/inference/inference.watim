@@ -601,7 +601,7 @@ block {
 
         make Struct {
             $closure.token @name
-            $function.signature.generic-parameters @generic-parameters
+            $closure.generic-parameters @generic-parameters
             $environment-fields @fields
         } make TypeDefinition.Struct @environment-struct
 
@@ -609,20 +609,14 @@ block {
         make Type:CustomTypeType {
             $closure.token @token
             $environment-struct-handle @type-definition
-            $pass-through-generic-arguments @generic-arguments
+            $ctx.arena &closure.generic-parameters generic-types-from-generic-parameters @generic-arguments
         } @environment-struct-type
 
         $ctx.arena $ctx.environment-types make Maybe.None $closure-index $environment-struct-type make Maybe.Some Array:extending-set
 
         $ctx.arena $ctx.modules $module-id.index Array:get<_> .type-definitions.values $environment-struct Array:push
 
-        &ctx $closure.environment-type
-        make Type:CustomTypeType {
-            $closure.token @token
-            $environment-struct-handle @type-definition
-            Array:new @generic-arguments
-        } make Type.Custom &
-        fill-hole
+        &ctx $closure.environment-type $environment-struct-type make Type.Custom & fill-hole
 
         $i 1 -
     } match {
@@ -666,7 +660,7 @@ block {
         $ctx.arena &parameters $environment-parameter Array:push
 
         make FunctionSignature {
-            Array:new @generic-parameters
+            $closure.generic-parameters @generic-parameters
             $parameters @parameters
             &ctx &closure.returns fill-holes @returns
         } @signature
@@ -3819,13 +3813,14 @@ fn fill-holes-word(ctx: .Ctx, word: .Unstacked:Word) -> Checked:Word {
                 }
                 case Type.Closure -> {
                     @type
-                    make Checked:IndirectCall {
+                    make Checked:ClosureCall {
                         $word.token @token
                         make Type:FunType {
                             $word.token @token
                             $type.parameters @parameters
                             $type.returns @returns
                         } @type
+                        $ctx &ctx.function-handle lookup-function-signature .generic-parameters $ctx.arena flip $word.token flip generic-parameters-to-arguments @generic-arguments
                     } make Checked:Word.ClosureCall
                 }
                 case _ -> { drop Core:unreachable }
