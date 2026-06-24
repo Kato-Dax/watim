@@ -11,8 +11,9 @@ import "../../std/array.watim" as Array (Array)
 
 import "../parser.watim" as P
 import "../lexer.watim" as L (Token, Token-lexeme, Token-location)
+import "../name.watim" as Name (Name)
 
-import "./local.watim" as Local (Local, LocalName)
+import "./local.watim" as Local (Local, Parameter)
 import "./top-items.watim" as TopItem (
     TypeDefinition, Import, Global, FunctionOrExtern, TopItemHandle,
     ImportItem, StructImport, VariantImport, FunctionImport,
@@ -468,10 +469,7 @@ fn resolve-signatures(ctx: .ModuleCtx, functions: .Array<P:FunctionOrExtern>) ->
 }
 
 fn resolve-signature(ctx: .ModuleCtx, signature: .P:Signature) -> Result<FunctionSignature, ResolveError> { block (-> Result<FunctionSignature, ResolveError>) {
-    $ctx.type-resolver $ctx.arena &signature.parameters TypeResolver:resolve-named-types match {
-        case Error -> { make Result.Error break }
-        case Success -> {}
-    } $ctx flip & named-types-forbid-holes match {
+    $ctx &signature.parameters resolve-parameters match {
         case Error -> { make Result.Error break }
         case Success -> {}
     } @parameters
@@ -487,6 +485,27 @@ fn resolve-signature(ctx: .ModuleCtx, signature: .P:Signature) -> Result<Functio
     $signature.generic-parameters $parameters $returns make FunctionSignature
     make Result.Success
 } }
+
+fn resolve-parameters(ctx: .ModuleCtx, parameters: .Array<P:NamedType>) -> Result<Array<Parameter>, ResolveError> {
+    $ctx.arena $parameters.len Array:new-with-capacity @resolved
+    0 loop {
+        @i $i $parameters.len = if { $resolved make Result.Success break }
+        $parameters $i Array:get @parameter
+        $ctx.type-resolver $ctx.arena &parameter.type TypeResolver:resolve-type match {
+            case Success -> {}
+            case Error -> { make Result.Error break }
+        } & $ctx flip forbid-holes match {
+            case Success -> {}
+            case Error -> { make Result.Error break }
+        } @type
+        &resolved make Parameter {
+            $parameter.name make Name.User @name
+            $i @index
+            $type @type
+        } Array:push-assert-no-alloc
+        $i 1 +
+    }
+}
 
 fn named-types-forbid-holes(ctx: .ModuleCtx, types: .Array<NamedType>) -> Result<Array<WithoutHoles:NamedType>, ResolveError> {
     $ctx.arena $types WithoutHoles:NamedTypes-without-holes match {
@@ -534,22 +553,28 @@ fn resolve-function(
         $i $signature.parameters.len = if { break }
         &signature.parameters $i Array:get<_> @param
         $ctx.arena &env
-        $param.name make LocalName.FromSource $param.type make Maybe<WithoutHoles:Type>.Some make Local
+        $param.name make Parameter {
+            $param.name @name
+            $param.type @type
+            $i @index
+        } make Maybe.Some make Local
         Env:insert drop
         $i 1 + #i
     }
 
     $ctx.arena $ctx.id $ctx.path $ctx.imports $globals $signatures $ctx.type-resolver $ctx.modules &ctx.static-data
-    $type-lookup &env make Maybe<.WordResolver:StructLiteralEnv>.None 0 1 = make WordResolver:WordCtx @word-ctx
+    $type-lookup &env make Maybe<.WordResolver:StructLiteralEnv>.None 0 1 = 0 & make WordResolver:WordCtx @word-ctx
 
     $function.name
     $function.export
     $signature
+    make Maybe.None
     &word-ctx &function.body.words WordResolver:resolve-words match {
         case Error -> { make Result<Function, ResolveError>.Error break }
         case Success -> {}
     } @words
     $env.vars-by-id ~
+    $word-ctx.closure-count ~
     $env.scope-id $words make Scope
     make Function
     make Result<Function, ResolveError>.Success

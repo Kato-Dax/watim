@@ -1,4 +1,4 @@
-import "../../std/core.watim" as Core (dup)
+import "../../std/core.watim" as Core (dup, Unit)
 import "../../std/maybe.watim" as Maybe (Maybe(Some, None), assert-none, assert-some)
 import "../../std/result.watim" as Result (Result(Success, Error))
 import "../../std/arena.watim" as Arena (Arena)
@@ -6,7 +6,7 @@ import "../../std/array.watim" as Array (Array)
 import "../../std/map.watim" as Map (Map)
 import "../../std/byte-slice.watim" as ByteSlice (ByteSlice)
 import "../../std/fmt.watim" as Fmt (Formatter)
-import "../../std/fmt-utils.watim" as Fmt (ByteSlice-format)
+import "../../std/fmt-utils.watim" as Fmt (ByteSlice-format, Unit-format)
 import "../../std/util.watim" as Util (bool-format, i32-format, i32-format-ref)
 
 import "../../std/io.watim" as IO
@@ -26,13 +26,125 @@ import "../resolving/top-items.watim" as Resolved (
 import "../resolving/module.watim" as Resolved
 
 import "./source.watim" as Source (Source, Source-format, Source-format-shallow, MultiReturnNode, SignatureHandle, SignatureHandle-format)
-import "./word.watim" as Word (InferenceHole, InferenceHole-format, InferenceFieldHole, Word, Scope, Scope-format, Intrinsic)
-import "./ast.watim" as Ast (Local)
+import "./word.watim" as Word (InferenceHole, InferenceHole-format, InferenceFieldHole, Word, Scope, Scope-format, Intrinsic, FieldAccess, InferenceFieldHole, ClosureFieldAccess, NextClosureFieldAccess)
+import "./ast.watim" as Ast (Local, Local-format)
 import "./voids.watim" as Voids (StackVoid)
+
+struct LocalInEnv {
+    local-id: LocalId
+    local: .Local
+    fields: ClosureFieldAccess
+}
+struct ClosureEnv {
+    closure-index: i32
+    closure-local: LocalId
+    locals: .Map<LocalId, Local>
+    parent: Maybe<.ClosureEnv>
+    captured: .Map<LocalId, Unit>
+}
+fn ClosureEnv-format(fmt: .Formatter, env: .ClosureEnv) {
+    $fmt "(ClosureEnv " Fmt:write
+    $fmt \LocalId-format \Local-format $env.locals Map:format-multi-line
+    $fmt " " Fmt:write
+    $fmt \ClosureEnv-format $env.parent Maybe:deref & Maybe:format
+    $fmt " " Fmt:write
+    $fmt \LocalId-format \Unit-format $env.captured Map:format-multi-line
+    $fmt ")" Fmt:write
+}
+
+fn ClosureEnv-lookup(arena: .Arena, env: .ClosureEnv, local-id: .LocalId, token: .Token, result-type: InferenceHole) -> Maybe<LocalInEnv> {
+    $env.locals $local-id Map:get-index match {
+        case None -> {
+            $env.parent match {
+                case None -> { make Maybe.None }
+                case Some -> {
+                    @parent
+                    $arena $parent $local-id $token $result-type ClosureEnv-lookup match {
+                        case None -> { make Maybe.None }
+                        case Some -> {
+                            @local-in-env
+
+                            $arena $env.captured $parent.closure-local make Unit Map:insert-get-index @field-index
+
+                            $local-in-env.local-id
+                            $local-in-env.local
+                            $env.closure-index
+                            $field-index
+                            $arena $local-in-env.fields Arena:push make NextClosureFieldAccess.Next
+                            make ClosureFieldAccess
+                            make LocalInEnv
+                            make Maybe.Some
+
+                        }
+                    }
+                }
+            }
+        }
+        case Some -> {
+            @index
+            $arena $env.captured &env.locals.keys $index Array:get<LocalId> ~ make Unit Map:insert-get-index @field-index
+
+            &env.locals.keys $index Array:get ~
+            &env.locals.values $index Array:get
+            $env.closure-index $field-index $result-type make NextClosureFieldAccess.Last make ClosureFieldAccess
+            make LocalInEnv
+            make Maybe.Some
+        }
+    }
+}
+
+struct UnClosure {
+    token: Token
+    environment-type: InferenceHole
+    environment-local: LocalId
+    captured: Array<LocalId>
+    locals: Map<LocalId, Local>
+    body: Scope
+    parameters: Array<InferenceHole>
+    returns: Array<InferenceHole>
+}
+fn UnClosure-format(fmt: .Formatter, self: .UnClosure) {
+    $fmt "(UnClosure\n" Fmt:write
+    $fmt Fmt:indent
+    $fmt Fmt:write-indent
+    $fmt "token=" Fmt:write
+    $fmt &self.token Token-format
+    $fmt "\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "environment-type=" Fmt:write
+    $fmt &self.environment-type InferenceHole-format
+    $fmt "\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "environment-local=" Fmt:write
+    $fmt &self.environment-local LocalId-format
+    $fmt "\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "captured=" Fmt:write
+    $fmt \LocalId-format &self.captured Array:format
+    $fmt "\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "locals=" Fmt:write
+    $fmt \LocalId-format \Local-format &self.locals Map:format-multi-line
+    $fmt "\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "parameters=" Fmt:write
+    $fmt \InferenceHole-format &self.parameters Array:format
+    $fmt "\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "returns=" Fmt:write
+    $fmt \InferenceHole-format &self.returns Array:format
+    $fmt "\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "body=" Fmt:write
+    $fmt &self.body Scope-format
+    $fmt Fmt:dedent
+    $fmt ")" Fmt:write
+}
 
 struct Unstacker {
     arena: .Arena
     locals: .Map<LocalId, Local>
+    closure-env: Maybe<ClosureEnv>
     modules: .Array<Resolved:Module>
     voids: .Array<StackVoid>
     holes: .Holes
@@ -44,6 +156,18 @@ struct Unstacker {
     struct-init-type: Maybe<InferenceHole>
     struct-field-init-arguments: .Array<Maybe<Source>>
     reachable: bool
+    next-closure-index: .i32
+    closures: .Array<Maybe<UnClosure>>
+}
+fn next-closure-slot(unstacker: .Unstacker) -> i32, .Maybe<UnClosure> {
+    $unstacker.closures.len
+    $unstacker.arena $unstacker.closures make Maybe.None Array:push
+    $unstacker.closures Array:last
+}
+fn with-closure-env(unstacker: .Unstacker, closure-env: ClosureEnv) -> Unstacker {
+    $unstacker ~ @new
+    $closure-env make Maybe.Some #new.closure-env
+    $new
 }
 fn with-break-stacks(unstacker: .Unstacker, break-stacks: .Array<BreakStack>, block-returns: Maybe<.Array<InferenceHole>>) -> Unstacker {
     $unstacker ~ @new
@@ -60,6 +184,11 @@ fn with-struct-init(unstacker: .Unstacker, type: InferenceHole, arguments: .Arra
     $unstacker ~ @new
     $type make Maybe<InferenceHole>.Some #new.struct-init-type
     $arguments #new.struct-field-init-arguments
+    $new
+}
+fn with-locals(unstacker: .Unstacker, locals: .Map<LocalId, Local>) -> Unstacker {
+    $unstacker ~ @new
+    $locals #new.locals
     $new
 }
 

@@ -15,7 +15,7 @@ resolve
         name=(IDENT Struct 1 8),
         generic-parameters=[],
         fields=[
-          (NamedType (IDENT a 2 5) I32)])),
+          (NamedType (User (IDENT a 2 5)) I32)])),
     globals=(Map),
     functions=(Map),
     static-data=""),

@@ -14,7 +14,7 @@ fn main "_start" () {
 0
 [== Stdout Compiler ==]
 (module
-	(import "wasi_snapshot_preview1" "proc_exit" (func $0:proc_exit (param $code i32)))
+	(import "wasi_snapshot_preview1" "proc_exit" (func $0:proc_exit (param i32)))
 	(memory 1 65536)
 	(export "memory" (memory 0))
 	(table funcref (elem))

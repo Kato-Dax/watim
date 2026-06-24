@@ -19,9 +19,10 @@ import "../monomorphization/monomizer.watim" as Monomized (
     Scope, Word, MakeStruct, Intrinsic, FieldAccess, MatchCase,
     I32-id, I64-id, type-size, field-offset, can-live-in-reg,
     globl-lives-in-memory, local-lives-in-memory,
+    FieldAccesses,
 )
 import "../monomorphization/type.watim" as Type (
-    Type(I32, I8, I64, Bool, Fun, Custom, Ptr),
+    Type(I32, I8, I64, Bool, Fun, Custom, Ptr, Closure),
     NamedTypeId, TypeId, TypeId-format, FunType,
     CustomType(Struct, Variant), CustomType-name,
     Variant, VariantCase, Struct,
@@ -40,6 +41,7 @@ import "./common.watim" as Common (
     generate-local-ident, generate-type, generate-var-ident,
     generate-parameters-unnamed, generate-returns,
     generate-type-pretty, generate-store,
+    FunctionOrExtern-generate-name,
 )
 import "./intrinsic.watim" as IntrinsicGen (generate-intrinsic)
 
@@ -162,10 +164,13 @@ fn generate-word(ctx: .Ctx, module: i32, locals: .Map<LocalId, Local>, word: .Wo
             $ctx.fmt "call $" Fmt:write
             $ctx.fmt $word.function.module.index i32-format
             $ctx.fmt ":" Fmt:write
-            $ctx.fmt $ctx.program &word.function lookup-function match {
-                case FunctionOrExtern.Extern -> { @ext &ext.name &ext.signature }
-                case FunctionOrExtern.Function -> { @fun &fun.name &fun.signature }
-            } @signature Token-lexeme Fmt:write
+            $ctx.program &word.function lookup-function @function
+
+            $ctx.fmt &function FunctionOrExtern-generate-name
+            $function match {
+                case FunctionOrExtern.Extern -> { .signature }
+                case FunctionOrExtern.Function -> { .signature }
+            } @signature
             $word.function.instance 0 /= if {
                 $ctx.fmt ":" Fmt:write
                 $ctx.fmt $word.function.instance i32-format
@@ -257,7 +262,7 @@ fn generate-word(ctx: .Ctx, module: i32, locals: .Map<LocalId, Local>, word: .Wo
                 }
             }
         }
-        case Word.MakeStruct -> { $ctx flip generate-make-struct }
+        case Word.MakeStruct -> { $ctx flip 0 1 = generate-make-struct }
         case Word.MakeStructNamed -> { block {
             @word
             $ctx.program $word.type lookup-type match {
@@ -615,6 +620,20 @@ fn generate-word(ctx: .Ctx, module: i32, locals: .Map<LocalId, Local>, word: .Wo
             $ctx.fmt ")" Fmt:write
             $ctx $word.copy-space-offset &fun-type.returns generate-return-receivers
         }
+        case Word.ClosureCall -> {
+            @word
+            $ctx.program $word.type lookup-type match {
+                case Closure -> {}
+                case _ -> { drop Core:unreachable<.FunType> }
+            } @fun-type
+            $ctx generate-unpack-i32s
+            $ctx.fmt " (call_indirect" Fmt:write
+            $ctx &fun-type.parameters generate-parameters-unnamed
+            $ctx.fmt " (param i32)" Fmt:write
+            $ctx &fun-type.returns generate-returns
+            $ctx.fmt ")" Fmt:write
+            $ctx $word.copy-space-offset &fun-type.returns generate-return-receivers
+        }
         case Word.GetField -> {
             @word
             0 !.Arena Arena:temp @temp @temp-save
@@ -668,13 +687,32 @@ fn generate-word(ctx: .Ctx, module: i32, locals: .Map<LocalId, Local>, word: .Wo
         }
         case Word.Closure -> {
             @word
-            $ctx.fmt "closure" Fmt:write
+
+            $ctx.fmt ";; closure " Fmt:write
+            $ctx.fmt &word.token Token-format
+            $ctx.fmt "\n" Fmt:write $ctx.fmt Fmt:write-indent
+            0 loop {
+                @i $i $word.captured.len = if { break }
+                &word.captured $i Array:get @local-id
+                $ctx.fmt "local.get " Fmt:write
+                $ctx $locals $local-id ~ make VarId.Local & generate-var-ident
+                $ctx.fmt " " Fmt:write
+                $i 1 +
+            }
+            $ctx $word.environment $word.copy-space-offset make MakeStruct & 1 1 = generate-make-struct
+            $ctx.fmt "\n" Fmt:write
+            $ctx.fmt Fmt:write-indent
+
+            $ctx.fmt "i32.const " Fmt:write
+            $ctx.fmt $word.table-index 1 + i32-format
+            $ctx.fmt " " Fmt:write
+            $ctx generate-pack-i32s
         }
     }
     $ctx.fmt "\n" Fmt:write
 }
 
-fn generate-make-struct(ctx: .Ctx, word: .MakeStruct) { block {
+fn generate-make-struct(ctx: .Ctx, word: .MakeStruct, always-in-memory: bool) { block {
     $ctx.program $word.type lookup-type match {
         case Custom -> {}
         case _ -> { drop Core:unreachable<.CustomTypeHandle> }
@@ -686,18 +724,19 @@ fn generate-make-struct(ctx: .Ctx, word: .MakeStruct) { block {
 
     &ctx.program.sizes $word.type type-size @type-size
 
-    $type-size 8 le if {
-        $type-size 0 = if {
-            0 @i
-            loop {
-                $i $struc.fields.len = if { break }
-                $ctx.fmt "drop " Fmt:write
-                $i 1 + #i
-            }
-            $ctx.fmt "i32.const 0 ;; make " Fmt:write
-            $ctx $word.type generate-type-pretty
-            break
+    $type-size 0 = if {
+        0 @i
+        loop {
+            $i $struc.fields.len = if { break }
+            $ctx.fmt "drop " Fmt:write
+            $i 1 + #i
         }
+        $ctx.fmt "i32.const 0 ;; make " Fmt:write
+        $ctx $word.type generate-type-pretty
+        break
+    }
+
+    $always-in-memory not $type-size 8 le and if {
         $struc.fields.len 1 = if {
             $ctx.fmt ";; make " Fmt:write
             $ctx $word.type generate-type-pretty
@@ -760,9 +799,13 @@ fn generate-make-struct(ctx: .Ctx, word: .MakeStruct) { block {
         &ctx.program.sizes $field.type type-size @field-size
         &ctx.program.sizes $struc $field-index field-offset @field-offset
         $ctx.fmt Fmt:write-indent
-        $ctx.fmt "local.get $locl-copy-spac:e i32.const " Fmt:write
-        $ctx.fmt $word.copy-space-offset $field-offset + i32-format
-        $ctx.fmt " i32.add " Fmt:write
+        $ctx.fmt "local.get $locl-copy-spac:e " Fmt:write
+        $word.copy-space-offset $field-offset + @copy-space-offset
+        $copy-space-offset 0 /= if {
+            $ctx.fmt "i32.const " Fmt:write
+            $ctx.fmt $copy-space-offset i32-format
+            $ctx.fmt " i32.add " Fmt:write
+        }
         $field-size 4 gt $field-size 8 le and if {
             $ctx generate-flip-i64-i32
         } else {
@@ -775,9 +818,13 @@ fn generate-make-struct(ctx: .Ctx, word: .MakeStruct) { block {
     }
     $ctx.fmt Fmt:dedent
     $ctx.fmt Fmt:write-indent
-    $ctx.fmt "local.get $locl-copy-spac:e i32.const " Fmt:write
-    $ctx.fmt $word.copy-space-offset i32-format
-    $ctx.fmt " i32.add ;; make " Fmt:write
+    $ctx.fmt "local.get $locl-copy-spac:e" Fmt:write
+    $word.copy-space-offset 0 /= if {
+        $ctx.fmt " i32.const " Fmt:write
+        $ctx.fmt $word.copy-space-offset i32-format
+        $ctx.fmt " i32.add" Fmt:write
+    }
+    $ctx.fmt " ;; make " Fmt:write
     $ctx $word.type generate-type-pretty
     $ctx.fmt " end" Fmt:write
 } }
@@ -837,14 +884,14 @@ fn generate-return-receivers(ctx: .Ctx, offset: i32, returns: .Array<TypeId>) {
     }
 }
 
-fn fields-go-through-ptr(ctx: .Ctx, fields: .Array<FieldAccess>) -> bool {
-    0 @i
-    loop {
-        $i $fields.len = if {
-            // No field access went through a pointer,
-            0 1 = break
-        }
-        $ctx.program $fields $i Array:get<FieldAccess> .source-type ~ lookup-type match {
+fn fields-go-through-ptr(ctx: .Ctx, fields: .FieldAccesses) -> bool {
+    $fields loop {
+        match {
+            case FieldAccesses.End -> { 0 1 = break }
+            case FieldAccesses.Load -> { drop 1 1 = break }
+            case FieldAccesses.FieldAccess -> {}
+        } ~ @step
+        $ctx.program $step.access.source-type lookup-type match {
             case Ptr -> {
                 drop
                 // At least one field access goes through a pointer,
@@ -852,7 +899,7 @@ fn fields-go-through-ptr(ctx: .Ctx, fields: .Array<FieldAccess>) -> bool {
             }
             case _ -> { drop }
         }
-        $i 1 + #i
+        &step.next
     }
 }
 
@@ -979,11 +1026,21 @@ fn merge-loads(arena: .Arena, loads: List<Load>) -> List<Load> { block (-> List<
     }
 } }
 
-fn determine-loads(arena: .Arena, ctx: .Ctx, fields: .Array<FieldAccess>, just-ref: bool, base-in-mem: bool) -> List<Load> { block {
-    $fields.len 0 = if { List:empty<Load> break }
+fn determine-loads(arena: .Arena, ctx: .Ctx, fields: .FieldAccesses, just-ref: bool, base-in-mem: bool) -> List<Load> { block {
+    $fields match {
+        case FieldAccesses.End -> { List:empty<Load> break }
+        case FieldAccesses.Load -> {
+            // TODO: Throughout this entire function, references to stack variables are returned.
+            //       The Linked list is constructed on the stack, but the stack is already gone.
+            //       It's surprising this didn't already cause problems.
+            ~ 0 make TypeAtOffset make Load.OffsetLoad List:empty & List:cons break
+        }
+        case FieldAccesses.FieldAccess -> { ~ }
+    }
+    @first
 
-    $fields 0 Array:get<FieldAccess> @field
-    $fields Array:tail<FieldAccess> @tail
+    &first.access @field
+    $first.next @tail
 
     &ctx.program.sizes $field.source-type type-size @source-type-size
     $ctx.program $field.source-type lookup-type match {
@@ -995,7 +1052,7 @@ fn determine-loads(arena: .Arena, ctx: .Ctx, fields: .Array<FieldAccess>, just-r
 
                     block {
                         $base-in-mem $source-type-size 8 gt or if {
-                            $fields.len 1 gt $just-ref or if {
+                            $tail make FieldAccesses.End = not $just-ref or if {
                                 $offset 0 = if {
                                     $arena $ctx &tail $just-ref 1 1 = determine-loads break
                                 }
@@ -1068,8 +1125,8 @@ fn determine-loads(arena: .Arena, ctx: .Ctx, fields: .Array<FieldAccess>, just-r
 
             &ctx.program.sizes $field.target-type type-size @target-type-size
 
-            $just-ref $fields.len 1 = and
-            $target-type-size 8 gt $fields.len 1 /= and
+            $just-ref $tail make FieldAccesses.End = and
+            $target-type-size 8 gt $tail make FieldAccesses.End /= and
             or if {
                 $offset 0 = if {
                     $arena $ctx &tail $just-ref $base-in-mem determine-loads

@@ -17,12 +17,21 @@ fn pretty(fmt: .Formatter, modules: .Array<Module>, self: .Type) { block {
         case Type.Ptr -> { $fmt "." Fmt:write ~ $modules flip pretty break }
         case Type.Custom -> { $modules flip CustomTypeType-pretty break }
         case Type.Fun -> { $modules flip FunType-pretty break }
+        case Type.Closure -> { $modules flip ClosureType-pretty break }
         case Type.Generic -> { Parser:GenericType-pretty break }
     } Fmt:write
 } }
 
 fn FunType-pretty(fmt: .Formatter, modules: .Array<Module>, self: .FunType) {
     $fmt "(" Fmt:write
+    $fmt $modules &self.parameters Types-pretty
+    $fmt " -> " Fmt:write
+    $fmt $modules &self.returns Types-pretty
+    $fmt ")" Fmt:write
+}
+
+fn ClosureType-pretty(fmt: .Formatter, modules: .Array<Module>, self: .FunType) {
+    $fmt "\\(" Fmt:write
     $fmt $modules &self.parameters Types-pretty
     $fmt " -> " Fmt:write
     $fmt $modules &self.returns Types-pretty

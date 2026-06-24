@@ -14,7 +14,8 @@ import "../../std/list.watim" as List (List)
 import "../../std/util.watim" as Util (i32-format)
 
 import "../lexer.watim" as Lexer (Token, Token-lexeme, Token-format, Token-line, Token-column, TokenTy, Token-new-synthetic)
-import "../parser.watim" as Parser
+import "../name.watim" as Name (Name, AnonymousFunctionName, Name-token, Name-unpack)
+import "../parser.watim" as Parser (GenericType)
 
 import "../resolving/type.watim" as WithHoles (
     CustomTypeHandle, CustomTypeHandle-eq, ModuleId,
@@ -25,12 +26,12 @@ import "../resolving/type-without-holes.watim" as Type (
 )
 import "../resolving/pretty-type-without-holes.watim" as Type
 
-import "../resolving/local.watim" as Resolved (LocalName, LocalName-token)
-import "../resolving/words.watim" as Resolved (LocalId, LocalId-eq, LocalId-format, FunctionHandle, VarId)
+import "../resolving/local.watim" as Resolved (Parameter, Parameter-type)
+import "../resolving/words.watim" as Resolved (LocalId, LocalId-eq, LocalId-format, FunctionHandle, VarId, LocalId-clone)
 import "../resolving/top-items.watim" as Resolved (
     TypeDefinition, FunctionSignature, TypeDefinition-name,
     ConstraintOnGeneric(MustBeOneOf, MustSatisfyPredicate),
-    TypeShape-matches-Type,
+    TypeShape-matches-Type, Struct,
 )
 import "../resolving/module.watim" as Resolved
 import "../resolving/type-lookup.watim" as Resolved
@@ -44,7 +45,7 @@ import "../unstacking/source.watim" as Source (
     ),
     SignatureHandle,
 )
-import "../unstacking/word.watim" as Unstacked (InferenceHole, InferenceFieldHole)
+import "../unstacking/word.watim" as Unstacked (InferenceHole, InferenceFieldHole, NextClosureFieldAccess)
 import "../unstacking/unstacker.watim" as Unstacked (Holes, Holes-lookup, Holes-fill)
 import "../unstacking/unstacking.watim" as Unstacked (
     intrinsic-signatures,
@@ -54,7 +55,7 @@ import "../unstacking/graph.watim" as Graph
 import "../unstacking/voids.watim" as Unstacked (StackVoid)
 import "../unstacking/ast.watim" as Unstacked
 
-import "./ast.watim" as Checked (Module, FunctionOrExtern, Function)
+import "./ast.watim" as Checked (Module, FunctionOrExtern, Function, FieldAccesses, FieldAccessStep)
 import "./origin.watim" as Origin (Origin())
 import "./error.watim" as Error (Error, error, error-with-origin)
 
@@ -79,16 +80,35 @@ fn infer-function(
     arena: .Arena,
     modules: .Array<Resolved:Module>,
     globals: .Array<Resolved:Global>,
+    module-id: ModuleId,
     function: .Unstacked:Function,
+    function-handle: FunctionHandle,
     log-level: LogLevel
-) -> Result<Function, Error> { block {
+) -> Result<Array<Function>, Error> { block {
+    $arena Arena:temp @temp @save
+    $temp &function.locals Map:clone @locals-of-function-and-all-closures
+    0 loop {
+        @i $i $function.closures.len = if { break }
+        $temp
+        &locals-of-function-and-all-closures
+        &function.closures $i Array:get .locals
+        Map:extend
+        $i 1 +
+    }
+
+    Array:new @environment-types
+
     make Ctx {
         $arena @arena
         $log-level @log-level
         $arena 2 Fmt:to-fd "    " Fmt:use-indentation Arena:push<_> @fmt
         $modules @modules
-        &function.locals @locals
+        $module-id @module-id
+        $function-handle @function-handle
+        &locals-of-function-and-all-closures @locals
         $globals @globals
+        &function.closures @closures
+        &environment-types @environment-types
         $arena &function.holes Unstacked:Holes-clone @holes
         \ptr-eq<Source> Map:new<.Source, InferenceState> @states
         &function.nodes @nodes
@@ -100,6 +120,8 @@ fn infer-function(
         1 @progress
         0 1 = @ignore-being-inferred
     } @ctx
+
+    &ctx $ctx.function-handle fix-function-handle #ctx.function-handle
 
     $ctx.log-level match {
         case NoLogs -> {}
@@ -120,7 +142,7 @@ block {
         &local.parameter match {
             case None -> {}
             case Some -> {
-                &ctx flip $local.type flip fill-hole
+                &ctx flip $local.type flip .type fill-hole
             }
         }
         $i 1 +
@@ -152,11 +174,11 @@ block {
                     }
                     $i 1 +
                 } match {
-                    case Some -> { make Result<Function, Error>.Error break }
+                    case Some -> { make Result.Error break }
                     case None -> {}
                 }
                 &fmt "]" Fmt:write
-                &function.name $buf Array:unpack<_> error make Result<Function, Error>.Error break
+                &function.name $buf Array:unpack<_> error make Result.Error break
             }
         }
     }
@@ -182,7 +204,7 @@ block {
 
                 $i 1 +
             } match {
-                case Error -> { make Result<Function, Error>.Error break }
+                case Error -> { make Result.Error break }
                 case Success -> { useless }
             }
         }
@@ -337,7 +359,9 @@ block {
                             case Some -> {
                                 @returns
 
-                                $void.token $parameters $returns make Type:FunType make Type.Fun @known
+                                $void.token $parameters $returns make Type:FunType 
+                                $void.closure if { make Type.Closure } else { make Type.Fun } @known
+                                &ctx $void.function-type &known fill-hole
                                 &ctx $function &known &origin check match {
                                     case None -> { 0 1 = }
                                     case _ -> { break }
@@ -517,7 +541,7 @@ block {
         &ctx logging if { $ctx.fmt Fmt:dedent }
     } match {
         case None -> {}
-        case Some -> { make Result<Function, Error>.Error break }
+        case Some -> { make Result.Error break }
     }
 
     0 loop {
@@ -532,10 +556,7 @@ block {
                     case Success -> {}
                 } match {
                     case None -> {
-                        &local.name match {
-                            case LocalName.FromSource -> {}
-                            case _ -> { drop Core:unreachable<.Token> }
-                        }
+                        &local.name Name-token
                         "StackVoid.SetLocal failed to infer type of local" error make Maybe<Error>.Some break
                     }
                     case Some -> {}
@@ -543,7 +564,7 @@ block {
             }
         } @local-type
 
-        &local.name LocalName-token ~ $local-type make Origin:FromLocal make Origin.FromLocal List:empty & List:cons @origin
+        &local.name Name-token ~ $local-type make Origin:FromLocal make Origin.FromLocal List:empty & List:cons @origin
         &ctx $local &local-type &origin check-local-assignments match {
             case None -> {}
             case _ -> { break }
@@ -552,21 +573,136 @@ block {
         $i 1 +
     } match {
         case None -> {}
-        case Some -> { make Result<Function, Error>.Error break }
+        case Some -> { make Result.Error break }
+    }
+
+    $ctx.arena $function.closures.len 1 + Array:new-with-capacity @functions
+
+    $ctx.arena &function.signature.generic-parameters generic-types-from-generic-parameters @pass-through-generic-arguments
+
+    $ctx.modules $module-id.index Array:get<_> .type-definitions Core:dup $ctx.arena flip Map:clone store
+
+    $function.closures.len loop {
+        @i $i 0 = if { make Maybe<Error>.None break }
+        $i 1 - @closure-index
+        &function.closures $closure-index Array:get @closure
+
+        Array:new @environment-fields
+        0 loop {
+            @i $i $closure.captured.len = if { break }
+            &closure.captured $i Array:get @captured-local-id
+            &locals-of-function-and-all-closures $captured-local-id Map:get Maybe:assert-some @captured-local
+
+            &ctx $captured-local.type lookup-hole Maybe:assert-some make Type.Ptr
+            $captured-local.name flip make NamedType
+            $ctx.arena flip &environment-fields flip Array:push
+            $i 1 +
+        }
+
+        make Struct {
+            $closure.token @name
+            $function.signature.generic-parameters @generic-parameters
+            $environment-fields @fields
+        } make TypeDefinition.Struct @environment-struct
+
+        $module-id $ctx.modules $module-id.index Array:get<_> .type-definitions.values.len ~ make CustomTypeHandle @environment-struct-handle
+        make Type:CustomTypeType {
+            $closure.token @token
+            $environment-struct-handle @type-definition
+            $pass-through-generic-arguments @generic-arguments
+        } @environment-struct-type
+
+        $ctx.arena $ctx.environment-types make Maybe.None $closure-index $environment-struct-type make Maybe.Some Array:extending-set
+
+        $ctx.arena $ctx.modules $module-id.index Array:get<_> .type-definitions.values $environment-struct Array:push
+
+        &ctx $closure.environment-type
+        make Type:CustomTypeType {
+            $closure.token @token
+            $environment-struct-handle @type-definition
+            Array:new @generic-arguments
+        } make Type.Custom &
+        fill-hole
+
+        $i 1 -
+    } match {
+        case None -> {}
+        case Some -> { make Result.Error break }
     }
 
     &ctx &function.body fill-holes-scope @body
-    make Function {
-        $function.name @name
+    &functions make Function {
+        $function.name make Name.User @name
         $function.export @export
         $function.signature @signature
         &ctx &function.locals fill-holes-locals @locals
         $body @body
+    } Array:push-assert-no-alloc
+
+    $function.closures.len loop {
+        @i $i 0 = if { break }
+        $i 1 - @closure-index
+        &function.closures $closure-index Array:get @closure
+
+        &ctx &closure.parameters fill-holes @parameter-types
+
+        $function.name $closure.token $closure-index make AnonymousFunctionName make Name.AnonymousFunction @closure-name
+
+        Array:new @parameters
+        0 loop {
+            @i $i $parameter-types.len = if { break }
+            $ctx.arena &parameters make Parameter {
+                $closure.token make Name.ClosureParam @name
+                &parameter-types $i Array:get ~ @type
+                $i @index
+            } Array:push
+            $i 1 +
+        }
+        make Parameter {
+            $parameters.len @index
+            $closure-name @name
+            $ctx.arena &ctx $closure.environment-type fill Arena:push make Type.Ptr @type
+        } @environment-parameter
+        $ctx.arena &parameters $environment-parameter Array:push
+
+        make FunctionSignature {
+            Array:new @generic-parameters
+            $parameters @parameters
+            &ctx &closure.returns fill-holes @returns
+        } @signature
+
+        &ctx &closure.locals fill-holes-locals @locals
+        &locals &closure.environment-local Map:get Maybe:assert-some @environment-local
+        $environment-parameter.index make Maybe.Some #environment-local.parameter-index
+
+        &functions make Function {
+            $closure-name @name
+            make Maybe.None @export
+            $signature @signature
+            $closure.environment-local @environment-local
+            $locals @locals
+            &ctx &closure.body fill-holes-scope @body
+        } Array:push-assert-no-alloc
+
+        $i 1 -
     }
-    make Result<Function, Error>.Success
+
+    &functions $functions.len $function.closures.len - $functions.len 1 - Array:slice & Array:reverse
+
+    $functions make Result<Array<Function>, Error>.Success
 }
+$temp $save Arena:restore
 &ctx logging if { $ctx.fmt Fmt:dedent }
 } }
+
+fn generic-types-from-generic-parameters(arena: .Arena, parameters: .Array<Token>) -> Array<Type> {
+    $arena $parameters.len Array:new-with-capacity @types
+    0 loop {
+        @i $i $parameters.len = if { $types break }
+        &types $parameters $i Array:get ~ $i make GenericType make Type.Generic Array:push-assert-no-alloc
+        $i 1 +
+    }
+}
 
 fn call-argument-mismatch-error(
     ctx: .Ctx,
@@ -651,10 +787,14 @@ struct Ctx {
     arena: .Arena
     log-level: LogLevel
     fmt: .Formatter
+    function-handle: FunctionHandle
     modules: .Array<Resolved:Module>
+    module-id: ModuleId
     locals: .Map<LocalId, Unstacked:Local>
     states: Map<.Source, InferenceState>
     globals: .Array<Resolved:Global>
+    closures: .Array<Unstacked:UnClosure>
+    environment-types: .Array<Maybe<Type:CustomTypeType>>
     holes: Holes
     nodes: .Array<MultiReturnNode>
     field-holes: Array<Maybe<i32>>
@@ -676,6 +816,25 @@ fn lookup-hole(ctx: .Ctx, hole: InferenceHole) -> Maybe<.Type> {
     &ctx.holes &hole Holes-lookup
 }
 
+fn fix-function-handle(ctx: .Ctx, function-handle: FunctionHandle) -> FunctionHandle {
+    $ctx.modules $function-handle.module.index Array:get @resolved-module
+    0 @shifted-id
+    0 loop {
+        @i $i $resolved-module.functions.values.len = if { 0 0 / drop uninit break }
+        $i $function-handle.index = if {
+            $function-handle.module $shifted-id make FunctionHandle break
+        }
+        &resolved-module.functions.values $i Array:get match {
+            case Resolved:FunctionOrExtern.Extern -> { drop 1 }
+            case Resolved:FunctionOrExtern.Function -> {
+                @function
+                $function.closure-count 1 +
+            }
+        } $shifted-id + #shifted-id
+        $i 1 +
+    }
+}
+
 fn Struct-signature(ctx: .Ctx, handle: CustomTypeHandle) -> .FunctionSignature { block {
     &ctx.custom-type-signatures &handle Map:get<_, _> match {
         case Some -> { break }
@@ -693,11 +852,21 @@ fn Struct-signature(ctx: .Ctx, handle: CustomTypeHandle) -> .FunctionSignature {
 
     make FunctionSignature {
         $struc.generic-parameters @generic-parameters
-        $struc.fields @parameters
+        $ctx.arena &struc.fields NamedTypes-to-Parameters @parameters
         $ctx.arena $type Array:singleton<_> @returns
     } $ctx.arena flip &ctx.custom-type-signatures flip $handle flip Map:insert<_, _> drop
     $ctx $handle Struct-signature
 } }
+
+fn NamedTypes-to-Parameters(arena: .Arena, named-types: .Array<NamedType>) -> Array<Parameter> {
+    $arena $named-types.len Array:new-with-capacity @parameters
+    0 loop {
+        @i $i $named-types.len = if { $parameters break }
+        $named-types $i Array:get @named-type
+        &parameters $named-type.name $i $named-type.type make Parameter Array:push-assert-no-alloc
+        $i 1 +
+    }
+}
 
 fn Variant-signature(ctx: .Ctx, handle: CustomTypeHandle, tag: i32) -> .FunctionSignature { block {
     &ctx.custom-type-signatures &handle Map:get<_, _> match {
@@ -717,7 +886,7 @@ fn Variant-signature(ctx: .Ctx, handle: CustomTypeHandle, tag: i32) -> .Function
     &varint.cases $tag Array:get @cays
     make FunctionSignature {
         $varint.generic-parameters @generic-parameters
-        $ctx.arena $cays.name &cays.type Maybe:ref Maybe:assert-some ~ make NamedType Array:singleton @parameters
+        $ctx.arena $cays.name make Name.User 0 &cays.type Maybe:ref Maybe:assert-some ~ make Parameter Array:singleton @parameters
         $ctx.arena $type Array:singleton<_> @returns
     } $ctx.arena flip &ctx.custom-type-signatures flip $handle flip Map:insert<_, _> drop
     $ctx $handle $tag Variant-signature
@@ -831,7 +1000,7 @@ fn traverse-fields(ctx: .Ctx, local-type: .Type, fields: .Array<Unstacked:FieldA
                         &access.name "field not found" error make Result<TypeAtFieldIndex, Error>.Error break
                     }
                     &struc.fields $i Array:get<_> @field
-                    &field.name Token-lexeme &access.name Token-lexeme Bytes:eq if {
+                    &field.name Name-unpack &access.name Token-lexeme Bytes:eq if {
                         $ctx.arena &field.type &custom-type.generic-arguments Type:with-generics
                         $i
                         make TypeAtFieldIndex make Result<TypeAtFieldIndex, Error>.Success break
@@ -1242,7 +1411,7 @@ fn check(ctx: .Ctx, source: .Source, known: .Type, origin: .List<Origin>) -> May
             case Source.FromClosure -> {
                 @source
                 $known match {
-                    case Type.Fun -> {}
+                    case Type.Closure -> {}
                     case _ -> { drop &source.token "check FromClosure: TODO" error make Maybe.Some break }
                 } @known
 
@@ -1422,7 +1591,7 @@ fn check-from-node(ctx: .Ctx, source: .Source:FromNode, known: .Type, origin: .L
                         } @argument-type
 
                         $signature match {
-                            case Signature.Function -> { $ctx flip .parameters &source.generic-arguments $i &argument-type fit-to-types-named }
+                            case Signature.Function -> { $ctx flip .parameters &source.generic-arguments $i &argument-type fit-to-parameters }
                             case Signature.Intrinsic -> { $ctx flip .parameters &source.generic-arguments $i &argument-type fit-to-types }
                         } match {
                             case UnificationResult.Success -> {}
@@ -1685,29 +1854,59 @@ fn check-from-node(ctx: .Ctx, source: .Source:FromNode, known: .Type, origin: .L
             @source
             $source.return-types.len $return-depth - 1 - @return-index
             $ctx &source.return-types $return-index Array:get<_> ~ lookup-hole match {
-                case Some -> {}
-                case None -> {
+                // case Some -> {} // TODO use this
+                case _ -> {
+                    drop
                     $source.function match {
                         case None -> {
                             &source.token "check IndirectCall: expected function as item on stack" error make Maybe<Error>.Some break
                         }
                         case Some -> {}
                     } @function
-                    $ctx $function infer match {
-                        case Error -> { make Maybe<Error>.Some break }
-                        case Success -> {}
-                    } match {
-                        case None -> {
-                            &source.token "check IndirectCall: failed to infer function type" error make Maybe<Error>.Some break
+                    $ctx &source.parameters lookup-holes @parameters
+                    $ctx &source.return-types lookup-holes @returns
+                    $parameters match {
+                        case Some -> {
+                            @parameters
+                            $returns match {
+                                case Some -> {
+                                    @returns
+                                    $source.token $parameters $returns make Type:FunType
+                                    make Maybe.Some
+                                }
+                                case None -> { make Maybe.None }
+                            }
                         }
-                        case Some -> {}
+                        case None -> { make Maybe.None }
                     } match {
-                        case Type.Fun -> {}
-                        case _ -> {
-                            drop
-                            &source.token "check IndirectCall: expected function" error make Maybe<Error>.Some break
+                        case Some -> {}
+                        case None -> {
+                            $ctx $function infer match {
+                                case Error -> { make Maybe<Error>.Some break }
+                                case Success -> {}
+                            } match {
+                                case None -> {
+                                    &source.token "check IndirectCall: failed to infer function type" error make Maybe<Error>.Some break
+                                }
+                                case Some -> {
+                                    Core:dup $ctx flip $source.function-type flip & fill-hole
+                                }
+                            } match {
+                                case Type.Fun -> {}
+                                case Type.Closure -> {}
+                                case _ -> {
+                                    drop
+                                    &source.token "check IndirectCall: expected function" error make Maybe<Error>.Some break
+                                }
+                            }
                         }
                     } @function-type
+                    $function-type $source.closure if { make Type.Closure } else { make Type.Fun } @type-of-function-arg
+                    $ctx $source.function-type &type-of-function-arg fill-hole
+                    $ctx $function &type-of-function-arg $origin check match {
+                        case Some -> { make Maybe<Error>.Some break }
+                        case None -> {}
+                    }
                     $function-type.parameters.len $source.parameters.len /=
                     $function-type.returns.len $source.return-types.len /= or if {
                         &source.token "check IndirectCall: invalid annotation" error make Maybe<Error>.Some break
@@ -1872,6 +2071,20 @@ fn try-with-generics(ctx: .Ctx, type: .Type, generic-arguments: .Array<Inference
             make Type:FunType
             make Type.Fun
         }
+        case Type.Closure -> {
+            @type
+            $type.token
+            $ctx &type.parameters $generic-arguments try-all-with-generics match {
+                case Some -> {}
+                case None -> { make Maybe<Type>.None break }
+            }
+            $ctx &type.returns $generic-arguments try-all-with-generics match {
+                case Some -> {}
+                case None -> { make Maybe<Type>.None break }
+            }
+            make Type:FunType
+            make Type.Closure
+        }
     } make Maybe<Type>.Some
 } }
 
@@ -1898,6 +2111,12 @@ fn fit-to-types-named(ctx: .Ctx, types: .Array<Type:NamedType>, generic-argument
     $ctx
     $generic-arguments
     $types $index Array:get<_> .type
+    $known unify-types
+}
+fn fit-to-parameters(ctx: .Ctx, parameters: .Array<Parameter>, generic-arguments: .Array<InferenceHole>, index: i32, known: .Type) -> UnificationResult {
+    $ctx
+    $generic-arguments
+    $parameters $index Array:get<_> .type
     $known unify-types
 }
 
@@ -1975,6 +2194,18 @@ fn unify-types(ctx: .Ctx, generic-arguments: .Array<InferenceHole>, holey: .Type
 
                 $known match {
                     case Type.Fun -> {}
+                    case _ -> { drop make UnificationResult.TypeMismatch break }
+                } @known
+
+                $ctx $generic-arguments &holey.parameters &known.parameters unify-types-all
+                $ctx $generic-arguments &holey.returns &known.returns unify-types-all
+                UnificationResult-merge
+            }
+            case Type.Closure -> {
+                @holey
+
+                $known match {
+                    case Type.Closure -> {}
                     case _ -> { drop make UnificationResult.TypeMismatch break }
                 } @known
 
@@ -2466,27 +2697,62 @@ fn infer(ctx: .Ctx, source: .Source) -> Result<Maybe<Type>, Error> {
                             @source
                             $source.return-types.len $return-depth - 1 - @return-index
                             $ctx &source.return-types $return-index Array:get<_> ~ lookup-hole match {
-                                case Some -> {}
-                                case None -> {
+                                // case Some -> {} // TODO use this
+                                case _ -> {
+                                    drop
                                     $source.function match {
                                         case None -> {
                                             &source.token "infer IndirectCall: expected function as item on stack" error make Result<Maybe<Type>, Error>.Error break
                                         }
                                         case Some -> {}
                                     } @function
-                                    $ctx $function infer match {
-                                        case Success -> {}
-                                        case _ -> { break }
+                                    $ctx &source.parameters lookup-holes @parameters
+                                    $ctx &source.return-types lookup-holes @returns
+                                    $parameters match {
+                                        case Some -> {
+                                            @parameters
+                                            $returns match {
+                                                case Some -> {
+                                                    @returns
+                                                    $source.token $parameters $returns make Type:FunType
+                                                    make Maybe.Some
+                                                }
+                                                case None -> { make Maybe.None }
+                                            }
+                                        }
+                                        case None -> { make Maybe.None }
                                     } match {
-                                        case None -> { make Maybe<Type>.None make Result<Maybe<Type:Type>, Error>.Success break }
-                                        case Some -> {}
-                                    } match {
-                                        case Type.Fun -> {}
-                                        case _ -> {
-                                            drop
-                                            &source.token "infer IndirectCall: expected function" error make Result<Maybe<Type>, Error>.Error break
+                                        case Some -> {
+                                            @function-type
+                                            $function-type $source.closure if { make Type.Closure } else { make Type.Fun } &
+                                            make Origin.TODO List:empty & List:cons & @origin
+                                            $ctx flip $function flip $origin check match {
+                                                case Some -> { make Result.Error break }
+                                                case None -> {}
+                                            }
+                                            $function-type
+                                        }
+                                        case None -> {
+                                            $ctx $function infer match {
+                                                case Success -> {}
+                                                case _ -> { break }
+                                            } match {
+                                                case None -> { make Maybe<Type>.None make Result<Maybe<Type:Type>, Error>.Success break }
+                                                case Some -> {
+                                                    Core:dup $ctx flip $source.function-type flip & fill-hole
+                                                }
+                                            } match {
+                                                case Type.Fun -> {}
+                                                case Type.Closure -> {}
+                                                case _ -> {
+                                                    drop
+                                                    &source.token "infer IndirectCall: expected function" error make Result<Maybe<Type>, Error>.Error break
+                                                }
+                                            }
                                         }
                                     } @function-type
+                                    $ctx $source.function-type $function-type $source.closure if { make Type.Closure } else { make Type.Fun } & fill-hole
+
                                     $function-type.parameters.len $source.parameters.len /=
                                     $function-type.returns.len $source.return-types.len /= or if {
                                         &source.token "infer IndirectCall: invalid annotation" error make Result<Maybe<Type>, Error>.Error break
@@ -2663,7 +2929,7 @@ fn infer(ctx: .Ctx, source: .Source) -> Result<Maybe<Type>, Error> {
                         case None -> { make Maybe<Type>.None make Result<Maybe<Type:Type>, Error>.Success break }
                         case Some -> {}
                     } @generic-arguments
-                    $ctx.arena &signature.parameters \Type:NamedType-type Array:map<_, _> @parameters
+                    $ctx.arena &signature.parameters \Parameter-type Array:map<_, _> @parameters
                     $ctx.arena &parameters &generic-arguments Type:all-with-generics @parameters
                     $ctx.arena &signature.returns &generic-arguments Type:all-with-generics @returns
                     $source.token $parameters $returns make Type:FunType make Type.Fun
@@ -2793,7 +3059,7 @@ fn infer-closure(ctx: .Ctx, closure: .Source:FromClosure) -> Result<Maybe<Type>,
     $ctx &closure.parameters lookup-holes match {
         case None -> { make Maybe.None make Result.Success break }
         case Some -> {}
-    } flip make Type:FunType make Type.Fun
+    } flip make Type:FunType make Type.Closure
     make Maybe.Some make Result.Success
 } }
 
@@ -3192,7 +3458,7 @@ fn infer-signature-application(
                 @argument
 
                 $signature match {
-                    case Signature.Function -> { $ctx flip .parameters $generic-arguments $i &argument fit-to-types-named }
+                    case Signature.Function -> { $ctx flip .parameters $generic-arguments $i &argument fit-to-parameters }
                     case Signature.Intrinsic -> { $ctx flip .parameters $generic-arguments $i &argument fit-to-types }
                 } match {
                     case UnificationResult.Success -> {}
@@ -3295,23 +3561,60 @@ fn fill-holes-word(ctx: .Ctx, word: .Unstacked:Word) -> Checked:Word {
         case Unstacked:Word.String -> { ~ make Checked:Word.String }
         case Unstacked:Word.GetLocal -> {
             @word
-            make Checked:GetLocal {
-                $word.name @name
-                $word.var @var
-                $ctx $word.var-type fill @var-type
-                $ctx &word.fields fill-holes-field-accesses @fields
-                $ctx $word.result-type fill @result-taip
+            $word.environment-fields match {
+                case Maybe.None -> {
+                    make Checked:GetLocal {
+                        $word.name @name
+                        $word.var @var
+                        $ctx $word.var-type fill @var-type
+                        $ctx &word.fields fill-holes-field-accesses @fields
+                        $ctx $word.result-type fill @result-taip
+                    }
+                }
+                case Maybe.Some -> {
+                    @environment-fields
 
+                    $ctx &word.fields fill-holes-field-accesses @fields
+                    $ctx $word.var-type fill @var-type
+                    $ctx $word.result-type fill @result-type
+                    $ctx $word.name &environment-fields.path &fields &result-type add-environment-path-to-fields @fields
+
+                    make Checked:GetLocal {
+                        $word.name @name
+                        $environment-fields.environment-local make VarId.Local @var
+                        $var-type @var-type
+                        $fields @fields
+                        $result-type @result-taip
+                    }
+                }
             } make Checked:Word.GetLocal
         }
         case Unstacked:Word.RefLocal -> {
             @word
-            make Checked:RefLocal {
-                $word.name @name
-                $word.var @var
-                $ctx &word.fields fill-holes-field-accesses @fields
+            $word.environment-fields match {
+                case Maybe.None -> {
+                    make Checked:RefLocal {
+                        $word.name @name
+                        $word.var @var
+                        $ctx &word.fields fill-holes-field-accesses @fields
+                    } make Checked:Word.RefLocal
+                }
+                case Maybe.Some -> {
+                    @environment-fields
 
-            } make Checked:Word.RefLocal
+                    $ctx $word.var-type fill @var-type
+                    $ctx &word.fields fill-holes-field-accesses @fields
+                    $ctx $word.result-type fill @result-type
+                    $ctx $word.name &environment-fields.path &fields &result-type add-environment-path-to-fields @fields
+                    make Checked:GetLocal {
+                        $word.name @name
+                        $environment-fields.environment-local make VarId.Local @var
+                        $fields @fields
+                        $var-type @var-type
+                        $result-type @result-taip
+                    } make Checked:Word.GetLocal
+                }
+            }
         }
         case Unstacked:Word.Intrinsic -> { $ctx flip fill-holes-intrinsic make Checked:Word.Intrinsic }
         case Unstacked:Word.InitLocal -> {
@@ -3337,7 +3640,7 @@ fn fill-holes-word(ctx: .Ctx, word: .Unstacked:Word) -> Checked:Word {
             @word
             make Checked:Call {
                 $word.name @name
-                $word.function @function
+                $ctx $word.function fix-function-handle @function
                 $ctx &word.generic-arguments fill-holes @generic-arguments
             } make Checked:Word.Call
         }
@@ -3355,12 +3658,29 @@ fn fill-holes-word(ctx: .Ctx, word: .Unstacked:Word) -> Checked:Word {
         }
         case Unstacked:Word.SetLocal -> {
             @word
-            make Checked:SetLocal {
-                $word.name @name
-                $word.local make VarId.Local @var
-                $ctx &word.fields fill-holes-field-accesses @fields
-                $ctx $word.field-type fill @target-type
-            } make Checked:Word.SetLocal
+            $word.environment-fields match {
+                case Maybe.None -> {
+                    make Checked:SetLocal {
+                        $word.name @name
+                        $word.local make VarId.Local @var
+                        $ctx &word.fields fill-holes-field-accesses @fields
+                        $ctx $word.field-type fill @target-type
+                    } make Checked:Word.SetLocal
+                }
+                case Maybe.Some -> {
+                    @environment-fields
+
+                    $ctx &word.fields fill-holes-field-accesses @fields
+                    $ctx $word.field-type fill @target-type
+                    $ctx $word.name &environment-fields.path &fields &target-type add-environment-path-to-fields @fields
+                    make Checked:SetLocal {
+                        $word.name @name
+                        $environment-fields.environment-local make VarId.Local @var
+                        $fields @fields
+                        $target-type @target-type
+                    } make Checked:Word.SetLocal
+                }
+            }
         }
         case Unstacked:Word.SetGlobal -> {
             @word
@@ -3485,14 +3805,31 @@ fn fill-holes-word(ctx: .Ctx, word: .Unstacked:Word) -> Checked:Word {
         }
         case Unstacked:Word.IndirectCall -> {
             @word
-            make Checked:IndirectCall {
-                $word.token @token
-                make Type:FunType {
-                    $word.token @token
-                    $ctx &word.parameters fill-holes @parameters
-                    $ctx &word.return-types fill-holes @returns
-                } @type
-            } make Checked:Word.IndirectCall
+            $ctx $word.function-type fill match {
+                case Type.Fun -> {
+                    @type
+                    make Checked:IndirectCall {
+                        $word.token @token
+                        make Type:FunType {
+                            $word.token @token
+                            $type.parameters @parameters
+                            $type.returns @returns
+                        } @type
+                    } make Checked:Word.IndirectCall
+                }
+                case Type.Closure -> {
+                    @type
+                    make Checked:IndirectCall {
+                        $word.token @token
+                        make Type:FunType {
+                            $word.token @token
+                            $type.parameters @parameters
+                            $type.returns @returns
+                        } @type
+                    } make Checked:Word.ClosureCall
+                }
+                case _ -> { drop Core:unreachable }
+            }
         }
         case Unstacked:Word.MakeStructNamed -> {
             @word
@@ -3528,7 +3865,7 @@ fn fill-holes-word(ctx: .Ctx, word: .Unstacked:Word) -> Checked:Word {
             @word
             make Checked:Call {
                 $word.token @name
-                $word.function @function
+                $ctx $word.function fix-function-handle @function
                 $ctx &word.generic-arguments fill-holes @generic-arguments
             } make Checked:FunRef make Checked:Word.FunRef
         }
@@ -3543,7 +3880,7 @@ fn fill-holes-word(ctx: .Ctx, word: .Unstacked:Word) -> Checked:Word {
                 $word.token @token
                 $fields @fields
                 $on-ptr @on-ptr
-                &fields Array:last<_> .target-type $on-ptr if { make Type.Ptr } else { ~ } @type
+                // &fields Array:last<_> .target-type $on-ptr if { make Type.Ptr } else { ~ } @type
             } make Checked:Word.GetField
         }
         case Unstacked:Word.MatchVoid -> { ~ make Checked:Word.MatchVoid }
@@ -3552,19 +3889,117 @@ fn fill-holes-word(ctx: .Ctx, word: .Unstacked:Word) -> Checked:Word {
             $word.token
             $ctx &word.parameters fill-holes
             $ctx &word.returns fill-holes
-            $ctx &word.body fill-holes-scope
+            $ctx.function-handle.module $ctx.function-handle.index $word.closure-index + 1 + make FunctionHandle
+            $ctx.environment-types $word.closure-index Array:get Maybe:ref Maybe:assert-some ~
+            $ctx.arena \LocalId-clone $ctx.closures $word.closure-index Array:get .captured Array:clone-deep
             make Checked:Closure make Checked:Word.Closure
         }
     }
 }
 
-fn fill-holes-field-accesses(ctx: .Ctx, field-accesses: .Array<Unstacked:FieldAccess>) -> Array<Checked:FieldAccess> {
-    $ctx.arena $field-accesses.len Array:new-with-capacity<Checked:FieldAccess> @filled
-    loop {
-        $filled.len $field-accesses.len = if { $filled break }
-        &filled
-        $ctx $field-accesses $filled.len Array:get<_> fill-hole-field-access
-        Array:push-assert-no-alloc<_>
+fn append-load(arena: .Arena, fields: .FieldAccesses, type: .Type) -> .FieldAccesses {
+    $fields loop {
+        Core:dup match {
+            case FieldAccesses.FieldAccess -> { ~ .next flip drop }
+            case FieldAccesses.End -> {
+                $type ~ make FieldAccesses.Load store break
+            }
+            case FieldAccesses.Load -> {
+                drop 0 0 / drop drop break
+            }
+        }
+    }
+    $fields
+}
+fn add-environment-path-to-fields(ctx: .Ctx, token: Token, field-access: .Unstacked:ClosureFieldAccess, fields: .FieldAccesses, final-type: .Type) -> FieldAccesses {
+    $field-access.next match {
+        case NextClosureFieldAccess.Last -> {
+            drop
+            $ctx.environment-types $field-access.closure-index Array:get Maybe:ref Maybe:assert-some @final-environment-type
+
+            $ctx &final-environment-type.type-definition lookup-type-definition match {
+                case TypeDefinition.Struct -> {}
+                case TypeDefinition.Variant -> { drop 0 0 / drop Core:unreachable }
+            } @final-environment-struct
+
+            &final-environment-struct.fields $field-access.field-index Array:get .type @target-type
+
+            make FieldAccessStep {
+                $ctx.arena $fields $final-type ptrify-fields @next
+                make Checked:FieldAccess {
+                    $token @name // TODO: this is bullshit
+                    $final-environment-type ~ make Type.Custom
+                    $ctx.arena flip Arena:push make Type.Ptr @source-type
+                    $target-type ~ @target-type
+                    $field-access.field-index @field-index
+                } @access
+            }
+            $ctx.arena flip Arena:push
+            make FieldAccesses.FieldAccess
+        }
+        case NextClosureFieldAccess.Next -> {
+            @next
+            make Checked:FieldAccess {
+                $token @name // TODO: this is bullshit
+
+                $ctx.environment-types $field-access.closure-index Array:get Maybe:ref Maybe:assert-some ~ make Type.Custom
+                $ctx.arena flip Arena:push make Type.Ptr @source-type
+
+                $ctx.environment-types $next.closure-index Array:get Maybe:ref Maybe:assert-some ~ make Type.Custom @target-type
+                $field-access.field-index @field-index
+            }
+            $ctx $token $next $fields $final-type add-environment-path-to-fields
+            make FieldAccessStep
+            $ctx.arena flip Arena:push
+            make FieldAccesses.FieldAccess
+        }
+    }
+}
+
+fn ptrify-fields(arena: .Arena, fields: .Checked:FieldAccesses, result-type: .Type) -> Checked:FieldAccesses {
+    $fields match {
+        case Checked:FieldAccesses.End -> {
+            $result-type ~ make Checked:FieldAccesses.Load
+        }
+        case Checked:FieldAccesses.Load -> { drop 0 0 / drop Core:unreachable }
+        case Checked:FieldAccesses.FieldAccess -> {
+            ~ @step
+            &step.access @access
+            $access.source-type match {
+                case Type.Ptr -> {
+                    drop
+                    $access ~
+                    $arena &step.next $result-type ptrify-fields
+                    make FieldAccessStep $arena flip Arena:push
+                    make Checked:FieldAccesses.FieldAccess
+                }
+                case Type.Custom -> {
+                    drop
+                    make Checked:FieldAccess {
+                        $access.name @name
+                        $arena $access.source-type Arena:push make Type.Ptr @source-type
+                        $access.target-type @target-type
+                        $access.field-index @field-index
+                    }
+                    $step.next
+                    make FieldAccessStep $arena flip Arena:push
+                    make Checked:FieldAccesses.FieldAccess
+                }
+                case _ -> { drop 0 0 / drop Core:unreachable }
+            }
+        }
+    }
+}
+
+fn fill-holes-field-accesses(ctx: .Ctx, field-accesses: .Array<Unstacked:FieldAccess>) -> Checked:FieldAccesses {
+    $field-accesses.len 0 = if {
+        make Checked:FieldAccesses.End
+    } else {
+        $ctx $field-accesses 0 Array:get fill-hole-field-access
+        $ctx $field-accesses Array:tail & fill-holes-field-accesses
+        make Checked:FieldAccessStep
+        $ctx.arena flip Arena:push
+        make Checked:FieldAccesses.FieldAccess
     }
 }
 
@@ -3736,7 +4171,10 @@ fn fill-holes-locals(ctx: .Ctx, locals: .Map<LocalId, Unstacked:Local>) -> Map<L
         make Checked:Local {
             $local.name @name
             $ctx $local.type fill @type
-            &local.parameter Maybe:is-some<_> @is-parameter
+            &local.parameter match {
+                case Some -> { .index ~ make Maybe.Some }
+                case None -> { make Maybe.None }
+            } @parameter-index
         } Map:insert-assert-no-alloc<_, _> drop
     }
 }

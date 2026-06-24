@@ -7,7 +7,7 @@ import "../parser.watim" as P
 import "./top-items.watim" as TopItems (TypeDefinition(Struct, Variant))
 import "./module.watim" as Module (Module)
 import "./type.watim" as Type (
-    Type(Bool, I8, I32, I64, Ptr, Custom, Fun, Generic, Hole),
+    Type(Bool, I8, I32, I64, Ptr, Custom, Fun, Closure, Generic, Hole),
     CustomTypeType, FunType)
 
 fn pretty(fmt: .Formatter, lookup: .Array<Module>, self: .Type) { block {
@@ -19,6 +19,7 @@ fn pretty(fmt: .Formatter, lookup: .Array<Module>, self: .Type) { block {
         case Ptr -> { $fmt "." Fmt:write ~ $lookup flip pretty break }
         case Custom -> { $lookup flip CustomTypeType-pretty break }
         case Fun -> { $lookup flip FunType-pretty break }
+        case Closure -> { $lookup flip ClosureType-pretty break }
         case Generic -> { P:GenericType-pretty break }
         case Hole -> { drop "_" }
     } Fmt:write
@@ -26,6 +27,14 @@ fn pretty(fmt: .Formatter, lookup: .Array<Module>, self: .Type) { block {
 
 fn FunType-pretty(fmt: .Formatter, modules: .Array<Module>, self: .FunType) {
     $fmt "(" Fmt:write
+    $fmt $modules &self.parameters Types-pretty
+    $fmt " -> " Fmt:write
+    $fmt $modules &self.returns Types-pretty
+    $fmt ")" Fmt:write
+}
+
+fn ClosureType-pretty(fmt: .Formatter, modules: .Array<Module>, self: .FunType) {
+    $fmt "\\(" Fmt:write
     $fmt $modules &self.parameters Types-pretty
     $fmt " -> " Fmt:write
     $fmt $modules &self.returns Types-pretty

@@ -20,6 +20,7 @@ resolve
     functions=(Map
       "ext"=(Extern (IDENT ext 2 23) "abc" "def" (Signature
         generic-parameters=[],
-        parameters=[(NamedType (IDENT foo 2 27) (CustomType 0 0 []))],
+        parameters=[
+          (Parameter (User (IDENT foo 2 27)) 0 (CustomType 0 0 []))],
         returns=[(CustomType 0 0 [])]))),
     static-data=""))

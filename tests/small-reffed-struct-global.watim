@@ -19,16 +19,16 @@ fn main "_start" () {
 0
 [== Stdout Compiler ==]
 (module
-	(import "wasi_snapshot_preview1" "proc_exit" (func $0:proc_exit (param $code i32)))
+	(import "wasi_snapshot_preview1" "proc_exit" (func $0:proc_exit (param i32)))
 	(memory 1 65536)
 	(export "memory" (memory 0))
 	(table funcref (elem))
 	(global $FOO:0 i32 (i32.const 0))
 	(global $stac:k (mut i32) (i32.const 4))
 	(data (i32.const 0) "")
-	(func $0:set (param $foo i32)
+	(func $0:set (param i32)
 		i32.const 42
-		local.get $foo call $intrinsic:flip i32.store
+		local.get 0 call $intrinsic:flip i32.store
 	)
 	(func $0:main (export "_start")
 		global.get $FOO:0

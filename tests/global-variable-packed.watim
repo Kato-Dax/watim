@@ -21,7 +21,7 @@ fn use(foo: Foo) {
 0
 [== Stdout Compiler ==]
 (module
-	(import "wasi_snapshot_preview1" "proc_exit" (func $0:proc_exit (param $code i32)))
+	(import "wasi_snapshot_preview1" "proc_exit" (func $0:proc_exit (param i32)))
 	(memory 1 65536)
 	(export "memory" (memory 0))
 	(table funcref (elem))
@@ -36,9 +36,9 @@ fn use(foo: Foo) {
 		global.get $FOO:0
 		call $0:use
 	)
-	(func $0:use (param $foo i64)
-		local.get $foo i32.wrap_i64
-		local.get $foo i64.const 32 i64.shr_u i32.wrap_i64
+	(func $0:use (param i64)
+		local.get 0 i32.wrap_i64
+		local.get 0 i64.const 32 i64.shr_u i32.wrap_i64
 		i32.add
 		call $0:proc_exit
 	)

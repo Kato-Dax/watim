@@ -17,8 +17,8 @@ compile
 	(table funcref (elem))
 	(global $stac:k (mut i32) (i32.const 0))
 	(data (i32.const 0) "")
-	(func $0:main (export "_start") (param $void i32)
-		local.get $void
+	(func $0:main (export "_start") (param i32)
+		local.get 0
 		;; match on variant {}
 		unreachable
 	)

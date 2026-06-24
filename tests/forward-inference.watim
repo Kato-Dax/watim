@@ -24,22 +24,23 @@ foo
 [== Status Compiler ==]
 0
 [== Stdout Compiler ==]
-(Function
-  name=(IDENT foo 12 4),
-  export=None,
-  signature=(Signature
-    generic-parameters=[],
-    parameters=[],
-    returns=[]),
-  locals=(Map),
-  body=(Scope 0 [
-    (MakeStructNamed
-      token=(MAKE make 13 5),
-      type=(CustomType 0 0 [I32]),
-      body=(Scope 1 [])),
-    (Call (IDENT get 14 5) (FunctionHandle 0 0) [I32]),
-    (FunRef (Call (IDENT is-zero 16 6) (FunctionHandle 0 2) [])),
-    (Number (NUMBER 2 16 14)),
-    (Call (IDENT twice 16 16) (FunctionHandle 0 1) [I32, Bool]),
-    (Intrinsic (IDENT drop 16 28) (Drop Bool)),
-    (Intrinsic (IDENT drop 16 33) (Drop Bool))]))
+[
+  (Function
+    name=(User (IDENT foo 12 4)),
+    export=None,
+    signature=(Signature
+      generic-parameters=[],
+      parameters=[],
+      returns=[]),
+    locals=(Map),
+    body=(Scope 0 [
+      (MakeStructNamed
+        token=(MAKE make 13 5),
+        type=(CustomType 0 0 [I32]),
+        body=(Scope 1 [])),
+      (Call (IDENT get 14 5) (FunctionHandle 0 0) [I32]),
+      (FunRef (Call (IDENT is-zero 16 6) (FunctionHandle 0 2) [])),
+      (Number (NUMBER 2 16 14)),
+      (Call (IDENT twice 16 16) (FunctionHandle 0 1) [I32, Bool]),
+      (Intrinsic (IDENT drop 16 28) (Drop Bool)),
+      (Intrinsic (IDENT drop 16 33) (Drop Bool))]))]

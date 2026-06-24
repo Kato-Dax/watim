@@ -22,10 +22,12 @@ resolve
         export=None,
         signature=(Signature
           generic-parameters=[],
-          parameters=[(NamedType (IDENT a 1 15) I32)],
+          parameters=[
+            (Parameter (User (IDENT a 1 15)) 0 I32)],
           returns=[Bool]),
         locals=(Map
-          (LocalId "a" 0 0)=(Local (IDENT a 1 15) (Some I32))),
+          (LocalId "a" 0 0)=(Local (User (IDENT a 1 15)) (Some (Parameter (User (IDENT a 1 15)) 0 I32)))),
+        closure-count=0,
         body=(Scope 0 [
           (GetLocal (IDENT a 2 6) (LocalId "a" 0 0) []),
           (Number (NUMBER 0 2 8)),
@@ -35,10 +37,12 @@ resolve
         export=None,
         signature=(Signature
           generic-parameters=[],
-          parameters=[(NamedType (IDENT b 4 15) I32)],
+          parameters=[
+            (Parameter (User (IDENT b 4 15)) 0 I32)],
           returns=[Bool]),
         locals=(Map
-          (LocalId "b" 0 0)=(Local (IDENT b 4 15) (Some I32))),
+          (LocalId "b" 0 0)=(Local (User (IDENT b 4 15)) (Some (Parameter (User (IDENT b 4 15)) 0 I32)))),
+        closure-count=0,
         body=(Scope 0 [
           (GetLocal (IDENT b 5 6) (LocalId "b" 0 0) []),
           (Number (NUMBER 0 5 8)),
@@ -59,6 +63,7 @@ resolve
           parameters=[],
           returns=[]),
         locals=(Map),
+        closure-count=0,
         body=(Scope 0 [
           (Number (NUMBER 0 4 5)),
           (Call (IDENT function-b 4 7) (FunctionHandle 0 1) None),

@@ -4,7 +4,7 @@ import "../../std/array.watim" as Array (Array)
 import "../../std/map.watim" as Map (Map)
 import "../../std/fmt.watim" as Fmt (Formatter)
 
-import "../lexer.watim" as Lexer (Token)
+import "../lexer.watim" as Lexer (Token, Token-lexeme)
 import "../resolving/type.watim" as Resolved (CustomTypeHandle)
 import "../resolving/words.watim" as Resolved (LocalId, GlobalId, VarId(Global, Local))
 import "../monomorphization/monomizer.watim" as Monomized (
@@ -32,12 +32,6 @@ struct Ctx {
 variant FunctionOrExtern {
     case Extern -> .Extern
     case Function -> .Function
-}
-fn FunctionOrExtern-name(self: .FunctionOrExtern) -> .Token {
-    $self match {
-        case FunctionOrExtern.Extern -> { ~ .name }
-        case FunctionOrExtern.Function -> { ~ .name }
-    }
 }
 
 fn lookup-type(program: .Monomized, type: TypeId) -> .Type {

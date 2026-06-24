@@ -518,6 +518,8 @@ fn FromMatchExit-format(fmt: .Formatter, self: .FromMatchExit) {
 
 struct FromIndirectCall {
     token: Token
+    closure: bool
+    function-type: InferenceHole
     return-types: Array<InferenceHole>
     parameters: Array<InferenceHole>
     function: .Maybe<Source>
@@ -529,6 +531,14 @@ fn FromIndirectCall-format(fmt: .Formatter, self: .FromIndirectCall) {
     $fmt Fmt:write-indent
     $fmt "token=" Fmt:write
     $fmt &self.token Token-format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "closure=" Fmt:write
+    $fmt $self.closure bool-format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "function-type=" Fmt:write
+    $fmt &self.function-type InferenceHole-format
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "parameters=" Fmt:write

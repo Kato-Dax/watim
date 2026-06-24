@@ -41,8 +41,8 @@ compile
 		;; make Foo
 			local.get $locl-copy-spac:e i32.const 8 i32.add call $intrinsic:flip i32.store
 			local.get $locl-copy-spac:e i32.const 4 i32.add call $intrinsic:flip i32.store
-			local.get $locl-copy-spac:e i32.const 0 i32.add call $intrinsic:flip i32.store
-		local.get $locl-copy-spac:e i32.const 0 i32.add ;; make Foo end
+			local.get $locl-copy-spac:e call $intrinsic:flip i32.store
+		local.get $locl-copy-spac:e ;; make Foo end
 		i32.const 1
 		i32.const 2
 		i32.const 3

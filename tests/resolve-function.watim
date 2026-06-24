@@ -20,11 +20,14 @@ resolve
         export=None,
         signature=(Signature
           generic-parameters=[(IDENT A 1 9), (IDENT B 1 12)],
-          parameters=[(NamedType (IDENT a 1 15) (GenericType (IDENT A 1 18) 0)), (NamedType (IDENT b 1 21) (GenericType (IDENT B 1 24) 1))],
+          parameters=[
+            (Parameter (User (IDENT a 1 15)) 0 (GenericType (IDENT A 1 18) 0)),
+            (Parameter (User (IDENT b 1 21)) 1 (GenericType (IDENT B 1 24) 1))],
           returns=[(GenericType (IDENT B 1 30) 1), (GenericType (IDENT A 1 33) 0)]),
         locals=(Map
-          (LocalId "a" 0 0)=(Local (IDENT a 1 15) (Some (GenericType (IDENT A 1 18) 0))),
-          (LocalId "b" 0 0)=(Local (IDENT b 1 21) (Some (GenericType (IDENT B 1 24) 1)))),
+          (LocalId "a" 0 0)=(Local (User (IDENT a 1 15)) (Some (Parameter (User (IDENT a 1 15)) 0 (GenericType (IDENT A 1 18) 0)))),
+          (LocalId "b" 0 0)=(Local (User (IDENT b 1 21)) (Some (Parameter (User (IDENT b 1 21)) 1 (GenericType (IDENT B 1 24) 1))))),
+        closure-count=0,
         body=(Scope 0 [
           (GetLocal (IDENT b 2 6) (LocalId "b" 0 0) []),
           (GetLocal (IDENT a 2 9) (LocalId "a" 0 0) [])]))),

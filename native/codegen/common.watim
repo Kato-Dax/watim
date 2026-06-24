@@ -7,15 +7,16 @@ import "../../std/util.watim" as Util (i32-format)
 import "../../std/byte-slice.watim" as ByteSlice (ByteSlice)
 
 import "../lexer.watim" as Lexer (Token-lexeme)
+import "../name.watim" as Name (Name, Name-unpack)
 import "../resolving/top-items.watim" as Resolved
-import "../resolving/local.watim" as Resolved (LocalName-unpack)
+import "../resolving/local.watim" as Resolved
 import "../resolving/words.watim" as Resolved (LocalId, root-scope, VarId(Local, Global))
 import "../monomorphization/monomizer.watim" as Monomized (type-size, Local)
 import "../monomorphization/type.watim" as Type (
-    Type(I32, I64, Bool, I8, Ptr, Fun, Custom), TypeId, CustomType-name,
+    Type(I32, I64, Bool, I8, Ptr, Fun, Custom, Closure), TypeId, CustomType-name, FunType,
 )
 
-import "./ctx.watim" as Ctx (Ctx, lookup-type, lookup-globl, lookup-custom-type)
+import "./ctx.watim" as Ctx (Ctx, lookup-type, lookup-globl, lookup-custom-type, FunctionOrExtern)
 
 fn generate-store(ctx: .Ctx, type: TypeId) { block {
     &ctx.program.sizes $type type-size @type-size
@@ -57,13 +58,20 @@ fn generate-var-ident(ctx: .Ctx, locals: .Map<LocalId, Local>, var-id: .VarId) {
 }
 
 fn generate-local-ident(fmt: .Formatter, local: .Local, local-id: .LocalId) {
-    $fmt "$" Fmt:write
-    $fmt &local.name LocalName-unpack Fmt:write
-    $local-id.scope root-scope /= $local-id.shadow 0 /= or if {
-        $fmt ":" Fmt:write
-        $fmt $local-id.scope.raw i32-format
-        $fmt ":" Fmt:write
-        $fmt $local-id.shadow i32-format
+    $local.parameter-index match {
+        case Maybe.None -> {
+            $fmt "$" Fmt:write
+            $fmt &local.name Name-unpack Fmt:write
+            $local-id.scope root-scope /= $local-id.shadow 0 /= or if {
+                $fmt ":" Fmt:write
+                $fmt $local-id.scope.raw i32-format
+                $fmt ":" Fmt:write
+                $fmt $local-id.shadow i32-format
+            }
+        }
+        case Maybe.Some -> {
+            $fmt flip i32-format
+        }
     }
 }
 
@@ -83,35 +91,10 @@ fn generate-type-pretty(ctx: .Ctx, type: TypeId) { block {
         case Bool -> { "bool" }
         case I8 -> { "i8" }
         case Ptr -> { $ctx.fmt "." Fmt:write $ctx flip ~ generate-type-pretty drop break }
-        case Fun -> {
-            @type
-            "(" Fmt:write
-            0 @i
-            loop {
-                $i $type.parameters.len = if { break }
-                $ctx &type.parameters $i Array:get<TypeId> ~ generate-type-pretty
-                $i 1 + #i
-                $i $type.parameters.len /= if {
-                    $ctx.fmt ", " Fmt:write
-                } else {
-                    $ctx.fmt " " Fmt:write
-                }
-            }
-            $ctx.fmt "->" Fmt:write
-            0 @i
-            loop {
-                $i $type.returns.len = if { break }
-                $i 0 = if {
-                    $ctx.fmt " " Fmt:write
-                } else {
-                    $i 1 + $type.returns.len /= if {
-                        $ctx.fmt ", " Fmt:write
-                    }
-                }
-                $ctx &type.returns $i Array:get<TypeId> ~ generate-type-pretty
-                $i 1 + #i
-            }
-            $ctx.fmt ")" Fmt:write
+        case Fun -> { $ctx flip FunType-pretty drop break }
+        case Closure -> {
+            flip "\\" Fmt:write
+            $ctx flip FunType-pretty
             break
         }
         case Custom -> {
@@ -119,6 +102,36 @@ fn generate-type-pretty(ctx: .Ctx, type: TypeId) { block {
         }
     } Fmt:write
 } }
+
+fn FunType-pretty(ctx: .Ctx, type: .FunType) {
+    $ctx.fmt "(" Fmt:write
+    0 @i
+    loop {
+        $i $type.parameters.len = if { break }
+        $ctx &type.parameters $i Array:get<TypeId> ~ generate-type-pretty
+        $i 1 + #i
+        $i $type.parameters.len /= if {
+            $ctx.fmt ", " Fmt:write
+        } else {
+            $ctx.fmt " " Fmt:write
+        }
+    }
+    $ctx.fmt "->" Fmt:write
+    0 @i
+    loop {
+        $i $type.returns.len = if { break }
+        $i 0 = if {
+            $ctx.fmt " " Fmt:write
+        } else {
+            $i 1 + $type.returns.len /= if {
+                $ctx.fmt ", " Fmt:write
+            }
+        }
+        $ctx &type.returns $i Array:get<TypeId> ~ generate-type-pretty
+        $i 1 + #i
+    }
+    $ctx.fmt ")" Fmt:write
+}
 
 fn generate-parameters-unnamed(ctx: .Ctx, parameters: .Array<TypeId>) {
     0 @i
@@ -140,6 +153,30 @@ fn generate-returns(ctx: .Ctx, returns: .Array<TypeId>) {
         $ctx $returns $i Array:get<TypeId> ~ generate-type
         $ctx.fmt ")" Fmt:write
         $i 1 + #i
+    }
+}
+
+fn FunctionOrExtern-generate-name(fmt: .Formatter, self: .FunctionOrExtern) {
+    $fmt $self match {
+        case FunctionOrExtern.Extern -> { ~ .name Token-lexeme Fmt:write }
+        case FunctionOrExtern.Function -> { ~ .name generate-name }
+    }
+}
+fn generate-name(fmt: .Formatter, name: .Name) {
+    $name match {
+        case Name.User -> {
+            $fmt flip Token-lexeme Fmt:write
+        }
+        case Name.AnonymousFunction -> {
+            @name
+            $fmt &name.surrounding-function Token-lexeme Fmt:write
+            $fmt ":" Fmt:write
+            $fmt $name.closure-index i32-format
+        }
+        case Name.RefLocal -> { drop $fmt "synth:ref" Fmt:write }
+        case Name.ClosureParam -> {
+            drop $fmt "c:losure" Fmt:write
+        }
     }
 }
 

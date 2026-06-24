@@ -17,13 +17,13 @@ fn foo(a: i32) {
 		i32.const 7
 		call $0:foo
 	)
-	(func $0:foo (param $a i32)
+	(func $0:foo (param i32)
 		(local $stac:k i32)
 		global.get $stac:k local.set $stac:k
-		global.get $stac:k global.get $stac:k local.get $a i32.store local.tee $a i32.const 4 i32.add global.set $stac:k
-		local.get $a i32.load
+		global.get $stac:k global.get $stac:k local.get 0 i32.store local.tee 0 i32.const 4 i32.add global.set $stac:k
+		local.get 0 i32.load
 		drop
-		local.get $a
+		local.get 0
 		i32.const 5
 		i32.store
 		local.get $stac:k global.set $stac:k

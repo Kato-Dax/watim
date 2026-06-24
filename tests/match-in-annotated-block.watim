@@ -26,7 +26,7 @@ fn write(ptr: .i8, len: i32) -> i32 { 0 }
 0
 [== Stdout Compiler ==]
 (module
-	(import "wasi_snapshot_preview1" "proc_exit" (func $0:proc_exit (param $code i32)))
+	(import "wasi_snapshot_preview1" "proc_exit" (func $0:proc_exit (param i32)))
 	(memory 1 65536)
 	(export "memory" (memory 0))
 	(table funcref (elem))
@@ -80,11 +80,11 @@ fn write(ptr: .i8, len: i32) -> i32 { 0 }
 		call $0:proc_exit
 		local.get $stac:k global.set $stac:k
 	)
-	(func $0:dup (param $a i32) (result i32) (result i32) ;; i32
-		local.get $a
-		local.get $a
+	(func $0:dup (param i32) (result i32) (result i32) ;; i32
+		local.get 0
+		local.get 0
 	)
-	(func $0:write (param $ptr i32) (param $len i32) (result i32)
+	(func $0:write (param i32) (param i32) (result i32)
 		i32.const 0
 	)
 	(func $intrinsic:flip (param $a i32) (param $b i32) (result i32 i32) local.get $b local.get $a)

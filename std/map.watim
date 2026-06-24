@@ -66,6 +66,16 @@ fn insert-assert-no-alloc<K, V>(self: .Map<K, V>, key: K, value: V) -> Maybe<V> 
         $i 1 + #i
     }
 }
+fn insert-get-index<K, V>(arena: .Arena, self: .Map<K, V>, key: K, value: V) -> i32 {
+    $self &key get-index match {
+        case None -> {
+            $self.keys.len
+            $arena &self.keys $key Array:push
+            $arena &self.values $value Array:push
+        }
+        case Some -> {}
+    }
+}
 fn remove<K, V>(self: .Map<K, V>, key: .K) -> Maybe<V> {
     $self $key get-index<K, V> match {
         case None -> { make Maybe<V>.None }
@@ -92,6 +102,9 @@ fn get-index<K, V>(self: .Map<K, V>, key: .K) -> Maybe<i32> {
         $i 1 + #i
     }
 }
+fn contains-key<K, V>(self: .Map<K, V>, key: .K) -> bool {
+    $self $key get-index & Maybe:is-some
+}
 fn get-or-insert-default<K, V>(arena: .Arena, self: .Map<K, V>, default: V, key: K) -> .V {
     $self &key get<K, V> match {
         case None -> {
@@ -109,6 +122,18 @@ fn get-key<K, V>(self: .Map<K, V>, index: i32) -> .K {
 }
 fn get-value<K, V>(self: .Map<K, V>, index: i32) -> .V {
     &self.values $index Array:get<V>
+}
+fn extend<K, V>(arena: .Arena, self: .Map<K, V>, other: .Map<K, V>) {
+    0 loop {
+        @i $i $other.keys.len = if { break }
+        &other.keys $i Array:get @key
+        $self $key contains-key not if {
+            &other.values $i Array:get @value
+            $arena &self.keys $key ~ Array:push
+            $arena &self.values $value ~ Array:push
+        }
+        $i 1 +
+    }
 }
 fn format-multi-line<K, V>(fmt: .Formatter, format-key: (.Formatter, .K ->), format-value: (.Formatter, .V ->), self: .Map<K, V>) { block {
     $self.keys.len 0 = if {

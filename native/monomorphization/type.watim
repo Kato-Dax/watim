@@ -10,6 +10,7 @@ import "../resolving/type.watim" as Checked (
 )
 
 import "../lexer.watim" as Lexer (Token, Token-format)
+import "../name.watim" as Name (Name, Name-format)
 
 struct TypeId {
     index: i32
@@ -30,7 +31,7 @@ fn TypeIds-format(fmt: .Formatter, self: .Array<TypeId>) {
 }
 
 struct NamedTypeId {
-    name: Token
+    name: Name
     type: TypeId
 }
 fn NamedTypeId-eq(a: .NamedTypeId, b: .NamedTypeId) -> bool {
@@ -38,7 +39,7 @@ fn NamedTypeId-eq(a: .NamedTypeId, b: .NamedTypeId) -> bool {
 }
 fn NamedTypeId-format(fmt: .Formatter, self: .NamedTypeId) {
     $fmt "(NamedTypeId " Fmt:write
-    $fmt &self.name Token-format
+    $fmt &self.name Name-format
     $fmt " " Fmt:write
     $fmt &self.type TypeId-format
     $fmt ")" Fmt:write
@@ -52,6 +53,7 @@ variant Type {
     case Ptr -> TypeId
     case Custom -> CustomTypeHandle
     case Fun -> FunType
+    case Closure -> FunType
 }
 fn Type-eq(a: .Type, b: .Type) -> bool { block {
     $a !.i32 ~ $b !.i32 ~ /= if { // compare tags
@@ -68,6 +70,14 @@ fn Type-eq(a: .Type, b: .Type) -> bool { block {
         } }
         case Fun -> { @a $b match {
             case Fun -> {
+                @b
+                \TypeId-eq &a.parameters &b.parameters Array:eq<TypeId>
+                \TypeId-eq &a.returns    &b.returns    Array:eq<TypeId> and
+            }
+            case _ -> { drop 0 1 = }
+        } }
+        case Closure -> { @a $b match {
+            case Closure -> {
                 @b
                 \TypeId-eq &a.parameters &b.parameters Array:eq<TypeId>
                 \TypeId-eq &a.returns    &b.returns    Array:eq<TypeId> and
@@ -93,6 +103,7 @@ fn Type-format(fmt: .Formatter, self: .Type) { block {
             $fmt ")" Fmt:write break
         }
         case Fun -> { FunType-format break }
+        case Closure -> { ClosureType-format break }
     } Fmt:write
 } }
 
@@ -199,6 +210,13 @@ struct FunType {
 }
 fn FunType-format(fmt: .Formatter, self: .FunType) {
     $fmt "(FunType " Fmt:write
+    $fmt \TypeId-format &self.parameters Array:format<TypeId>
+    $fmt " " Fmt:write
+    $fmt \TypeId-format &self.returns Array:format<TypeId>
+    $fmt ")" Fmt:write
+}
+fn ClosureType-format(fmt: .Formatter, self: .FunType) {
+    $fmt "(ClosureType " Fmt:write
     $fmt \TypeId-format &self.parameters Array:format<TypeId>
     $fmt " " Fmt:write
     $fmt \TypeId-format &self.returns Array:format<TypeId>

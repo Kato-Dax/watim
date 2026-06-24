@@ -23,12 +23,12 @@ compile
 	(table funcref (elem))
 	(global $stac:k (mut i32) (i32.const 0))
 	(data (i32.const 0) "")
-	(func $0:main (export "_start") (param $foo i32) (result i32)
+	(func $0:main (export "_start") (param i32) (result i32)
 		(local $a i32)
 		(local $a:1:0 i32)
 		i32.const 42
 		local.set $a
-		local.get $foo
+		local.get 0
 		i32.const 3
 		local.set $a:1:0
 		local.get $a

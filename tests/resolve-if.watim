@@ -27,6 +27,7 @@ resolve
           parameters=[],
           returns=[I32]),
         locals=(Map),
+        closure-count=0,
         body=(Scope 0 [
           (Number (NUMBER 5 2 5)),
           (Number (NUMBER 0 2 7)),

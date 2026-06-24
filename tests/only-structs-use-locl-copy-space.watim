@@ -19,7 +19,7 @@ fn baz "baz" (foo: Foo, quox: .i32) {
 	(table funcref (elem))
 	(global $stac:k (mut i32) (i32.const 0))
 	(data (i32.const 0) "")
-	(func $0:baz (export "baz") (param $foo i32) (param $quox i32)
+	(func $0:baz (export "baz") (param i32) (param i32)
 		(local $i i32)
 		(local $locl-copy-spac:e i32)
 		(local $stac:k i32)
@@ -31,10 +31,10 @@ fn baz "baz" (foo: Foo, quox: .i32) {
 		drop
 		local.get $i
 		drop
-		local.get $quox
+		local.get 1
 		i32.load
 		drop
-		local.get $locl-copy-spac:e i32.const 0 i32.add call $intrinsic:dupi32 local.get $foo i32.const 12 memory.copy
+		local.get $locl-copy-spac:e i32.const 0 i32.add call $intrinsic:dupi32 local.get 0 i32.const 12 memory.copy
 		drop
 		local.get $stac:k global.set $stac:k
 	)
@@ -42,4 +42,3 @@ fn baz "baz" (foo: Foo, quox: .i32) {
 	(func $intrinsic:dupi32 (param $a i32) (result i32 i32) local.get $a local.get $a)
 	(func $intrinsic:rotate-left (param $a i32) (param $b i32) (param $c i32) (result i32 i32 i32) local.get $b local.get $c local.get $a)
 )
-

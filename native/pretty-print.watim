@@ -284,11 +284,11 @@ fn Word-pretty(self: .Word, pp: .PrettyPrinter) -> i32 { block {
         case Word.IndirectCall -> { $pp IndirectCall-pretty }
         case Word.Store -> { $pp Store-pretty }
         case Word.StackAnnotation -> { $pp StackAnnotation-pretty }
-        case Word.Closure -> { $pp Closure-pretty }
+        case Word.Closure -> { $pp ClosureType-pretty }
     }
 } }
 
-fn Closure-pretty(self: .Closure, pp: .PrettyPrinter) -> i32 { block {
+fn ClosureType-pretty(self: .Closure, pp: .PrettyPrinter) -> i32 { block {
     $pp &self.token write-token Core:dup 0 /= if { break } drop
     &self.body $pp Words-pretty
 } }
@@ -552,6 +552,7 @@ fn Type-pretty(self: .Type, pp: .PrettyPrinter) -> i32 { block (-> i32) {
         }
         case Type.Custom -> { flip CustomType-pretty break }
         case Type.Fun -> { flip FunType-pretty break }
+        case Type.Closure -> { flip Closure-pretty break }
         case Type.Generic -> { .name }
         case Type.Hole -> {}
     } write-token
@@ -559,6 +560,31 @@ fn Type-pretty(self: .Type, pp: .PrettyPrinter) -> i32 { block (-> i32) {
 
 fn FunType-pretty(self: .FunType, pp: .PrettyPrinter) -> i32 { block {
     $pp &self.token write-token Core:dup<i32> 0 /= if { break } drop
+    0 @i
+    loop {
+        $self.parameters.len $i = if { 0 break }
+        &self.parameters $i Array:get<Type> $pp Type-pretty Core:dup<i32> 0 /= if { break } drop
+        $i 1 + #i
+        $self.parameters.len $i /= if {
+            $pp "," write Core:dup<i32> 0 /= if { break } drop
+        }
+    } Core:dup<i32> 0 /= if { break } drop
+    $pp " ->" write Core:dup<i32> 0 /= if { break } drop
+    0 @i
+    loop {
+        $self.returns.len $i = if { 0 break }
+        &self.returns $i Array:get<Type> $pp Type-pretty Core:dup<i32> 0 /= if { break } drop
+        $i 1 + #i
+        $self.returns.len $i /= if {
+            $pp "," write Core:dup<i32> 0 /= if { break } drop
+        }
+    } Core:dup<i32> 0 /= if { break } drop
+    $pp ")" write
+} }
+
+fn Closure-pretty(self: .FunType, pp: .PrettyPrinter) -> i32 { block {
+    $pp &self.token write-token Core:dup<i32> 0 /= if { break } drop
+    $pp "(" write Core:dup 0 /= if { break } drop
     0 @i
     loop {
         $self.parameters.len $i = if { 0 break }

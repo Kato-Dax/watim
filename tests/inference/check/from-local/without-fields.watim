@@ -10,14 +10,16 @@ without-fields
 [== Status Compiler ==]
 0
 [== Stdout Compiler ==]
-(Function
-  name=(IDENT without-fields 1 4),
-  export=None,
-  signature=(Signature
-    generic-parameters=[],
-    parameters=[(NamedType (IDENT f 1 19) I32)],
-    returns=[I32]),
-  locals=(Map
-    (LocalId "f" 0 0)=(Local (IDENT f 1 19) I32 True)),
-  body=(Scope 0 [
-    (GetLocal (IDENT f 2 6) (LocalId "f" 0 0) I32 I32 [])]))
+[
+  (Function
+    name=(User (IDENT without-fields 1 4)),
+    export=None,
+    signature=(Signature
+      generic-parameters=[],
+      parameters=[
+        (Parameter (User (IDENT f 1 19)) 0 I32)],
+      returns=[I32]),
+    locals=(Map
+      (LocalId "f" 0 0)=(Local (User (IDENT f 1 19)) I32 (Some 0))),
+    body=(Scope 0 [
+      (GetLocal (IDENT f 2 6) (LocalId "f" 0 0) I32 I32 [])]))]

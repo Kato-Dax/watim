@@ -3,9 +3,10 @@ import "../../std/maybe.watim" as Maybe (Maybe)
 import "../../std/fmt-utils.watim" as Fmt
 import "../../std/bytes.watim" as Bytes
 import "../../std/array.watim" as Array (Array)
-import "../../std/util.watim" as U (i32-format)
+import "../../std/util.watim" as U (i32-format, i32-format-ref, bool-format)
 import "../../std/byte-slice.watim" as ByteSlice (ByteSlice)
 import "../../std/map.watim" as Map (Map)
+import "../../std/arena.watim" as Arena (Arena)
 
 import "../lexer.watim" as Lexer (Token, Token-format)
 import "../parser.watim" as P (GetField, GetField-format)
@@ -51,6 +52,12 @@ fn LocalId-format(fmt: .Formatter, self: .LocalId) {
     $fmt " " Fmt:write
     $fmt $self.shadow i32-format
     $fmt ")" Fmt:write
+}
+fn LocalId-clone(arena: .Arena, self: .LocalId) -> LocalId {
+    $arena $self.name ByteSlice:unpack Arena:push-bytes $self.name.len make ByteSlice
+    $self.scope
+    $self.shadow
+    make LocalId
 }
 
 struct ScopeId { raw: i32 }
@@ -397,12 +404,15 @@ fn Block-format(fmt: .Formatter, self: .Block) {
 
 struct IndirectCall {
     token: Token
+    closure: bool
     parameters: Array<Type>
     returns: Array<Type>
 }
 fn IndirectCall-format(fmt: .Formatter, self: .IndirectCall) {
     $fmt "(IndirectCall " Fmt:write
     $fmt &self.token Token-format
+    $fmt " " Fmt:write
+    $fmt $self.closure bool-format
     $fmt " " Fmt:write
     $fmt \Type:format &self.parameters Array:format<_>
     $fmt " " Fmt:write
@@ -512,6 +522,7 @@ fn StackAnnotation-format(fmt: .Formatter, self: .StackAnnotation) {
 struct Closure {
     token: Token
     locals: Map<LocalId, Local>
+    closure-local: LocalId
     scope: Scope
 }
 fn Closure-format(fmt: .Formatter, self: .Closure) {
@@ -524,6 +535,10 @@ fn Closure-format(fmt: .Formatter, self: .Closure) {
     $fmt Fmt:write-indent
     $fmt "locals=" Fmt:write
     $fmt \LocalId-format \Local-format &self.locals Map:format-multi-line
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "closure-local=" Fmt:write
+    $fmt &self.closure-local LocalId-format
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "scope=" Fmt:write

@@ -11,11 +11,11 @@ fn main "_start" (number: i64) {
 	(table funcref (elem))
 	(global $stac:k (mut i32) (i32.const 0))
 	(data (i32.const 0) "")
-	(func $0:main (export "_start") (param $v:number i64)
+	(func $0:main (export "_start") (param i64)
 		(local $number i32)
 		(local $stac:k i32)
 		global.get $stac:k local.set $stac:k
-		global.get $stac:k global.get $stac:k local.get $v:number i64.store local.tee $number i32.const 8 i32.add global.set $stac:k
+		global.get $stac:k global.get $stac:k local.get 0 i64.store local.tee $number i32.const 8 i32.add global.set $stac:k
 		local.get $number
 		drop
 		local.get $stac:k global.set $stac:k

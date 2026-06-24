@@ -17,14 +17,14 @@ fn main "_start" () {
 0
 [== Stdout Compiler ==]
 (module
-	(import "wasi_snapshot_preview1" "proc_exit" (func $0:proc_exit (param $code i32)))
+	(import "wasi_snapshot_preview1" "proc_exit" (func $0:proc_exit (param i32)))
 	(memory 1 65536)
 	(export "memory" (memory 0))
 	(table funcref (elem))
 	(global $stac:k (mut i32) (i32.const 0))
 	(data (i32.const 0) "")
-	(func $0:foo (param $s i32)
-		local.get $s
+	(func $0:foo (param i32)
+		local.get 0
 		drop
 	)
 	(func $0:main (export "_start")

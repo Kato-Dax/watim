@@ -25,6 +25,7 @@ import "./resolving/module.watim" as Resolved
 import "./resolving/top-items.watim" as Resolved
 import "./resolving/type.watim" as Resolved (ModuleId)
 import "./resolving/type-lookup.watim" as Resolved (TypeLookup)
+import "./resolving/words.watim" as Resolved (FunctionHandle)
 import "./unstacking/unstacker.watim" as Unstacker
 import "./unstacking/unstacking.watim" as Unstacking (init-intrinsic-signatures)
 import "./unstacking/unstacking.watim" as Unstacked
@@ -484,28 +485,32 @@ fn run-project-wide-command(fs: .FileSystem, command: ProjectWideCommand) { bloc
             1 Fmt:to-fd @fmt
             &arena &fmt 1024 Fmt:buffered @buf @fmt
 
+            $resolved-modules.keys.len 1 - make ModuleId @module-id
             &resolved-modules.keys Array:last<_> @file-path
             &resolved-modules.values Array:last<_> @module
-            &module.functions &args.function Map:get<_, _> Maybe:assert-some<_> match {
+            &module.functions &args.function Map:get-index<_, _> Maybe:assert-some<_> @function-index
+            &module.functions $function-index Map:get-value match {
                 case Resolved:FunctionOrExtern.Extern -> { drop }
                 case Resolved:FunctionOrExtern.Function -> {
                     @function
                     &arena &resolved-modules.values $function Unstacking:unstack-function @function
 
-                    &inference-arena &resolved-modules.values &module.globals.values &function $args.log-level Inference:infer-function match {
+                    $module-id $function-index make Resolved:FunctionHandle @function-handle
+
+                    &inference-arena &resolved-modules.values &module.globals.values $module-id &function $function-handle $args.log-level Inference:infer-function match {
                         case Success -> {}
                         case Error -> {
                             $file-path ~ flip &resolved-modules.values flip make InferenceError
                             2 flip & InferenceError-print drop
                             2 IO:newline
                             1 Core:exit
-                            Core:unreachable<Checked:Function>
+                            Core:unreachable
                         }
-                    } @function
+                    } @functions
 
                     1 Fmt:to-fd @fmt
                     &arena &fmt 1024 Fmt:buffered @buf @fmt
-                    &fmt &function Checked:Function-format
+                    &fmt \Checked:Function-format &functions Array:format-multi-line
                     &fmt "\n" Fmt:write
                     $buf Fmt:flush
                 }
@@ -534,6 +539,13 @@ fn run-project-wide-command(fs: .FileSystem, command: ProjectWideCommand) { bloc
         case Check -> {
             drop
             Unstacking:uninit-intrinsic-signatures
+
+            1 Fmt:to-fd @fmt
+            &arena &fmt 1024 Fmt:buffered @buf @fmt
+            &fmt \ByteSlice-format \Checked:Module-format &inferred Map:format-multi-line
+            &fmt "\n" Fmt:write
+            $buf Fmt:flush
+
             &resolving-arena Arena:shred
             &inference-arena Arena:shred
             &arena Arena:shred
@@ -646,7 +658,7 @@ fn infer-modules(arena: .Arena, resolved: .Map<ByteSlice, Resolved:Module>) -> R
 
         &inferred
         $file-path
-        $arena &resolved.values &resolved.values $i Array:get<_> infer-module match {
+        $arena &resolved.values &resolved.values $i Array:get<_> $i make ModuleId infer-module match {
             case Error -> {
                 $file-path flip &resolved.values flip make InferenceError
                 make Result<Map<ByteSlice, Checked:Module>, InferenceError>.Error break
@@ -658,10 +670,11 @@ fn infer-modules(arena: .Arena, resolved: .Map<ByteSlice, Resolved:Module>) -> R
     }
 }
 
-fn infer-module(arena: .Arena, modules: .Array<Resolved:Module>, module: .Resolved:Module) -> Result<Checked:Module, Inference:Error> { block {
+fn infer-module(arena: .Arena, modules: .Array<Resolved:Module>, module: .Resolved:Module, module-id: ModuleId) -> Result<Checked:Module, Inference:Error> { block {
     $arena $module.functions.values.len Array:new-with-capacity<Checked:FunctionOrExtern> @functions
     0 loop (i32 -> Result<Array<Checked:FunctionOrExtern>, Inference:Error>) {
         @i $i $module.functions.values.len = if { $functions make Result<Array<Checked:FunctionOrExtern>, Inference:Error>.Success break }
+        $module-id $i make FunctionHandle @function-handle
         &module.functions.values $i Array:get<_> match {
             case Resolved:FunctionOrExtern.Extern -> {
                 ~ make Checked:FunctionOrExtern.Extern &functions flip Array:push-assert-no-alloc<_>
@@ -670,12 +683,18 @@ fn infer-module(arena: .Arena, modules: .Array<Resolved:Module>, module: .Resolv
                 @function
                 $arena Arena:temp @temp @save
                 $temp $modules $function Unstacking:unstack-function @function
-                $arena $modules &module.globals.values &function make Inference:LogLevel.NoLogs Inference:infer-function match {
+                $arena $modules &module.globals.values $module-id &function $function-handle make Inference:LogLevel.NoLogs Inference:infer-function match {
                     case Error -> { make Result<Array<Checked:FunctionOrExtern>, Inference:Error>.Error break }
                     case Success -> {}
-                } make Checked:FunctionOrExtern.Function
+                } @inferred-functions
+                0 loop {
+                    @i $i $inferred-functions.len = if { break }
+                    $arena &functions
+                    &inferred-functions $i Array:get ~ make Checked:FunctionOrExtern.Function
+                    Array:push
+                    $i 1 +
+                }
                 $temp $save Arena:restore
-                &functions flip Array:push-assert-no-alloc<_>
             }
         }
         $i 1 +
@@ -685,7 +704,7 @@ fn infer-module(arena: .Arena, modules: .Array<Resolved:Module>, module: .Resolv
     } @functions
     make Checked:Module {
         $module.imports @imports
-        $module.type-definitions.values @type-definitions
+        $arena &module.type-definitions.values Array:clone @type-definitions
         $module.globals.values @globals
         $module.static-data @static-data
         $functions @functions

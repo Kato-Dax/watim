@@ -14,8 +14,9 @@ import "../../std/io.watim" as IO
 
 import "../parser.watim" as P
 import "../lexer.watim" as L (Token, Token-lexeme, Token-location, Token-format)
+import "../name.watim" as Name (Name)
 
-import "./local.watim" as Local (Local, LocalName, SyntheticName)
+import "./local.watim" as Local (Local)
 import "./top-items.watim" as TopItem (
     TypeDefinition(Struct, Variant), Import, Global,
     FunctionOrExtern, FunctionOrExtern-signature,
@@ -45,7 +46,7 @@ import "./intrinsics.watim" as Intrinsics
 
 struct StructLiteralEnv {
     struc: CustomTypeHandle
-    all_fields: Map<ByteSlice, i32>
+    all-fields: Map<ByteSlice, i32>
     remaining-fields: Map<ByteSlice, i32>
 }
 fn StructLiteralEnv-of-struc(arena: .Arena, struc: .Struct, handle: CustomTypeHandle) -> StructLiteralEnv {
@@ -54,7 +55,12 @@ fn StructLiteralEnv-of-struc(arena: .Arena, struc: .Struct, handle: CustomTypeHa
     loop {
         $i $struc.fields.len = if { break }
         &all-fields
-        &struc.fields $i Array:get<_> .name Token-lexeme make ByteSlice
+        &struc.fields $i Array:get<_> .name match {
+            case Name.User -> {}
+            case Name.AnonymousFunction -> { drop 0 0 / drop uninit }
+            case Name.RefLocal -> { drop 0 0 / drop uninit }
+            case Name.ClosureParam -> { drop 0 0 / drop uninit }
+        } Token-lexeme make ByteSlice
         $i Map:insert-assert-no-alloc<_, _> drop
         $i 1 + #i
     }
@@ -78,6 +84,7 @@ struct WordCtx {
     env: .Env
     struc-literal-env: Maybe<.StructLiteralEnv>
     is-in-block: bool
+    closure-count: .i32
 }
 
 fn with-env(ctx: .WordCtx, env: .Env) -> WordCtx {
@@ -171,7 +178,7 @@ fn resolve-word(ctx: .WordCtx, word: .P:Word) -> Result<OneOrMany<Word>, Resolve
                 case Some -> {
                     @struc-literal-env
                     &word.ident Token-lexeme make ByteSlice @field-name
-                    &struc-literal-env.all_fields &field-name Map:get<_, _> match {
+                    &struc-literal-env.all-fields &field-name Map:get<_, _> match {
                         case None -> {}
                         case Some -> {
                             ~ @field-index
@@ -193,8 +200,8 @@ fn resolve-word(ctx: .WordCtx, word: .P:Word) -> Result<OneOrMany<Word>, Resolve
 
                 $ctx.arena $ctx.env
                 make Local {
-                    $word.ident make LocalName.FromSource @name
-                    make Maybe<WithoutHoles:Type>.None @parameter
+                    $word.ident make Name.User @name
+                    make Maybe.None @parameter
                 }
                 Env:insert @local
             } make Word.InitLocal
@@ -274,6 +281,7 @@ fn resolve-word(ctx: .WordCtx, word: .P:Word) -> Result<OneOrMany<Word>, Resolve
         case P:Word.IndirectCall -> {
             @word
             $word.token
+            $word.closure
             $ctx.type-resolver $ctx.arena &word.parameters TypeResolver:resolve-types match {
                 case Error -> { make Result<OneOrMany<Word>, ResolveError>.Error break }
                 case Success -> {} }
@@ -426,8 +434,8 @@ fn resolve-word(ctx: .WordCtx, word: .P:Word) -> Result<OneOrMany<Word>, Resolve
         case P:Word.Ref -> {
             ~ @token
             make Local {
-                $token "synth:ref" make ByteSlice make SyntheticName make LocalName.Synthetic @name
-                make Maybe<WithoutHoles:Type>.None @parameter
+                $token make Name.RefLocal @name
+                make Maybe.None @parameter
             } $ctx.arena flip $ctx.env flip Env:insert @local-id
             $ctx.arena 2 Array:new-with-capacity<Word> @words
             &words $token $local-id make InitLocal make Word.InitLocal Array:push-assert-no-alloc<_>
@@ -447,14 +455,20 @@ fn resolve-word(ctx: .WordCtx, word: .P:Word) -> Result<OneOrMany<Word>, Resolve
             @word
             \LocalId-eq Map:new @locals
             $ctx.env &locals Env:with-locals $ctx flip & with-env @ctx
-            $word.token
+
+            $ctx.closure-count ~ 1 + =>ctx.closure-count
+
+            $ctx.arena $ctx.env make Local {
+                $word.token make Name.ClosureParam @name
+                make Maybe.None @parameter
+            } Env:insert @closure-local
+
             &ctx &word.body.words resolve-scope match {
                 case Error -> { make Result<OneOrMany<Word>, ResolveError>.Error break }
                 case Success -> {}
-            }
-            $locals
-            flip
-            make Closure make Word.Closure
+            } @body
+
+            $word.token $locals $closure-local $body make Closure make Word.Closure
         }
     }
     make OneOrMany<Word>.One

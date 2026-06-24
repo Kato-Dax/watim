@@ -7,13 +7,15 @@ import "../../std/fmt-utils.watim" as Fmt (ByteSlice-format)
 import "../../std/util.watim" as U (i32-format, bool-format, i32-format-ref)
 
 import "../lexer.watim" as L (Token, Token-format, Token-lexeme)
+import "../name.watim" as Name (Name, Name-format)
+
 import "./type.watim" as Type (
     Type, NamedType, NamedType-format, Types-format,
     CustomTypeHandle, CustomTypeHandle-format,
     ModuleId,
 )
 import "./type-without-holes.watim" as WithoutHoles
-import "./local.watim" as Local (Local, Local-format)
+import "./local.watim" as Local (Local, Local-format, Parameter, Parameter-format)
 import "./words.watim" as Words (
     LocalId, LocalId-format, GlobalId,
     Scope, ScopeId, Scope-format,
@@ -276,7 +278,7 @@ fn Global-format(fmt: .Formatter, self: .Global) {
 
 struct FunctionSignature {
     generic-parameters: Array<Token>
-    parameters: Array<WithoutHoles:NamedType>
+    parameters: Array<Parameter>
     returns: Array<WithoutHoles:Type>
 }
 fn FunctionSignature-format(fmt: .Formatter, self: .FunctionSignature) {
@@ -288,7 +290,7 @@ fn FunctionSignature-format(fmt: .Formatter, self: .FunctionSignature) {
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "parameters=" Fmt:write
-    $fmt \WithoutHoles:NamedType-format &self.parameters Array:format<_>
+    $fmt \Parameter-format &self.parameters Array:format-multi-line
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "returns=" Fmt:write
@@ -319,7 +321,9 @@ struct Function {
     name: Token
     export: Maybe<Token>
     signature: FunctionSignature
+    environment-local: Maybe<LocalId>
     locals: Map<LocalId, Local>
+    closure-count: i32
     body: Scope
 }
 fn Function-format(fmt: .Formatter, self: .Function) {
@@ -340,6 +344,10 @@ fn Function-format(fmt: .Formatter, self: .Function) {
     $fmt Fmt:write-indent
     $fmt "locals=" Fmt:write
     $fmt \LocalId-format \Local-format &self.locals Map:format-multi-line<LocalId, Local>
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "closure-count=" Fmt:write
+    $fmt $self.closure-count i32-format
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "body=" Fmt:write

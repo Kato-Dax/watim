@@ -12,18 +12,19 @@ foo
 [== Status Compiler ==]
 0
 [== Stdout Compiler ==]
-(Function
-  name=(IDENT foo 3 4),
-  export=None,
-  signature=(Signature
-    generic-parameters=[],
-    parameters=[],
-    returns=[]),
-  locals=(Map),
-  body=(Scope 0 [
-    (Number (NUMBER 0 4 5)),
-    (Number (NUMBER 1 4 7)),
-    (MakeStruct
-      token=(MAKE make 4 9),
-      type=(CustomType 0 0 [I32])),
-    (Intrinsic (IDENT drop 4 21) (Drop (CustomType 0 0 [I32])))]))
+[
+  (Function
+    name=(User (IDENT foo 3 4)),
+    export=None,
+    signature=(Signature
+      generic-parameters=[],
+      parameters=[],
+      returns=[]),
+    locals=(Map),
+    body=(Scope 0 [
+      (Number (NUMBER 0 4 5)),
+      (Number (NUMBER 1 4 7)),
+      (MakeStruct
+        token=(MAKE make 4 9),
+        type=(CustomType 0 0 [I32])),
+      (Intrinsic (IDENT drop 4 21) (Drop (CustomType 0 0 [I32])))]))]

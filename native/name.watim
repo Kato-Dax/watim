@@ -1,0 +1,115 @@
+import "../std/fmt.watim" as Fmt (Formatter)
+import "../std/util.watim" as Util (i32-format)
+import "../std/fmt-utils.watim" as Fmt
+
+import "./lexer.watim" as Lexer (Token, Token-format, Token-lexeme, Token-eq-by-lexeme)
+
+variant Name {
+    case User -> Token
+    case AnonymousFunction -> AnonymousFunctionName
+    case RefLocal -> Token
+    case ClosureParam -> Token
+}
+fn Name-format(fmt: .Formatter, self: .Name) {
+    $self match {
+        case User -> { $fmt "(User " Fmt:write $fmt flip Token-format $fmt ")" Fmt:write }
+        case AnonymousFunction -> { $fmt flip AnonymousFunctionName-format }
+        case RefLocal -> { $fmt "(RefLocal " Fmt:write $fmt flip Token-format $fmt ")" Fmt:write }
+        case ClosureParam -> { $fmt "(ClosureParam " Fmt:write $fmt flip Token-format $fmt ")" Fmt:write }
+    }
+}
+fn eq(self: .Name, other: .Name) -> bool { block {
+    $self match {
+        case User -> { $other match {
+            case User -> { Token-eq-by-lexeme }
+            case _ -> { drop drop 0 1 = }
+        } }
+        case AnonymousFunction -> {
+            $other match {
+                case AnonymousFunction -> { AnonymousFunctionName-eq }
+                case _ -> { drop drop 0 1 = }
+            }
+        }
+        case RefLocal -> { $other match {
+            case RefLocal -> { Token-eq-by-lexeme }
+            case _ -> { drop drop 0 1 = }
+        } }
+        case ClosureParam -> { $other match {
+            case ClosureParam -> { Token-eq-by-lexeme }
+            case _ -> { drop drop 0 1 = }
+        } }
+    }
+} }
+fn Name-unpack(self: .Name) -> .i8, i32 {
+    $self match {
+        case User -> { Token-lexeme }
+        case AnonymousFunction -> { AnonymousFunctionName-unpack }
+        case RefLocal -> { drop "synth:ref" }
+        case ClosureParam -> { drop "c;losure" }
+    }
+}
+fn Name-token(self: .Name) -> .Token {
+    $self match {
+        case User -> {}
+        case AnonymousFunction -> { .surrounding-function }
+        case RefLocal -> {}
+        case ClosureParam -> {}
+    }
+}
+
+struct AnonymousFunctionName {
+    surrounding-function: Token
+    closure: Token
+    closure-index: i32
+}
+fn AnonymousFunctionName-format(fmt: .Formatter, self: .AnonymousFunctionName) {
+    $fmt "(AnonymousFunctionName " Fmt:write
+    $fmt $self.closure-index i32-format
+    $fmt " " Fmt:write
+    $fmt &self.surrounding-function Token-format
+    $fmt " " Fmt:write
+    $fmt &self.closure Token-format
+    $fmt ")" Fmt:write
+}
+fn AnonymousFunctionName-eq(self: .AnonymousFunctionName, other: .AnonymousFunctionName) -> bool {
+    $self.closure-index $other.closure-index =
+    &self.surrounding-function &other.surrounding-function Token-eq-by-lexeme and
+}
+fn AnonymousFunctionName-unpack(self: .AnonymousFunctionName) -> .i8, i32 {
+    &self.closure Token-lexeme
+}
+
+// struct SyntheticName {
+//     token: Token
+//     name: ByteSlice
+// }
+// fn SyntheticName-format(fmt: .Formatter, self: .SyntheticName) {
+//     $fmt "(SyntheticName " Fmt:write
+//     $fmt &self.token Token-format
+//     $fmt " " Fmt:write
+//     $fmt &self.name Fmt:ByteSlice-format
+//     $fmt ")" Fmt:write
+// }
+//
+// variant LocalName {
+//     case FromSource -> Token
+//     case Synthetic -> SyntheticName
+// }
+// fn LocalName-format(fmt: .Formatter, self: .LocalName) {
+//     $fmt $self match {
+//         case FromSource -> { Token-format }
+//         case Synthetic -> { SyntheticName-format }
+//     }
+// }
+// fn LocalName-unpack(self: .LocalName) -> .i8, i32 {
+//     $self match {
+//         case FromSource -> { Token-lexeme }
+//         case Synthetic -> { .name ~ ByteSlice:unpack }
+//     }
+// }
+// fn LocalName-token(self: .LocalName) -> .Token {
+//     $self match {
+//         case FromSource -> {}
+//         case Synthetic -> { .token }
+//     }
+// }

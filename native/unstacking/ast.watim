@@ -1,13 +1,15 @@
 import "../../std/fmt.watim" as Fmt (Formatter)
 import "../../std/maybe.watim" as Maybe (Maybe(Some, None))
 import "../../std/array.watim" as Array (Array)
-import "../../std/util.watim" as Util (bool-format)
+import "../../std/util.watim" as Util (bool-format, i32-format)
 
 import "../lexer.watim" as Lexer (Token, Token-format)
+import "../name.watim" as Name (Name, Name-format)
 
 import "../resolving/top-items.watim" as Resolved
 import "../resolving/local.watim" as Resolved
 import "../resolving/type-without-holes.watim" as Type (Type)
+import "../resolving/local.watim" as Resolved (Parameter, Parameter-format)
 
 import "./source.watim" as Source (Source, Source-format)
 import "./word.watim" as Word (InferenceHole, InferenceHole-format)
@@ -46,12 +48,10 @@ fn Assignment-format(fmt: .Formatter, self: .Assignment) {
 }
 
 struct Local {
-    name: Resolved:LocalName
+    name: Name
     type: InferenceHole
-    // if this local is a parameter, then this will be non-None
-    parameter: Maybe<Type>
+    parameter: Maybe<Parameter>
     assignments: Array<Assignment>
-    reffed: bool
     assignments-checked: bool
 }
 fn Local-format(fmt: .Formatter, self: .Local) {
@@ -59,7 +59,7 @@ fn Local-format(fmt: .Formatter, self: .Local) {
     $fmt Fmt:indent
     $fmt Fmt:write-indent
     $fmt "name=" Fmt:write
-    $fmt &self.name Resolved:LocalName-format
+    $fmt &self.name Name-format
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "type=" Fmt:write
@@ -67,11 +67,7 @@ fn Local-format(fmt: .Formatter, self: .Local) {
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "parameter=" Fmt:write
-    $fmt \Type:format &self.parameter Maybe:format<_>
-    $fmt ",\n" Fmt:write
-    $fmt Fmt:write-indent
-    $fmt "reffed=" Fmt:write
-    $fmt $self.reffed bool-format
+    $fmt \Parameter-format &self.parameter Maybe:format
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "assignments=" Fmt:write

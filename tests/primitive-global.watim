@@ -10,12 +10,9 @@ fn main "_start" () {
 }
 [== Status Compiler ==]
 0
-[== Status ==]
-3
 [== Stdout Compiler ==]
-
 (module
-	(import "wasi_snapshot_preview1" "proc_exit" (func $0:proc_exit (param $code i32)))
+	(import "wasi_snapshot_preview1" "proc_exit" (func $0:proc_exit (param i32)))
 	(memory 1 65536)
 	(export "memory" (memory 0))
 	(table funcref (elem))
@@ -33,3 +30,5 @@ fn main "_start" () {
 	(func $intrinsic:dupi32 (param $a i32) (result i32 i32) local.get $a local.get $a)
 	(func $intrinsic:rotate-left (param $a i32) (param $b i32) (param $c i32) (result i32 i32 i32) local.get $b local.get $c local.get $a)
 )
+[== Status ==]
+3

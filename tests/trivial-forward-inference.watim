@@ -11,14 +11,15 @@ foo
 [== Status Compiler ==]
 0
 [== Stdout Compiler ==]
-(Function
-  name=(IDENT foo 2 4),
-  export=None,
-  signature=(Signature
-    generic-parameters=[],
-    parameters=[],
-    returns=[]),
-  locals=(Map),
-  body=(Scope 0 [
-    (Number (NUMBER 0 3 5)),
-    (Call (IDENT dup 3 7) (FunctionHandle 0 0) [I32])]))
+[
+  (Function
+    name=(User (IDENT foo 2 4)),
+    export=None,
+    signature=(Signature
+      generic-parameters=[],
+      parameters=[],
+      returns=[]),
+    locals=(Map),
+    body=(Scope 0 [
+      (Number (NUMBER 0 3 5)),
+      (Call (IDENT dup 3 7) (FunctionHandle 0 0) [I32])]))]

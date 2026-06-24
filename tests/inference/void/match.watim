@@ -12,14 +12,15 @@ main
 [== Status Compiler ==]
 0
 [== Stdout Compiler ==]
-(Function
-  name=(IDENT main 3 4),
-  export=None,
-  signature=(Signature
-    generic-parameters=[],
-    parameters=[],
-    returns=[]),
-  locals=(Map),
-  body=(Scope 0 [
-    (Intrinsic (IDENT uninit 4 5) (Uninit (CustomType 0 0 []))),
-    (MatchVoid (MATCH match 4 17))]))
+[
+  (Function
+    name=(User (IDENT main 3 4)),
+    export=None,
+    signature=(Signature
+      generic-parameters=[],
+      parameters=[],
+      returns=[]),
+    locals=(Map),
+    body=(Scope 0 [
+      (Intrinsic (IDENT uninit 4 5) (Uninit (CustomType 0 0 []))),
+      (MatchVoid (MATCH match 4 17))]))]

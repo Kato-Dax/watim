@@ -41,6 +41,7 @@ resolve
           parameters=[],
           returns=[]),
         locals=(Map),
+        closure-count=0,
         body=(Scope 0 [
           (MakeVariant
             token=(MAKE make 3 5),

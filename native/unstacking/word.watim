@@ -1,7 +1,7 @@
 import "../../std/array.watim" as Array (Array)
 import "../../std/maybe.watim" as Maybe (Maybe)
 import "../../std/fmt.watim" as Fmt (Formatter)
-import "../../std/util.watim" as Util (i32-format)
+import "../../std/util.watim" as Util (i32-format, bool-format)
 
 import "../lexer.watim" as Lexer (Token, Token-format)
 
@@ -54,10 +54,52 @@ fn FieldAccess-format(fmt: .Formatter, self: .FieldAccess) {
     $fmt ")" Fmt:write
 }
 
+struct ClosureFieldAccess {
+    closure-index: i32
+    field-index: i32
+    next: NextClosureFieldAccess
+}
+fn ClosureFieldAccess-format(fmt: .Formatter, self: .ClosureFieldAccess) {
+    $fmt "(ClosureFieldAccess " Fmt:write
+    $fmt $self.closure-index i32-format
+    $fmt " " Fmt:write
+    $fmt $self.field-index i32-format
+    $fmt " " Fmt:write
+    $fmt &self.next NextClosureFieldAccess-format
+    $fmt ")" Fmt:write
+}
+variant NextClosureFieldAccess {
+    case Last -> InferenceHole
+    case Next -> .ClosureFieldAccess
+}
+fn NextClosureFieldAccess-format(fmt: .Formatter, self: .NextClosureFieldAccess) {
+    $self match {
+        case Last -> {
+            $fmt "(Last " Fmt:write $fmt flip InferenceHole-format $fmt ")" Fmt:write
+        }
+        case Next -> {
+            $fmt "(Next " Fmt:write $fmt flip ~ ClosureFieldAccess-format $fmt ")" Fmt:write
+        }
+    }
+}
+
+struct EnvironmentFields {
+    environment-local: LocalId
+    path: ClosureFieldAccess
+}
+fn EnvironmentFields-format(fmt: .Formatter, self: .EnvironmentFields) {
+    $fmt "(EnvironmentFields " Fmt:write
+    $fmt &self.environment-local LocalId-format
+    $fmt " " Fmt:write
+    $fmt &self.path ClosureFieldAccess-format
+    $fmt ")" Fmt:write
+}
+
 struct GetLocal {
     name: Token
     var: VarId
     var-type: InferenceHole
+    environment-fields: Maybe<EnvironmentFields>
     fields: Array<FieldAccess>
     result-type: InferenceHole
 }
@@ -71,6 +113,8 @@ fn GetLocal-format(fmt: .Formatter, self: .GetLocal) {
     $fmt " " Fmt:write
     $fmt &self.result-type InferenceHole-format
     $fmt " " Fmt:write
+    $fmt \EnvironmentFields-format &self.environment-fields Maybe:format
+    $fmt " " Fmt:write
     $fmt \FieldAccess-format &self.fields Array:format-multi-line<FieldAccess>
     $fmt ")" Fmt:write
 }
@@ -79,6 +123,7 @@ struct RefLocal {
     name: Token
     var: VarId
     var-type: InferenceHole
+    environment-fields: Maybe<EnvironmentFields>
     fields: Array<FieldAccess>
     result-type: InferenceHole
 }
@@ -91,6 +136,8 @@ fn RefLocal-format(fmt: .Formatter, self: .RefLocal) {
     $fmt &self.var-type InferenceHole-format
     $fmt " " Fmt:write
     $fmt &self.result-type InferenceHole-format
+    $fmt " " Fmt:write
+    $fmt \EnvironmentFields-format &self.environment-fields Maybe:format
     $fmt " " Fmt:write
     $fmt \FieldAccess-format &self.fields Array:format-multi-line<FieldAccess>
     $fmt ")" Fmt:write
@@ -119,6 +166,7 @@ struct SetLocal {
     local: LocalId
     fields: Array<FieldAccess>
     field-type: InferenceHole
+    environment-fields: Maybe<EnvironmentFields>
 }
 fn SetLocal-format(fmt: .Formatter, self: .SetLocal) {
     $fmt "(SetLocal " Fmt:write
@@ -129,6 +177,8 @@ fn SetLocal-format(fmt: .Formatter, self: .SetLocal) {
     $fmt \FieldAccess-format &self.fields Array:format-multi-line<FieldAccess>
     $fmt " " Fmt:write
     $fmt &self.field-type InferenceHole-format
+    $fmt " " Fmt:write
+    $fmt \EnvironmentFields-format &self.environment-fields Maybe:format
     $fmt ")" Fmt:write
 }
 
@@ -763,6 +813,7 @@ fn MakeVariant-format(fmt: .Formatter, self: .MakeVariant) {
 
 struct IndirectCall {
     token: Token
+    function-type: InferenceHole
     parameters: Array<InferenceHole>
     return-types: Array<InferenceHole>
 }
@@ -772,6 +823,10 @@ fn IndirectCall-format(fmt: .Formatter, self: .IndirectCall) {
     $fmt Fmt:write-indent
     $fmt "token=" Fmt:write
     $fmt &self.token Token-format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "function-type=" Fmt:write
+    $fmt &self.function-type InferenceHole-format
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "parameters=" Fmt:write
@@ -839,9 +894,9 @@ fn GetField-format(fmt: .Formatter, self: .GetField) {
 
 struct Closure {
     token: Token
+    closure-index: i32
     parameters: Array<InferenceHole>
     returns: Array<InferenceHole>
-    body: Scope
 }
 
 fn Closure-format(fmt: .Formatter, self: .Closure) {
@@ -852,16 +907,16 @@ fn Closure-format(fmt: .Formatter, self: .Closure) {
     $fmt &self.token Token-format
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
+    $fmt "closure-index=" Fmt:write
+    $fmt $self.closure-index i32-format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
     $fmt "parameters=" Fmt:write
     $fmt \InferenceHole-format &self.parameters Array:format
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "returns=" Fmt:write
     $fmt \InferenceHole-format &self.returns Array:format
-    $fmt ",\n" Fmt:write
-    $fmt Fmt:write-indent
-    $fmt "body=" Fmt:write
-    $fmt &self.body Scope-format
     $fmt Fmt:dedent
     $fmt ")" Fmt:write
 }

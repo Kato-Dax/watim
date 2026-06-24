@@ -27,9 +27,9 @@ resolve
         name=(IDENT Bar 2 8),
         generic-parameters=[],
         fields=[
-          (NamedType (IDENT foo 3 2) (CustomType 0 0 [])),
-          (NamedType (IDENT baz 4 2) (Ptr (CustomType 0 2 []))),
-          (NamedType (IDENT fun 5 2) (FunType (LEFT_PAREN ( 5 7) [I32, (CustomType 0 0 [])] [(Ptr (CustomType 0 2 []))]))]),
+          (NamedType (User (IDENT foo 3 2)) (CustomType 0 0 [])),
+          (NamedType (User (IDENT baz 4 2)) (Ptr (CustomType 0 2 []))),
+          (NamedType (User (IDENT fun 5 2)) (FunType (LEFT_PAREN ( 5 7) [I32, (CustomType 0 0 [])] [(Ptr (CustomType 0 2 []))]))]),
       "Baz"=(Variant
         name=(IDENT Baz 7 9),
         generic-parameters=[],

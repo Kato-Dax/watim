@@ -8,12 +8,11 @@ fn main "_start" () {
     2 !i8 8 !i8 make I16 32 !i8 128 !i8 make I16 make I32 @foo
     $foo.b.a !i32 proc_exit
 }
-
 [== Status Compiler ==]
 0
 [== Stdout Compiler ==]
 (module
-	(import "wasi_snapshot_preview1" "proc_exit" (func $0:proc_exit (param $code i32)))
+	(import "wasi_snapshot_preview1" "proc_exit" (func $0:proc_exit (param i32)))
 	(memory 1 65536)
 	(export "memory" (memory 0))
 	(table funcref (elem))

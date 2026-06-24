@@ -1,4 +1,4 @@
-import "./core.watim" as Core
+import "./core.watim" as Core (Unit)
 import "./io.watim" as IO
 import "./arena.watim" as Arena (Arena)
 import "./byte-slice.watim" as ByteSlice (ByteSlice)
@@ -95,5 +95,9 @@ fn ByteSlice-format-no-quotes(fmt: .Formatter, self: .ByteSlice) {
         $fmt &escaped-char !.i8 $self.ptr $i + ~ &escaped-char !.i8 Core:escape Fmt:write
         $i 1 + #i
     }
+}
+
+fn Unit-format(fmt: .Formatter, unit: .Unit) {
+    $fmt "Unit" Fmt:write
 }
 

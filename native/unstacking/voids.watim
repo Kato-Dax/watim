@@ -13,7 +13,9 @@ import "./source.watim" as Source (Source, SignatureHandle, SignatureHandle-form
 
 struct IndirectCallVoid {
     token: Token
+    closure: bool
     function: Maybe<Source>
+    function-type: InferenceHole
     parameters: Array<InferenceHole>
     returns: Array<InferenceHole>
 }
@@ -23,6 +25,14 @@ fn IndirectCallVoid-format(fmt: .Formatter, self: .IndirectCallVoid) {
     $fmt Fmt:write-indent
     $fmt "token=" Fmt:write
     $fmt &self.token Token-format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "closure=" Fmt:write
+    $fmt $self.closure bool-format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "function-type=" Fmt:write
+    $fmt &self.function-type InferenceHole-format
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "parameters=" Fmt:write

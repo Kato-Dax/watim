@@ -1,0 +1,35 @@
+[== Stdin Compiler ==]
+fn main "_start" () {
+    {} \(->)
+}
+[== Args Compiler ==]
+compile
+-
+--quiet
+[== Status Compiler ==]
+0
+[== Stdout Compiler ==]
+(module
+	(memory 1 65536)
+	(export "memory" (memory 0))
+	(table funcref (elem $intrinsic:flip
+		$0:main:0))
+	(global $stac:k (mut i32) (i32.const 0))
+	(data (i32.const 0) "")
+	(func $0:main (export "_start")
+		;; closure (LEFT_BRACE { 2 5)
+		i32.const 0 ;; make {
+		i32.const 1 call $intrinsic:pack-i32s
+		call $intrinsic:unpack-i32s (call_indirect (param i32))
+	)
+	(func $0:main:0 (param i32)
+	)
+	(func $intrinsic:flip (param $a i32) (param $b i32) (result i32 i32) local.get $b local.get $a)
+	(func $intrinsic:dupi32 (param $a i32) (result i32 i32) local.get $a local.get $a)
+	(func $intrinsic:rotate-left (param $a i32) (param $b i32) (param $c i32) (result i32 i32 i32) local.get $b local.get $c local.get $a)
+	(func $intrinsic:pack-i32s (param $a i32) (param $b i32) (result i64) local.get $a i64.extend_i32_u local.get $b i64.extend_i32_u i64.const 32 i64.shl i64.or)
+	(func $intrinsic:unpack-i32s (param $a i64) (result i32) (result i32) local.get $a i32.wrap_i64 local.get $a i64.const 32 i64.shr_u i32.wrap_i64)
+)
+[== Status ==]
+0
+[== Stdout ==]

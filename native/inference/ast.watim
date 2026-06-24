@@ -1,18 +1,20 @@
+import "../../std/core.watim" as Core
 import "../../std/byte-slice.watim" as ByteSlice (ByteSlice)
 import "../../std/maybe.watim" as Maybe (Maybe)
 import "../../std/array.watim" as Array (Array)
 import "../../std/map.watim" as Map (Map)
 import "../../std/fmt.watim" as Fmt (Formatter)
 import "../../std/fmt-utils.watim" as Fmt (ByteSlice-format)
-import "../../std/util.watim" as Util (i32-format, bool-format)
+import "../../std/util.watim" as Util (i32-format, bool-format, i32-format-ref)
 
 import "../lexer.watim" as Lexer (Token, Token-format)
+import "../name.watim" as Name (Name, Name-format)
 import "../resolving/words.watim" as Resolved (
     LocalId, GlobalId, GlobalId-format, ScopeId, ScopeId-format,
     LocalId-format, FunctionHandle, FunctionHandle-format,
     VarId, VarId-format, StringWord, StringWord-format,
 )
-import "../resolving/local.watim" as Resolved (LocalName, LocalName-format)
+import "../resolving/local.watim" as Resolved
 import "../resolving/top-items.watim" as Resolved (
     Global, Global-format,
     TypeDefinition, TypeDefinition-format,
@@ -30,17 +32,17 @@ import "../resolving/type-without-holes.watim" as Type (
 )
 
 struct Local {
-    name: LocalName
+    name: Name
     type: Type
-    is-parameter: bool
+    parameter-index: Maybe<i32>
 }
 fn Local-format(fmt: .Formatter, self: .Local) {
     $fmt "(Local " Fmt:write
-    $fmt &self.name LocalName-format
+    $fmt &self.name Name-format
     $fmt " " Fmt:write
     $fmt &self.type Type:format
     $fmt " " Fmt:write
-    $fmt $self.is-parameter bool-format
+    $fmt \i32-format-ref &self.parameter-index Maybe:format
     $fmt ")" Fmt:write
 }
 
@@ -77,11 +79,52 @@ fn InitLocal-format(fmt: .Formatter, self: .InitLocal) {
     $fmt ")" Fmt:write
 }
 
+struct FieldAccessStep {
+    access: FieldAccess
+    next: FieldAccesses
+}
+variant FieldAccesses {
+    case End
+    case Load -> Type
+    case FieldAccess -> .FieldAccessStep
+}
+fn FieldAccesses-format(fmt: .Formatter, self: .FieldAccesses) {
+    $fmt "[" Fmt:write
+    $fmt Fmt:indent
+    $self match {
+        case End -> {}
+        case _ -> { drop $fmt "\n" Fmt:write }
+    }
+    $self loop {
+        match {
+            case End -> {
+                $fmt "]" Fmt:write break
+            }
+            case Load -> {
+                $fmt Fmt:write-indent
+                $fmt "(Load " Fmt:write
+                $fmt flip Type:format
+                $fmt ")]" Fmt:write break
+            }
+            case FieldAccess -> {
+                ~ @step
+                $fmt Fmt:write-indent
+                $fmt &step.access FieldAccess-format
+                &step.next
+            }
+        } Core:dup match {
+            case End -> {}
+            case _ -> { drop $fmt ",\n" Fmt:write }
+        }
+    }
+    $fmt Fmt:dedent
+}
+
 struct GetLocal {
     name: Token
     var: VarId
     var-type: Type
-    fields: Array<FieldAccess>
+    fields: FieldAccesses
     result-taip: Type
 }
 fn GetLocal-format(fmt: .Formatter, self: .GetLocal) {
@@ -94,14 +137,14 @@ fn GetLocal-format(fmt: .Formatter, self: .GetLocal) {
     $fmt " " Fmt:write
     $fmt &self.result-taip Type:format
     $fmt " " Fmt:write
-    $fmt \FieldAccess-format &self.fields Array:format-multi-line<FieldAccess>
+    $fmt &self.fields FieldAccesses-format
     $fmt ")" Fmt:write
 }
 
 struct SetLocal {
     name: Token
     var: VarId
-    fields: Array<FieldAccess>
+    fields: FieldAccesses
     target-type: Type
 }
 fn SetLocal-format(fmt: .Formatter, self: .SetLocal) {
@@ -112,7 +155,7 @@ fn SetLocal-format(fmt: .Formatter, self: .SetLocal) {
     $fmt " " Fmt:write
     $fmt &self.target-type Type:format
     $fmt " " Fmt:write
-    $fmt \FieldAccess-format &self.fields Array:format-multi-line<FieldAccess>
+    $fmt &self.fields FieldAccesses-format
     $fmt ")" Fmt:write
 }
 
@@ -120,7 +163,7 @@ struct StoreLocal {
     name: Token
     var: VarId
     type: Type
-    fields: Array<FieldAccess>
+    fields: FieldAccesses
 }
 fn StoreLocal-format(fmt: .Formatter, self: .StoreLocal) {
     $fmt "(StoreLocal " Fmt:write
@@ -130,14 +173,14 @@ fn StoreLocal-format(fmt: .Formatter, self: .StoreLocal) {
     $fmt " " Fmt:write
     $fmt &self.type Type:format
     $fmt " " Fmt:write
-    $fmt \FieldAccess-format &self.fields Array:format-multi-line<FieldAccess>
+    $fmt &self.fields FieldAccesses-format
     $fmt ")" Fmt:write
 }
 
 struct RefLocal {
     name: Token
     var: VarId
-    fields: Array<FieldAccess>
+    fields: FieldAccesses
 }
 fn RefLocal-format(fmt: .Formatter, self: .RefLocal) {
     $fmt "(RefLocal " Fmt:write
@@ -145,7 +188,7 @@ fn RefLocal-format(fmt: .Formatter, self: .RefLocal) {
     $fmt " " Fmt:write
     $fmt &self.var VarId-format
     $fmt " " Fmt:write
-    $fmt \FieldAccess-format &self.fields Array:format-multi-line<FieldAccess>
+    $fmt &self.fields FieldAccesses-format
     $fmt ")" Fmt:write
 }
 
@@ -229,7 +272,7 @@ fn Intrinsic-format(fmt: .Formatter, self: .Intrinsic) {
         case Ge -> { $fmt "(Ge " Fmt:write $fmt flip Type:format $fmt ")" Fmt:write }
         case Le -> { $fmt "(Le " Fmt:write $fmt flip Type:format $fmt ")" Fmt:write }
         case Not -> { $fmt "(Not " Fmt:write $fmt flip Type:format $fmt ")" Fmt:write }
-        case Load -> { $fmt "(Load " Fmt:write $fmt flip Type:format $fmt ")" Fmt:write }
+        case Intrinsic.Load -> { $fmt "(Load " Fmt:write $fmt flip Type:format $fmt ")" Fmt:write }
         case Store -> { $fmt "(Store " Fmt:write $fmt flip Type:format $fmt ")" Fmt:write }
         case SetStackSize -> { $fmt "SetStackSize" Fmt:write }
         case Uninit -> { $fmt "(Uninit " Fmt:write $fmt flip Type:format $fmt ")" Fmt:write }
@@ -421,6 +464,13 @@ fn IndirectCall-format(fmt: .Formatter, self: .IndirectCall) {
     $fmt &self.type FunType-format
     $fmt ")" Fmt:write
 }
+fn ClosureCall-format(fmt: .Formatter, self: .IndirectCall) {
+    $fmt "(ClosureCall " Fmt:write
+    $fmt &self.token Token-format
+    $fmt " " Fmt:write
+    $fmt &self.type FunType-format
+    $fmt ")" Fmt:write
+}
 
 struct MatchCase {
     type: Maybe<Type>
@@ -504,20 +554,60 @@ fn VariantWord-format(fmt: .Formatter, self: .VariantWord) {
 
 struct GetField {
     token: Token
-    fields: Array<FieldAccess>
+    fields: FieldAccesses
     on-ptr: bool
-    type: Type
+    // type: Type
 }
 fn GetField-format(fmt: .Formatter, self: .GetField) {
     $fmt "(GetField " Fmt:write
     $fmt &self.token Token-format
     $fmt " " Fmt:write
-    $fmt \FieldAccess-format &self.fields Array:format<FieldAccess>
+    $fmt &self.fields FieldAccesses-format
     $fmt " " Fmt:write
     $fmt $self.on-ptr bool-format
-    $fmt " " Fmt:write
-    $fmt &self.type Type:format
+    // $fmt " " Fmt:write
+    // $fmt &self.type Type:format
     $fmt ")" Fmt:write
+}
+fn GetField-type(self: .GetField) -> Type {
+    // TODO: the following causes a stack-overflow during inference:
+        // block {
+        //     &self.fields match {
+        //         case FieldAccesses.End -> { 0 0 / drop Core:unreachable }
+        //         case FieldAccesses.Load -> { break }
+        //         case FieldAccesses.FieldAccess -> { break }
+        //     } @step
+        //     $step.type $step.next loop {
+        //         match {
+        //             case FieldAccesses.End -> { break }
+        //             case FieldAccesses.Load -> { flip drop break }
+        //             case FieldAccesses.FieldAccess -> {
+        //                 @step
+        //                 drop $step.type $step.next
+        //             }
+        //         }
+        //     }
+        // } $self.on-ptr if { make Type.Ptr } else { ~ }
+
+    block (-> .Type) {
+        &self.fields match {
+            case FieldAccesses.End -> { 0 0 / drop Core:unreachable }
+            case FieldAccesses.Load -> { break }
+            case FieldAccesses.FieldAccess -> {}
+        } ~ @step
+        &step.access.target-type $step.next loop (.Type, .FieldAccesses -> .Type) {
+            flip @x // TODO: not doing this `flip @x` but instead passing the x through, doesn't typecheck
+                    // even though i really think it should!
+            match {
+                case FieldAccesses.End -> { $x break }
+                case FieldAccesses.Load -> { $x break }
+                case FieldAccesses.FieldAccess -> {
+                    ~ @step
+                    &step.access.target-type $step.next
+                }
+            }
+        }
+    } $self.on-ptr if { make Type.Ptr } else { ~ }
 }
 
 struct Call {
@@ -548,7 +638,9 @@ struct Closure {
     token: Token
     parameters: Array<Type>
     returns: Array<Type>
-    body: Scope
+    function: FunctionHandle
+    environment: CustomTypeType
+    captured: Array<LocalId>
 }
 fn Closure-format(fmt: .Formatter, self: .Closure) {
     $fmt "(Closure\n" Fmt:write
@@ -566,8 +658,16 @@ fn Closure-format(fmt: .Formatter, self: .Closure) {
     $fmt \Type:format &self.returns Array:format
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
-    $fmt "body=" Fmt:write
-    $fmt &self.body Scope-format
+    $fmt "function=" Fmt:write
+    $fmt &self.function FunctionHandle-format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "environment=" Fmt:write
+    $fmt &self.environment CustomTypeType-format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "captured=" Fmt:write
+    $fmt \LocalId-format &self.captured Array:format
     $fmt Fmt:dedent
     $fmt ")" Fmt:write
 }
@@ -593,6 +693,7 @@ variant Word {
     case Break -> Token
     case Block -> Block
     case IndirectCall -> IndirectCall
+    case ClosureCall -> IndirectCall
     case Match -> Match
     case MatchVoid -> Token
     case VariantWord -> VariantWord
@@ -621,6 +722,7 @@ fn Word-format(fmt: .Formatter, self: .Word) {
         case Break -> { $fmt "(Break " Fmt:write $fmt flip Token-format $fmt ")" Fmt:write }
         case Block -> { $fmt flip Block-format }
         case IndirectCall -> { $fmt flip IndirectCall-format }
+        case ClosureCall -> { $fmt flip ClosureCall-format }
         case Match -> { $fmt flip Match-format }
         case MatchVoid -> { $fmt "(MatchVoid " Fmt:write $fmt flip Token-format $fmt ")" Fmt:write }
         case VariantWord -> { $fmt flip VariantWord-format }
@@ -650,7 +752,7 @@ fn FunctionOrExtern-signature(self: .FunctionOrExtern) -> .FunctionSignature {
 }
 
 struct Function {
-    name: Token
+    name: Name
     export: Maybe<Token>
     signature: FunctionSignature
     locals: Map<LocalId, Local>
@@ -661,7 +763,7 @@ fn Function-format(fmt: .Formatter, self: .Function) {
     $fmt Fmt:indent
     $fmt Fmt:write-indent
     $fmt "name=" Fmt:write
-    $fmt &self.name Token-format
+    $fmt &self.name Name-format
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "export=" Fmt:write

@@ -6,8 +6,8 @@ import "../std/arena.watim" as Arena (Arena)
 import "../std/array.watim" as Array (Array)
 import "../std/byte-slice.watim" as ByteSlice (ByteSlice)
 import "../std/fmt.watim" as Fmt (Formatter)
-import "../std/fmt-utils.watim" as Util (ByteSlice-format)
-import "../std/util.watim" as Util (i32-format)
+import "../std/fmt-utils.watim" as Fmt (ByteSlice-format)
+import "../std/util.watim" as Util (i32-format, bool-format)
 
 import "./lexer.watim" as Lexer (
     Token, Token-ty, TokenTy-name, Token-lexeme, Token-format, Token-print, Token-location, Token-column, Token-eq-by-lexeme, Token-string-content,
@@ -127,6 +127,15 @@ fn FunType-format(fmt: .Formatter, self: .FunType) {
     $fmt \Type-format &self.returns Array:format-multi-line<Type>
     $fmt ")" Fmt:write
 }
+fn ClosureType-format(fmt: .Formatter, self: .FunType) {
+    $fmt "(ClosureType " Fmt:write
+    $fmt &self.token Token-format
+    $fmt " " Fmt:write
+    $fmt \Type-format &self.parameters Array:format-multi-line<Type>
+    $fmt " " Fmt:write
+    $fmt \Type-format &self.returns Array:format-multi-line<Type>
+    $fmt ")" Fmt:write
+}
 
 struct GenericType {
     name: Token
@@ -151,6 +160,7 @@ variant Type {
     case Ptr -> PtrType
     case Custom -> CustomType
     case Fun -> FunType
+    case Closure -> FunType
     case Generic -> GenericType
     case Hole -> Token
 }
@@ -163,6 +173,7 @@ fn Type-format(fmt: .Formatter, self: .Type) { block {
         case Ptr -> { .type $fmt "(Ptr " Fmt:write ~ $fmt flip Type-format $fmt ")" Fmt:write break }
         case Custom -> { $fmt flip CustomType-format break }
         case Fun -> { $fmt flip FunType-format break }
+        case Closure -> { $fmt flip ClosureType-format break }
         case Generic -> { $fmt flip GenericType-format break }
         case Hole -> { drop "Hole" }
     } @len @ptr
@@ -180,6 +191,7 @@ fn Type-token(self: .Type) -> .Token {
         case Ptr -> { .type ~ Type-token }
         case Custom -> { CustomType-name }
         case Fun -> { .token }
+        case Closure -> { .token }
         case Generic -> { .name }
         case Hole -> {}
     }
@@ -538,12 +550,15 @@ fn StackAnnotation-format(fmt: .Formatter, self: .StackAnnotation) {
 
 struct IndirectCall {
     token: Token
+    closure: bool
     parameters: Array<Type>
     returns: Array<Type>
 }
 fn IndirectCall-format(fmt: .Formatter, self: .IndirectCall) {
     $fmt "(IndirectCall " Fmt:write
     $fmt &self.token Token-format
+    $fmt " " Fmt:write
+    $fmt $self.closure bool-format
     $fmt " " Fmt:write
     $fmt \Type-format &self.parameters Array:format<Type>
     $fmt " " Fmt:write
@@ -614,7 +629,7 @@ fn Word-format(fmt: .Formatter, self: .Word) { block {
         case Store -> { $fmt flip Store-format break }
         case IndirectCall -> { $fmt flip IndirectCall-format break }
         case StackAnnotation -> { $fmt flip StackAnnotation-format break }
-        case Closure -> { $fmt flip Closure-format break }
+        case Word.Closure -> { $fmt flip Closure-format break }
     } @name-len @name-ptr
     $fmt "(" Fmt:write
     $fmt $name-ptr $name-len Fmt:write
@@ -1379,10 +1394,10 @@ fn word(parser: .Parser, token: .Token) -> Result<Word, ParseError> { block {
         case TOKEN_MATCH -> { $parser $token matsh break }
         case TOKEN_DOT -> { $parser $token get-field break }
         case TOKEN_SIZEOF -> { $parser $token sizof break }
-        case TOKEN_ARROW -> { $token ~ Array:new<Type> Array:new<Type> make IndirectCall make Word.IndirectCall }
+        case TOKEN_ARROW -> { $token ~ 1 1 = Array:new<Type> Array:new<Type> make IndirectCall make Word.IndirectCall }
         case TOKEN_DOUBLE_ARROW -> { $parser $token stor break }
         case TOKEN_COLON -> { $parser $token stack-annotation break }
-        case TOKEN_LEFT_PAREN -> { $parser $token indirect-call break }
+        case TOKEN_LEFT_PAREN -> { $parser $token 0 1 = indirect-call break }
         case TOKEN_LEFT_BRACE -> { $parser $token anon-fun break }
         case _ -> {
             drop
@@ -1399,11 +1414,11 @@ fn anon-fun(parser: .Parser, token: .Token) -> Result<Word, ParseError> { block 
     $token ~ flip make Closure make Word.Closure make Result.Success
 } }
 
-fn indirect-call(parser: .Parser, token: .Token) -> Result<Word, ParseError> {
+fn indirect-call(parser: .Parser, token: .Token, closure: bool) -> Result<Word, ParseError> {
     $parser $token fun-type match {
         case Success -> {
             @type
-            $type.token $type.parameters $type.returns make IndirectCall make Word.IndirectCall
+            $type.token $closure $type.parameters $type.returns make IndirectCall make Word.IndirectCall
             make Result<Word, ParseError>.Success
         }
         case Error -> { make Result<Word, ParseError>.Error }
@@ -1830,10 +1845,18 @@ fn fun-ref(parser: .Parser, token: .Token) -> Result<Word, ParseError> { block {
     $parser advance match {
         case None -> { $parser "expected a function name" abort<Word> break }
         case Some -> {}
-    } @function
-    $parser $function call match {
-        case Error -> { make Result<Word, ParseError>.Error }
-        case Success -> { $token ~ flip make FunRef make Word.FunRef make Result<Word, ParseError>.Success }
+    } @next
+    $next Token-ty match {
+        case TOKEN_LEFT_PAREN -> {
+            $parser $token 1 1 = indirect-call
+        }
+        case _ -> {
+            drop
+            $parser $next call match {
+                case Error -> { make Result<Word, ParseError>.Error }
+                case Success -> { $token ~ flip make FunRef make Word.FunRef make Result<Word, ParseError>.Success }
+            }
+        }
     }
 } }
 
@@ -2318,6 +2341,22 @@ fn type(parser: .Parser, token: .Token) -> Result<Type, ParseError> { block (-> 
             $parser $token fun-type match {
                 case Error -> { make Result<Type, ParseError>.Error break }
                 case Success -> { make Type.Fun }
+            }
+        }
+        case TOKEN_BACKSLASH -> {
+            $parser advance match {
+                case None -> { $parser "expected a type" abort break }
+                case Some -> {}
+            } Token-ty match {
+                case TOKEN_LEFT_PAREN -> {
+                    $parser $token fun-type match {
+                        case Error -> { make Result<Type, ParseError>.Error break }
+                        case Success -> { make Type.Closure }
+                    }
+                }
+                case _ -> {
+                    drop $parser "expected a function signature" abort break
+                }
             }
         }
         case TOKEN_UNDERSCORE -> { $token ~ make Type.Hole }

@@ -23,12 +23,12 @@ resolve
         name=(IDENT Foo 1 8),
         generic-parameters=[],
         fields=[
-          (NamedType (IDENT a 2 5) (Ptr (CustomType 0 1 [])))]),
+          (NamedType (User (IDENT a 2 5)) (Ptr (CustomType 0 1 [])))]),
       "Bar"=(Struct
         name=(IDENT Bar 4 8),
         generic-parameters=[],
         fields=[
-          (NamedType (IDENT x 5 5) I32)])),
+          (NamedType (User (IDENT x 5 5)) I32)])),
     globals=(Map),
     functions=(Map
       "foo"=(Function
@@ -36,10 +36,12 @@ resolve
         export=None,
         signature=(Signature
           generic-parameters=[],
-          parameters=[(NamedType (IDENT f 7 8) (Ptr (CustomType 0 0 [])))],
+          parameters=[
+            (Parameter (User (IDENT f 7 8)) 0 (Ptr (CustomType 0 0 [])))],
           returns=[(Ptr I32)]),
         locals=(Map
-          (LocalId "f" 0 0)=(Local (IDENT f 7 8) (Some (Ptr (CustomType 0 0 []))))),
+          (LocalId "f" 0 0)=(Local (User (IDENT f 7 8)) (Some (Parameter (User (IDENT f 7 8)) 0 (Ptr (CustomType 0 0 [])))))),
+        closure-count=0,
         body=(Scope 0 [
           (RefLocal (IDENT f 8 6) (LocalId "f" 0 0) [
             (IDENT a 8 8),

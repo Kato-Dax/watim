@@ -2,55 +2,37 @@ import "../../std/byte-slice.watim" as ByteSlice (ByteSlice)
 import "../../std/fmt.watim" as Fmt (Formatter)
 import "../../std/fmt-utils.watim" as Fmt
 import "../../std/maybe.watim" as Maybe (Maybe)
+import "../../std/util.watim" as Util (i32-format)
 
 import "../lexer.watim" as Lexer (Token, Token-format, Token-lexeme)
+import "../name.watim" as Name (Name, Name-format)
 
 import "./type-without-holes.watim" as WithoutHoles
 
-struct SyntheticName {
-    token: Token
-    name: ByteSlice
+struct Parameter {
+    name: Name
+    index: i32
+    type: WithoutHoles:Type
 }
-fn SyntheticName-format(fmt: .Formatter, self: .SyntheticName) {
-    $fmt "(SyntheticName " Fmt:write
-    $fmt &self.token Token-format
+fn Parameter-format(fmt: .Formatter, self: .Parameter) {
+    $fmt "(Parameter " Fmt:write
+    $fmt &self.name Name-format
     $fmt " " Fmt:write
-    $fmt &self.name Fmt:ByteSlice-format
+    $fmt $self.index i32-format
+    $fmt " " Fmt:write
+    $fmt &self.type WithoutHoles:format
     $fmt ")" Fmt:write
 }
-
-variant LocalName {
-    case FromSource -> Token
-    case Synthetic -> SyntheticName
-}
-fn LocalName-format(fmt: .Formatter, self: .LocalName) {
-    $fmt $self match {
-        case FromSource -> { Token-format }
-        case Synthetic -> { SyntheticName-format }
-    }
-}
-fn LocalName-unpack(self: .LocalName) -> .i8, i32 {
-    $self match {
-        case FromSource -> { Token-lexeme }
-        case Synthetic -> { .name ~ ByteSlice:unpack }
-    }
-}
-fn LocalName-token(self: .LocalName) -> .Token {
-    $self match {
-        case FromSource -> {}
-        case Synthetic -> { .token }
-    }
-}
+fn Parameter-type(self: .Parameter) -> WithoutHoles:Type { $self.type }
 
 struct Local {
-    name: LocalName
-    // if this local is a parameter, then this will be non-None
-    parameter: Maybe<WithoutHoles:Type>
+    name: Name
+    parameter: Maybe<Parameter>
 }
 fn Local-format(fmt: .Formatter, self: .Local) {
     $fmt "(Local " Fmt:write
-    $fmt &self.name LocalName-format
+    $fmt &self.name Name-format
     $fmt " " Fmt:write
-    $fmt \WithoutHoles:format &self.parameter Maybe:format<_>
+    $fmt \Parameter-format &self.parameter Maybe:format
     $fmt ")" Fmt:write
 }

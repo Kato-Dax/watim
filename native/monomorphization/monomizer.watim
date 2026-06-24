@@ -13,6 +13,7 @@ import "../../std/io.watim" as IO
 
 import "../logging.watim" as Logging
 import "../lexer.watim" as Lexer (Token, Token-format)
+import "../name.watim" as Name (Name, Name-format)
 import "../resolving/type.watim" as Resolved (
     ModuleId, ModuleId-format,
     CustomTypeHandle, CustomTypeHandle-eq, CustomTypeHandle-format,
@@ -20,10 +21,10 @@ import "../resolving/type.watim" as Resolved (
 import "../resolving/type-without-holes.watim" as Checked
 import "../resolving/words.watim" as Resolved (
     ScopeId, ScopeId-format, root-scope,
-    LocalId, LocalId-format, LocalId-eq,
+    LocalId, LocalId-format, LocalId-eq, LocalId-clone,
     VarId, VarId-format, StringWord, StringWord-format,
 )
-import "../resolving/local.watim" as Resolved (LocalName, LocalName-format)
+import "../resolving/local.watim" as Resolved
 import "../resolving/top-items.watim" as Resolved
 import "../inference/ast.watim" as Checked
 
@@ -84,25 +85,25 @@ fn Extern-format(fmt: .Formatter, self: .Extern) {
 }
 
 struct Local {
-    name: LocalName
+    name: Name
     type: TypeId
     reffed: bool
-    is-parameter: bool
+    parameter-index: Maybe<i32>
 }
 fn Local-format(fmt: .Formatter, self: .Local) {
     $fmt "(Local " Fmt:write
-    $fmt &self.name LocalName-format
+    $fmt &self.name Name-format
     $fmt " " Fmt:write
     $fmt &self.type TypeId-format
     $fmt " " Fmt:write
     $fmt $self.reffed bool-format
     $fmt " " Fmt:write
-    $fmt $self.is-parameter bool-format
+    $fmt \i32-format-ref &self.parameter-index Maybe:format
     $fmt ")" Fmt:write
 }
 
 struct Function {
-    name: Token
+    name: Name
     export: Maybe<Token>
     signature: Signature
     locals: Map<LocalId, Local>
@@ -116,7 +117,7 @@ fn Function-format(fmt: .Formatter, self: .Function) {
     $fmt Fmt:indent
     $fmt Fmt:write-indent
     $fmt "name=" Fmt:write
-    $fmt &self.name Token-format
+    $fmt &self.name Name-format
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "export=" Fmt:write
@@ -152,13 +153,25 @@ fn Function-ref-format(fmt: .Formatter, self: ..Function) {
     $fmt $self ~ Function-format
 }
 
+struct Parameter {
+    name: Name
+    type: TypeId
+}
+fn Parameter-format(fmt: .Formatter, self: .Parameter) {
+    $fmt "(Parameter " Fmt:write
+    $fmt &self.name Name-format
+    $fmt " " Fmt:write
+    $fmt &self.type TypeId-format
+    $fmt ")" Fmt:write
+}
+
 struct Signature {
-    parameters: Array<NamedTypeId>
+    parameters: Array<Parameter>
     returns: Array<TypeId>
 }
 fn Signature-format(fmt: .Formatter, self: .Signature) {
     $fmt "(Signature " Fmt:write
-    $fmt \NamedTypeId-format &self.parameters Array:format-multi-line<NamedTypeId>
+    $fmt \Parameter-format &self.parameters Array:format-multi-line
     $fmt " " Fmt:write
     $fmt \TypeId-format &self.returns Array:format-multi-line<TypeId>
     $fmt ")" Fmt:write
@@ -455,6 +468,12 @@ fn monomize-type(ctx: .Ctx, type: .Checked:Type, generic-arguments: .Array<TypeI
             $ctx &fun-type.returns    $generic-arguments monomize-types
             make FunType make Type.Fun make Key.Other
         }
+        case Checked:Type.Closure -> {
+            @fun-type
+            $ctx &fun-type.parameters $generic-arguments monomize-types
+            $ctx &fun-type.returns    $generic-arguments monomize-types
+            make FunType make Type.Closure make Key.Other
+        }
         case Checked:Type.Custom -> {
             @custom-type
             $custom-type.type-definition
@@ -493,11 +512,6 @@ fn monomize-type(ctx: .Ctx, type: .Checked:Type, generic-arguments: .Array<TypeI
         $type-id
     }
 } }
-
-fn monomize-fun-type(ctx: .Ctx, fun-type: .Checked:FunType, generic-arguments: .Array<TypeId>) -> TypeId {
-    $fun-type ~ make Checked:Type.Fun @type
-    $ctx &type $generic-arguments monomize-type
-}
 
 fn cmp-perhaps-empty-type-slot(slot: .Maybe<Key>, type: .Key) -> bool {
     $slot match {
@@ -767,7 +781,7 @@ fn monomize-local(ctx: .Ctx, local: .Checked:Local, generic-arguments: .Array<Ty
         $local.name @name
         $ctx &local.type $generic-arguments monomize-type @type
         0 1 = @reffed
-        $local.is-parameter @is-parameter
+        $local.parameter-index @parameter-index
     }
 }
 
@@ -797,9 +811,23 @@ fn monomize-functions(ctx: .Ctx, functions: .Array<Checked:FunctionOrExtern>) {
 
 fn monomize-signature(ctx: .Ctx, signature: .Resolved:FunctionSignature, generic-arguments: .Array<TypeId>) -> Signature {
     make Signature {
-        $ctx &signature.parameters $generic-arguments monomize-named-types @parameters
+        $ctx &signature.parameters $generic-arguments monomize-parameters @parameters
         $ctx &signature.returns    $generic-arguments monomize-types       @returns
     }
+}
+
+fn monomize-parameters(ctx: .Ctx, parameters: .Array<Resolved:Parameter>, generic-arguments: .Array<TypeId>) -> Array<Parameter> {
+    $ctx.arena $parameters.len Array:new-with-capacity @monomized
+    0 loop {
+        @i $i $parameters.len = if { break }
+        $parameters $i Array:get @parameter
+        &monomized make Parameter {
+            $parameter.name @name
+            $ctx &parameter.type $generic-arguments monomize-type @type
+        } Array:push-assert-no-alloc
+        $i 1 +
+    }
+    $monomized
 }
 
 
@@ -836,6 +864,7 @@ fn compute-size(modules: .Map<ByteSlice, Module>, sizes: .Array<i32>, types: .Ar
                         $handle.index Array:get<CustomType> compute-custom-type-size
                     }
                     case Fun -> { drop 4 }
+                    case Type.Closure -> { drop 8 }
                 }
             }
         } @size
@@ -904,7 +933,7 @@ fn compute-varint-size(modules: .Map<ByteSlice, Module>, sizes: .Array<i32>, typ
 struct GetLocal {
     name: Token
     var: VarId
-    fields: Array<FieldAccess>
+    fields: FieldAccesses
     result-type: TypeId
     copy-space-offset: i32
 }
@@ -916,7 +945,7 @@ fn GetLocal-format(fmt: .Formatter, self: .GetLocal) {
     $fmt " " Fmt:write
     $fmt &self.result-type TypeId-format
     $fmt " " Fmt:write
-    $fmt \FieldAccess-format &self.fields Array:format-multi-line<FieldAccess>
+    $fmt &self.fields FieldAccesses-format
     $fmt " " Fmt:write
     $fmt $self.copy-space-offset i32-format
     $fmt ")" Fmt:write
@@ -925,7 +954,7 @@ fn GetLocal-format(fmt: .Formatter, self: .GetLocal) {
 struct SetLocal {
     name: Token
     var: VarId
-    fields: Array<FieldAccess>
+    fields: FieldAccesses
     target-type: TypeId
 }
 fn SetLocal-format(fmt: .Formatter, self: .SetLocal) {
@@ -934,7 +963,7 @@ fn SetLocal-format(fmt: .Formatter, self: .SetLocal) {
     $fmt " " Fmt:write
     $fmt &self.var VarId-format
     $fmt " " Fmt:write
-    $fmt \FieldAccess-format &self.fields Array:format-multi-line<FieldAccess>
+    $fmt &self.fields FieldAccesses-format
     $fmt " " Fmt:write
     $fmt &self.target-type TypeId-format
     $fmt ")" Fmt:write
@@ -943,7 +972,7 @@ fn SetLocal-format(fmt: .Formatter, self: .SetLocal) {
 struct RefLocal {
     name: Token
     var: VarId
-    fields: Array<FieldAccess>
+    fields: FieldAccesses
 }
 fn RefLocal-format(fmt: .Formatter, self: .RefLocal) {
     $fmt "(RefLocal " Fmt:write
@@ -951,7 +980,7 @@ fn RefLocal-format(fmt: .Formatter, self: .RefLocal) {
     $fmt " " Fmt:write
     $fmt &self.var VarId-format
     $fmt " " Fmt:write
-    $fmt \FieldAccess-format &self.fields Array:format-multi-line<FieldAccess>
+    $fmt &self.fields FieldAccesses-format
     $fmt ")" Fmt:write
 }
 
@@ -959,7 +988,7 @@ struct StoreLocal {
     name: Token
     var: VarId
     type: TypeId
-    fields: Array<FieldAccess>
+    fields: FieldAccesses
 }
 fn StoreLocal-format(fmt: .Formatter, self: .StoreLocal) {
     $fmt "(StoreLocal " Fmt:write
@@ -969,7 +998,7 @@ fn StoreLocal-format(fmt: .Formatter, self: .StoreLocal) {
     $fmt " " Fmt:write
     $fmt &self.type TypeId-format
     $fmt " " Fmt:write
-    $fmt \FieldAccess-format &self.fields Array:format-multi-line<FieldAccess>
+    $fmt &self.fields FieldAccesses-format
     $fmt ")" Fmt:write
 }
 
@@ -990,7 +1019,7 @@ fn InitLocal-format(fmt: .Formatter, self: .InitLocal) {
 
 struct GetField {
     token: Token
-    fields: Array<FieldAccess>
+    fields: FieldAccesses
     type: TypeId
     on-ptr: bool
     copy-space-offset: i32
@@ -999,7 +1028,7 @@ fn GetField-format(fmt: .Formatter, self: .GetField) {
     $fmt "(GetField " Fmt:write
     $fmt &self.token Token-format
     $fmt " " Fmt:write
-    $fmt \FieldAccess-format &self.fields Array:format<FieldAccess>
+    $fmt &self.fields FieldAccesses-format
     $fmt " " Fmt:write
     $fmt &self.type TypeId-format
     $fmt " " Fmt:write
@@ -1025,6 +1054,47 @@ fn FieldAccess-format(fmt: .Formatter, self: .FieldAccess) {
     $fmt " " Fmt:write
     $fmt $self.field-index i32-format
     $fmt ")" Fmt:write
+}
+
+struct FieldAccessStep {
+    access: FieldAccess
+    next: FieldAccesses
+}
+variant FieldAccesses {
+    case End
+    case Load -> TypeId
+    case FieldAccess -> .FieldAccessStep
+}
+fn FieldAccesses-format(fmt: .Formatter, self: .FieldAccesses) {
+    $fmt "[" Fmt:write
+    $fmt Fmt:indent
+    $self match {
+        case End -> {}
+        case _ -> { drop $fmt "\n" Fmt:write }
+    }
+    $self loop {
+        match {
+            case End -> {
+                $fmt "]" Fmt:write break
+            }
+            case Load -> {
+                $fmt Fmt:write-indent
+                $fmt "(Load " Fmt:write
+                $fmt flip TypeId-format
+                $fmt ")" Fmt:write break
+            }
+            case FieldAccess -> {
+                ~ @step
+                $fmt Fmt:write-indent
+                $fmt &step.access FieldAccess-format
+                &step.next
+            }
+        } Core:dup match {
+            case End -> {}
+            case _ -> { drop $fmt ",\n" Fmt:write }
+        }
+    }
+    $fmt Fmt:dedent
 }
 
 struct Cast {
@@ -1107,7 +1177,7 @@ fn Intrinsic-format(fmt: .Formatter, self: .Intrinsic) {
         case Ge -> { $fmt "(Ge " Fmt:write $fmt flip TypeId-format $fmt ")" Fmt:write }
         case Le -> { $fmt "(Le " Fmt:write $fmt flip TypeId-format $fmt ")" Fmt:write }
         case Not -> { $fmt "(Not " Fmt:write $fmt flip TypeId-format $fmt ")" Fmt:write }
-        case Load -> { $fmt flip Load-format }
+        case Intrinsic.Load -> { $fmt flip Load-format }
         case Store -> { $fmt "(Store " Fmt:write $fmt flip TypeId-format $fmt ")" Fmt:write }
         case Drop -> { $fmt "(Drop " Fmt:write $fmt flip TypeId-format $fmt ")" Fmt:write }
         case SetStackSize -> { $fmt "SetStackSize" Fmt:write }
@@ -1373,6 +1443,13 @@ fn IndirectCall-format(fmt: .Formatter, self: .IndirectCall) {
     $fmt $self.copy-space-offset i32-format
     $fmt ")" Fmt:write
 }
+fn ClosureCall-format(fmt: .Formatter, self: .IndirectCall) {
+    $fmt "(ClosureCall " Fmt:write
+    $fmt &self.type TypeId-format
+    $fmt " " Fmt:write
+    $fmt $self.copy-space-offset i32-format
+    $fmt ")" Fmt:write
+}
 
 struct Flip {
     token: Token
@@ -1391,9 +1468,13 @@ fn Flip-format(fmt: .Formatter, self: .Flip) {
 
 struct Closure {
     token: Token
+    environment: TypeId
+    captured: Array<LocalId>
     parameters: Array<TypeId>
     returns: Array<TypeId>
-    body: Scope
+    function: FunctionHandle
+    table-index: i32
+    copy-space-offset: i32
 }
 fn Closure-format(fmt: .Formatter, self: .Closure) {
     $fmt "(Closure\n" Fmt:write
@@ -1401,6 +1482,14 @@ fn Closure-format(fmt: .Formatter, self: .Closure) {
     $fmt Fmt:write-indent
     $fmt "token=" Fmt:write
     $fmt &self.token Token-format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "environment=" Fmt:write
+    $fmt &self.environment TypeId-format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "captured=" Fmt:write
+    $fmt \LocalId-format &self.captured Array:format
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "parameters=" Fmt:write
@@ -1411,8 +1500,16 @@ fn Closure-format(fmt: .Formatter, self: .Closure) {
     $fmt \TypeId-format &self.returns Array:format
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
-    $fmt "body=" Fmt:write
-    $fmt &self.body Scope-format
+    $fmt "function=" Fmt:write
+    $fmt &self.function FunctionHandle-format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "table-index=" Fmt:write
+    $fmt $self.table-index i32-format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "copy-space-offset=" Fmt:write
+    $fmt $self.copy-space-offset i32-format
     $fmt Fmt:dedent
     $fmt ")" Fmt:write
 }
@@ -1437,6 +1534,7 @@ variant Word {
     case Uninit -> Uninit
     case FieldInit -> FieldInit
     case IndirectCall -> IndirectCall
+    case ClosureCall -> IndirectCall
     case GetField -> GetField
     case FunRef -> FunRef
     case Match -> Match
@@ -1467,6 +1565,7 @@ fn Word-format(fmt: .Formatter, self: .Word) { block {
         case Word.Uninit -> { Uninit-format break }
         case Word.FieldInit -> { FieldInit-format break }
         case Word.IndirectCall -> { IndirectCall-format break }
+        case Word.ClosureCall -> { ClosureCall-format break }
         case Word.GetField -> { GetField-format break }
         case Word.FunRef -> { FunRef-format break }
         case Word.Match -> { Match-format break }
@@ -1524,15 +1623,18 @@ fn monomize-set-locl(ctx: .Ctx, word: .Checked:SetLocal, generic-arguments: .Arr
     make Word.SetLocal
 }
 
-fn monomize-field-accesses(ctx: .Ctx, fields: .Array<Checked:FieldAccess>, generic-arguments: .Array<TypeId>) -> Array<FieldAccess> {
-    $ctx.arena $fields.len Array:new-with-capacity<FieldAccess> @monomized
-    loop {
-        $monomized.len $fields.len = if { $monomized break }
-        &monomized
-        $ctx
-        $fields $monomized.len Array:get<Checked:FieldAccess>
-        $generic-arguments monomize-field-access
-        Array:push-assert-no-alloc<FieldAccess>
+fn monomize-field-accesses(ctx: .Ctx, fields: .Checked:FieldAccesses, generic-arguments: .Array<TypeId>) -> FieldAccesses {
+    $fields match {
+        case Checked:FieldAccesses.End -> { make FieldAccesses.End }
+        case Checked:FieldAccesses.Load -> { $ctx flip $generic-arguments monomize-type make FieldAccesses.Load }
+        case Checked:FieldAccesses.FieldAccess -> {
+            ~ @step
+            $ctx.arena
+            $ctx &step.access $generic-arguments monomize-field-access
+            $ctx &step.next $generic-arguments monomize-field-accesses
+            make FieldAccessStep Arena:push
+            make FieldAccesses.FieldAccess
+        }
     }
 }
 fn monomize-field-access(ctx: .Ctx, field: .Checked:FieldAccess, generic-arguments: .Array<TypeId>) -> FieldAccess {
@@ -1558,7 +1660,9 @@ fn monomize-call(ctx: .Ctx, call: .Checked:Call, generic-arguments: .Array<TypeI
         }
         case Checked:FunctionOrExtern.Function -> {
             $ctx $call.function &generic-arguments-of-this-call lookup-function match {
-                case Some -> { flip drop }
+                case Some -> {
+                    flip drop
+                }
                 case None -> {
                     $ctx $call.function $generic-arguments-of-this-call pre-insert-function @instance @slot
                     $ctx flip &generic-arguments-of-this-call monomize-function make Maybe<Function>.Some =>slot
@@ -1619,22 +1723,20 @@ fn monomize-init-locl(ctx: .Ctx, word: .Checked:InitLocal, generic-arguments: .A
     make InitLocal make Word.InitLocal
 }
 
-fn fields-go-through-ptr(ctx: .Ctx, fields: .Array<FieldAccess>) -> bool {
-    0 @i
-    loop {
-        $i $fields.len = if {
-            // No field access went through a pointer,
-            0 1 = break
-        }
-        $ctx $fields $i Array:get<FieldAccess> .source-type ~ lookup-type match {
-            case Ptr -> {
-                drop
-                // At least one field access goes through a pointer,
-                1 1 = break
+fn fields-go-through-ptr(ctx: .Ctx, fields: .FieldAccesses) -> bool {
+    $fields ~ loop {
+        match {
+            case End -> { 0 1 = break }
+            case Load -> { drop 1 1 = break }
+            case FieldAccess -> {
+                @step
+                $ctx $step.access.source-type lookup-type match {
+                    case Ptr -> { drop 1 1 = break }
+                    case _ -> { drop }
+                }
+                $step.next
             }
-            case _ -> { drop }
         }
-        $i 1 + #i
     }
 }
 
@@ -1713,7 +1815,7 @@ fn monomize-field-init(ctx: .WordCtx, word: .Checked:FieldInit, generic-argument
 fn monomize-get-field(ctx: .Ctx, word: .Checked:GetField, generic-arguments: .Array<TypeId>) -> Word {
     $word.token
     $ctx &word.fields $generic-arguments monomize-field-accesses
-    $ctx &word.type $generic-arguments monomize-type
+    $ctx $word Checked:GetField-type & $generic-arguments monomize-type
     $word.on-ptr
     0 not
     make GetField make Word.GetField
@@ -1796,10 +1898,35 @@ fn monomize-fun-ref(ctx: .Ctx, word: .Checked:FunRef, generic-arguments: .Array<
 }
 
 fn monomize-closure(ctx: .WordCtx, word: .Checked:Closure, generic-arguments: .Array<TypeId>) -> Word {
+    $ctx.ctx $word.function lookup-checked-function match {
+        case Checked:FunctionOrExtern.Extern -> { 0 0 / drop drop uninit }
+        case Checked:FunctionOrExtern.Function -> {}
+    } @closure-function
+    $ctx.ctx $word.function $generic-arguments lookup-function match {
+        case Some -> {}
+        case None -> {
+            $ctx.ctx $word.function $generic-arguments ~ pre-insert-function @instance @slot
+            $ctx.ctx $closure-function $generic-arguments monomize-function make Maybe<Function>.Some =>slot
+            $instance
+        }
+    } @instance
+
+    $word.function.module $word.function.index $instance make FunctionHandle @function-handle
+
+    0 loop {
+        @i $i $word.captured.len = if { break }
+        $ctx &word.captured $i Array:get ~ make VarId.Local & mark-var-reffed
+        $i 1 +
+    }
+
     $word.token
+    $ctx.ctx &word.environment $generic-arguments monomize-custom-type'
+    $ctx.ctx.arena \LocalId-clone &word.captured Array:clone-deep
     $ctx.ctx &word.parameters $generic-arguments monomize-types
     $ctx.ctx &word.returns $generic-arguments monomize-types
-    $ctx &word.body $generic-arguments monomize-scope
+    $function-handle
+    $ctx.ctx $function-handle insert-into-function-table
+    0 not
     make Closure make Word.Closure
 }
 
@@ -1820,7 +1947,16 @@ fn monomize-word(ctx: .WordCtx, word: .Checked:Word, generic-arguments: .Array<T
         case Checked:Word.Block -> { $ctx flip $generic-arguments monomize-blok }
         case Checked:Word.Sizeof -> { $ctx.ctx flip $generic-arguments monomize-sizeof }
         case Checked:Word.FieldInit -> { $ctx flip $generic-arguments monomize-field-init }
-        case Checked:Word.IndirectCall -> { .type $ctx.ctx flip $generic-arguments monomize-fun-type 0 not make IndirectCall make Word.IndirectCall }
+        case Checked:Word.IndirectCall -> {
+            @word
+            $ctx.ctx $word.type make Checked:Type.Fun & $generic-arguments monomize-type
+            0 not make IndirectCall make Word.IndirectCall
+        }
+        case Checked:Word.ClosureCall -> {
+            @word
+            $ctx.ctx $word.type make Checked:Type.Closure & $generic-arguments monomize-type
+            0 not make IndirectCall make Word.ClosureCall
+        }
         case Checked:Word.Break -> { ~ make Word.Break }
         case Checked:Word.GetField -> { $ctx.ctx flip $generic-arguments monomize-get-field }
         case Checked:Word.FunRef -> { $ctx.ctx flip $generic-arguments monomize-fun-ref }
@@ -2017,6 +2153,12 @@ fn word-measure-copy-space(word: .Word, ctx: .CopySpaceCtx, offset: .i32) { bloc
                 case Intrinsic.Load -> { @word $word.type &word.copy-space-offset }
                 case _ -> { drop break }
             }
+        }
+        case Closure -> {
+            @word
+            $offset ~ #word.copy-space-offset
+            $offset ~ $ctx.sizes $word.environment type-size + =>offset
+            break
         }
         case _ -> { drop break }
     } @offset-slot @type

@@ -38,6 +38,7 @@ variant Type {
     case Ptr -> .Type
     case Custom -> CustomTypeType
     case Fun -> FunType
+    case Closure -> FunType
     case Generic -> P:GenericType
     case Hole -> Token
 }
@@ -50,6 +51,7 @@ fn Type-token(self: .Type) -> .Token {
         case Ptr -> { ~ Type-token }
         case Custom -> { .token }
         case Fun -> { .token }
+        case Closure -> { .token }
         case Generic -> { .name }
         case Hole -> {}
     }
@@ -68,6 +70,7 @@ fn format(fmt: .Formatter, self: .Type) { block {
         }
         case Custom -> { CustomTypeType-format break }
         case Fun -> { FunType-format break }
+        case Closure -> { ClosureType-format break }
         case Generic -> { P:GenericType-format break }
         case Hole -> { $fmt "(Hole " Fmt:write Token-format $fmt ")" Fmt:write break }
     } Fmt:write
@@ -93,6 +96,12 @@ fn eq(a: .Type, b: .Type) -> bool {
         case Fun -> {
             $b match {
                 case Fun -> { FunType-eq }
+                case _ -> { drop drop 0 1 = }
+            }
+        }
+        case Closure -> {
+            $b match {
+                case Closure -> { FunType-eq }
                 case _ -> { drop drop 0 1 = }
             }
         }
@@ -126,6 +135,13 @@ fn find-hole(self: .Type) -> Maybe<.Token> {
                 case _ -> {}
             }
         }
+        case Closure -> {
+            @fun
+            &fun.parameters \find-hole Array:find-map<Type, .Token> match {
+                case None -> { &fun.returns \find-hole Array:find-map<Type, .Token> }
+                case _ -> {}
+            }
+        }
         case Custom -> { .generic-arguments \find-hole Array:find-map<Type, .Token> }
     }
 }
@@ -143,6 +159,7 @@ fn clone(arena: .Arena, self: .Type) -> Type {
         case Hole -> { ~ make Type.Hole }
         case Custom -> { $arena flip CustomTypeType-clone make Type.Custom }
         case Fun -> { $arena flip FunType-clone make Type.Fun }
+        case Closure -> { $arena flip FunType-clone make Type.Closure }
     }
 }
 
@@ -171,6 +188,16 @@ fn FunType-clone(arena: .Arena, self: .FunType) -> FunType {
     $self.token
     $arena &self.parameters Array:clone<_>
     $arena &self.returns Array:clone<_> make FunType
+}
+
+fn ClosureType-format(fmt: .Formatter, self: .FunType) {
+    $fmt "(ClosureType " Fmt:write
+    $fmt &self.token Token-format
+    $fmt " " Fmt:write
+    $fmt &self.parameters Types-format
+    $fmt " " Fmt:write
+    $fmt &self.returns Types-format
+    $fmt ")" Fmt:write
 }
 
 fn Types-format(fmt: .Formatter, self: .Array<Type>) {
@@ -230,6 +257,11 @@ fn contains-generic(type: .Type) -> bool {
             &fun.parameters \contains-generic Array:any<_>
             &fun.returns \contains-generic Array:any<_> or
         }
+        case Closure -> {
+            @fun
+            &fun.parameters \contains-generic Array:any<_>
+            &fun.returns \contains-generic Array:any<_> or
+        }
         case Custom -> { .generic-arguments \contains-generic Array:any<_> }
         case Generic -> { drop 1 1 = }
     }
@@ -251,6 +283,14 @@ fn with-generics(arena: .Arena, type: .Type, generics: .Array<Type>) -> Type {
             $arena &fun.returns $generics all-with-generics
             make FunType
             make Type.Fun
+        }
+        case Closure -> {
+            @fun
+            $fun.token
+            $arena &fun.parameters $generics all-with-generics
+            $arena &fun.returns $generics all-with-generics
+            make FunType
+            make Type.Closure
         }
         case Custom -> {
             @custom
