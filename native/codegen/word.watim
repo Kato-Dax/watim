@@ -1030,6 +1030,9 @@ fn determine-loads(arena: .Arena, ctx: .Ctx, fields: .FieldAccesses, just-ref: b
     $fields match {
         case FieldAccesses.End -> { List:empty<Load> break }
         case FieldAccesses.Load -> {
+            $just-ref if {
+                drop List:empty break
+            }
             // TODO: Throughout this entire function, references to stack variables are returned.
             //       The Linked list is constructed on the stack, but the stack is already gone.
             //       It's surprising this didn't already cause problems.

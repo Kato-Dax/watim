@@ -1,0 +1,89 @@
+[== Stdin Compiler ==]
+struct V2 {
+    x: i32
+    y: i32
+}
+struct V3 {
+    x: i32
+    y: i32
+    z: i32
+}
+fn main "_start" () {
+    0 1 make V2 @v2
+    0 1 2 make V3 @v3
+    0 @x
+    {
+        10 #x
+        12 #v2.y
+        14 #v3.z
+    } \(->)
+}
+[== Args Compiler ==]
+compile
+-
+--quiet
+[== Status Compiler ==]
+0
+[== Stdout Compiler ==]
+(module
+	(memory 1 65536)
+	(export "memory" (memory 0))
+	(table funcref (elem $intrinsic:flip
+		$0:main:0))
+	(global $stac:k (mut i32) (i32.const 0))
+	(data (i32.const 0) "")
+	(func $0:main (export "_start")
+		(local $v2 i32)
+		(local $v3 i32)
+		(local $x i32)
+		(local $locl-copy-spac:e i32)
+		(local $stac:k i32)
+		global.get $stac:k local.set $stac:k
+		global.get $stac:k global.get $stac:k i32.const 24 i32.add global.set $stac:k local.set $locl-copy-spac:e
+		global.get $stac:k global.get $stac:k i32.const 8 i32.add global.set $stac:k local.set $v2
+		global.get $stac:k global.get $stac:k i32.const 12 i32.add global.set $stac:k local.set $v3
+		global.get $stac:k global.get $stac:k i32.const 4 i32.add global.set $stac:k local.set $x
+		i32.const 0
+		i32.const 1
+		i64.extend_i32_u i64.const 32 i64.shl call $intrinsic:flip-i32-i64 i64.extend_i32_u i64.or ;; make V2
+		local.get $v2 call $intrinsic:flip-i64-i32 i64.store
+		i32.const 0
+		i32.const 1
+		i32.const 2
+		;; make V3
+			local.get $locl-copy-spac:e i32.const 8 i32.add call $intrinsic:flip i32.store
+			local.get $locl-copy-spac:e i32.const 4 i32.add call $intrinsic:flip i32.store
+			local.get $locl-copy-spac:e call $intrinsic:flip i32.store
+		local.get $locl-copy-spac:e ;; make V3 end
+		local.get $v3 call $intrinsic:flip i32.const 12 memory.copy
+		i32.const 0
+		local.get $x call $intrinsic:flip i32.store
+		;; closure (LEFT_BRACE { 14 5)
+		local.get $x local.get $v2 local.get $v3 ;; make {
+			local.get $locl-copy-spac:e i32.const 20 i32.add call $intrinsic:flip i32.store
+			local.get $locl-copy-spac:e i32.const 16 i32.add call $intrinsic:flip i32.store
+			local.get $locl-copy-spac:e i32.const 12 i32.add call $intrinsic:flip i32.store
+		local.get $locl-copy-spac:e i32.const 12 i32.add ;; make { end
+		i32.const 1 call $intrinsic:pack-i32s
+		call $intrinsic:unpack-i32s (call_indirect (param i32))
+		local.get $stac:k global.set $stac:k
+	)
+	(func $0:main:0 (param i32)
+		(local $stac:k i32)
+		global.get $stac:k local.set $stac:k
+		i32.const 10
+		local.get 0 i32.load call $intrinsic:flip i32.store
+		i32.const 12
+		local.get 0 i32.load offset=4 i32.const 4 i32.add call $intrinsic:flip i32.store
+		i32.const 14
+		local.get 0 i32.load offset=8 i32.const 8 i32.add call $intrinsic:flip i32.store
+		local.get $stac:k global.set $stac:k
+	)
+	(func $intrinsic:flip (param $a i32) (param $b i32) (result i32 i32) local.get $b local.get $a)
+	(func $intrinsic:flip-i32-i64 (param $a i32) (param $b i64) (result i64 i32) local.get $b local.get $a)
+	(func $intrinsic:flip-i64-i32 (param $a i64) (param $b i32) (result i32 i64) local.get $b local.get $a)
+	(func $intrinsic:dupi32 (param $a i32) (result i32 i32) local.get $a local.get $a)
+	(func $intrinsic:rotate-left (param $a i32) (param $b i32) (param $c i32) (result i32 i32 i32) local.get $b local.get $c local.get $a)
+	(func $intrinsic:pack-i32s (param $a i32) (param $b i32) (result i64) local.get $a i64.extend_i32_u local.get $b i64.extend_i32_u i64.const 32 i64.shl i64.or)
+	(func $intrinsic:unpack-i32s (param $a i64) (result i32) (result i32) local.get $a i32.wrap_i64 local.get $a i64.const 32 i64.shr_u i32.wrap_i64)
+)
