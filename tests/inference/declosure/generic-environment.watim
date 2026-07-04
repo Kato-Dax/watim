@@ -64,7 +64,7 @@ check
             (Parameter (AnonymousFunctionName 0 (IDENT generic-function 5 4) (LEFT_BRACE { 6 5)) 0 (Ptr (CustomType 0 0 [(GenericType (IDENT T 5 21) 0)])))],
           returns=[(GenericType (IDENT T 6 17) 0)]),
         locals=(Map
-          (LocalId "c;losure" 1 0)=(Local (ClosureParam (LEFT_BRACE { 6 5)) (CustomType 0 0 [(GenericType (IDENT T 5 21) 0)]) (Some 0))),
+          (LocalId "c;losure" 1 0)=(Local (ClosureParam (LEFT_BRACE { 6 5)) (Ptr (CustomType 0 0 [(GenericType (IDENT T 5 21) 0)])) (Some 0))),
         body=(Scope 2 [
           (GetLocal (IDENT t 6 8) (LocalId "c;losure" 1 0) (GenericType (IDENT T 5 27) 0) (GenericType (IDENT T 5 27) 0) [
             (FieldAccess (IDENT t 6 8) (Ptr (CustomType 0 0 [(GenericType (IDENT T 5 21) 0)])) (Ptr (GenericType (IDENT T 5 27) 0)) 0),

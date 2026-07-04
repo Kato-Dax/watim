@@ -23,10 +23,10 @@ monomize
     (Some I8),
     (Some I32),
     (Some I64),
+    (Some (Ptr (TypeId 5))),
     (Some (CustomType 0 0)),
-    (Some (Ptr (TypeId 4))),
     (Some (ClosureType [(TypeId 2)] [(TypeId 2)]))],
-  sizes=[4, 1, 4, 8, 0, 4, 8],
+  sizes=[4, 1, 4, 8, 4, 0, 8],
   modules=(Map
     "-"=(Module
       custom-types=[
@@ -64,7 +64,7 @@ monomize
               (GetLocal (IDENT t 6 6) (LocalId "t" 0 0) (TypeId 2) [] 4294967295),
               (Closure
                 token=(LEFT_BRACE { 6 8),
-                environment=(TypeId 4),
+                environment=(TypeId 5),
                 captured=[],
                 parameters=[(TypeId 2)],
                 returns=[(TypeId 2)],
@@ -78,7 +78,7 @@ monomize
             export=None,
             signature=(Signature [
               (Parameter (ClosureParam (LEFT_BRACE { 6 8)) (TypeId 2)),
-              (Parameter (AnonymousFunctionName 0 (IDENT generic-function 5 4) (LEFT_BRACE { 6 8)) (TypeId 5))] [
+              (Parameter (AnonymousFunctionName 0 (IDENT generic-function 5 4) (LEFT_BRACE { 6 8)) (TypeId 4))] [
               (TypeId 2)]),
             generic-arguments=[(TypeId 2)],
             locals=(Map

@@ -616,7 +616,8 @@ block {
 
         $ctx.arena $ctx.modules $module-id.index Array:get<_> .type-definitions.values $environment-struct Array:push
 
-        &ctx $closure.environment-type $environment-struct-type make Type.Custom & fill-hole
+        &closure.locals &closure.environment-local Map:get Maybe:assert-some @environment-local
+        &ctx $environment-local.type $environment-struct-type make Type.Custom & make Type.Ptr & fill-hole
 
         $i 1 -
     } match {
@@ -652,10 +653,13 @@ block {
             } Array:push
             $i 1 +
         }
+
+        &ctx &closure.locals fill-holes-locals @locals
+        &locals &closure.environment-local Map:get Maybe:assert-some @environment-local
         make Parameter {
             $parameters.len @index
             $closure-name @name
-            $ctx.arena &ctx $closure.environment-type fill Arena:push make Type.Ptr @type
+            $environment-local.type @type
         } @environment-parameter
         $ctx.arena &parameters $environment-parameter Array:push
 
@@ -665,8 +669,6 @@ block {
             &ctx &closure.returns fill-holes @returns
         } @signature
 
-        &ctx &closure.locals fill-holes-locals @locals
-        &locals &closure.environment-local Map:get Maybe:assert-some @environment-local
         $environment-parameter.index make Maybe.Some #environment-local.parameter-index
 
         &functions make Function {

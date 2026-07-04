@@ -95,7 +95,6 @@ fn ClosureEnv-lookup(arena: .Arena, env: .ClosureEnv, local-id: .LocalId, token:
 
 struct UnClosure {
     token: Token
-    environment-type: InferenceHole
     environment-local: LocalId
     captured: Array<LocalId>
     locals: Map<LocalId, Local>
@@ -110,10 +109,6 @@ fn UnClosure-format(fmt: .Formatter, self: .UnClosure) {
     $fmt Fmt:write-indent
     $fmt "token=" Fmt:write
     $fmt &self.token Token-format
-    $fmt "\n" Fmt:write
-    $fmt Fmt:write-indent
-    $fmt "environment-type=" Fmt:write
-    $fmt &self.environment-type InferenceHole-format
     $fmt "\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "environment-local=" Fmt:write
