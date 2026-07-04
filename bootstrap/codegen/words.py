@@ -629,6 +629,7 @@ def determine_loads(ctx: Ctx, fields: Tuple[mono.FieldAccess, ...], just_ref: bo
             struct = ctx.lookup_type_definition(type.handle)
             assert not isinstance(struct, Variant)
             offset = field_offset(ctx.program.sizes, struct, field.field_index)
+            target_type_size = type_size(ctx.program.sizes, field.target_type)
             if base_in_mem or source_type_size > 8:
                 if len(fields) > 1 or just_ref:
                     if offset == 0:
@@ -638,7 +639,6 @@ def determine_loads(ctx: Ctx, fields: Tuple[mono.FieldAccess, ...], just_ref: bo
                     load = OffsetLoad(field.target_type, offset)
                 rest = determine_loads(ctx, tail, just_ref, True)
                 return merge_loads((load,) + rest)
-            target_type_size = type_size(ctx.program.sizes, field.target_type)
             if source_type_size > 4:
                 if target_type_size == 1:
                     load = BitShift("I8InI64", offset)
@@ -666,13 +666,19 @@ def determine_loads(ctx: Ctx, fields: Tuple[mono.FieldAccess, ...], just_ref: bo
             offset = field_offset(ctx.program.sizes, struct, field.field_index)
             target_type_size = type_size(ctx.program.sizes, field.target_type)
 
-            if (just_ref and len(fields) == 1) or (target_type_size > 8 and len(fields) != 1):
+            if base_in_mem:
+                # source_type is a ptr and it is already in mem, effectively ..T
+                return merge_loads((OffsetLoad(field.source_type, 0),) + determine_loads(ctx, tail, just_ref, False))
+
+            if just_ref and len(fields) == 1:
                 if offset == 0:
-                    return determine_loads(ctx, tail, just_ref, base_in_mem)
+                    return ()
                 else:
-                    return merge_loads((Offset(offset),) + determine_loads(ctx, tail, just_ref, base_in_mem))
+                    return Offset(offset),
+            elif target_type_size <= 8 or len(fields) == 1:
+                return merge_loads((OffsetLoad(field.target_type, offset),) + determine_loads(ctx, tail, just_ref, False))
             else:
-                return merge_loads((OffsetLoad(field.target_type, offset),) + determine_loads(ctx, tail, just_ref, base_in_mem))
+                return merge_loads((Offset(offset),) + determine_loads(ctx, tail, just_ref, True))
         case _:
             assert False
 

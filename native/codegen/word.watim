@@ -1128,20 +1128,34 @@ fn determine-loads(arena: .Arena, ctx: .Ctx, fields: .FieldAccesses, just-ref: b
 
             &ctx.program.sizes $field.target-type type-size @target-type-size
 
-            $just-ref $tail make FieldAccesses.End = and
-            $target-type-size 8 gt $tail make FieldAccesses.End /= and
-            or if {
+            $base-in-mem if {
+                // $field.source-type is a ptr and it is already in mem, effectively ..T
+                //  => unwrap one layer
+                $field.source-type 0 make TypeAtOffset make Load.OffsetLoad @load
+                0 1 = @base-in-mem
+                $arena $ctx &tail $just-ref $base-in-mem determine-loads @rest
+                $arena $load &rest List:cons<Load> merge-loads
+                break
+            }
+
+            $just-ref $tail make FieldAccesses.End = and if {
                 $offset 0 = if {
-                    $arena $ctx &tail $just-ref $base-in-mem determine-loads
+                    List:empty
                 } else {
                     $offset make Load.Offset @load
                     $arena $ctx &tail $just-ref $base-in-mem determine-loads @rest
                     $arena $load &rest List:cons<Load> merge-loads
                 }
             } else {
-                $field.target-type $offset make TypeAtOffset make Load.OffsetLoad @load
-                $arena $ctx &tail $just-ref $base-in-mem determine-loads @rest
-                $arena $load &rest List:cons<Load> merge-loads
+                $target-type-size 8 le $tail make FieldAccesses.End = or if {
+                    $field.target-type $offset make TypeAtOffset make Load.OffsetLoad @load
+                    $arena $ctx &tail $just-ref $base-in-mem determine-loads @rest
+                    $arena $load &rest List:cons<Load> merge-loads
+                } else {
+                    $offset make Load.Offset @load
+                    $arena $ctx &tail $just-ref $base-in-mem determine-loads @rest
+                    $arena $load &rest List:cons<Load> merge-loads
+                }
             }
         }
         case _ -> {
