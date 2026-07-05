@@ -10,6 +10,7 @@ import "../lexer.watim" as Lexer (Token)
 import "../resolving/module.watim" as Resolved (Module)
 import "../resolving/type-without-holes.watim" as Type (Type)
 import "../resolving/pretty-type-without-holes.watim" as Type
+import "../resolving/type-lookup.watim" as TypeLookup
 
 import "./origin.watim" as Origin (Origin)
 
@@ -93,6 +94,7 @@ fn display-origin(fmt: .Formatter, modules: .Array<Resolved:Module>, origin: .Ar
 }
 
 fn display(fmt: .Formatter, error: .Error, file-path: ByteSlice, modules: .Array<Resolved:Module>) {
+    $modules TypeLookup:complete @lookup
     $error match {
         case Error.Deprecated ->{
             @error
@@ -111,7 +113,7 @@ fn display(fmt: .Formatter, error: .Error, file-path: ByteSlice, modules: .Array
             $fmt ": expected this word to return a value of type:\n" Fmt:write
             $fmt Fmt:indent $fmt Fmt:indent
             $fmt Fmt:write-indent
-            $fmt $modules &error.expected Type:pretty
+            $fmt &lookup &error.expected Type:pretty
             $fmt "\n" Fmt:write $fmt Fmt:dedent
             $fmt Fmt:write-indent
             $fmt "but it returns:\n" Fmt:write
@@ -127,7 +129,7 @@ fn display(fmt: .Formatter, error: .Error, file-path: ByteSlice, modules: .Array
             $fmt ": expected this word to return a value of type:\n" Fmt:write
             $fmt Fmt:indent $fmt Fmt:indent
             $fmt Fmt:write-indent
-            $fmt $modules &error.expected Type:pretty
+            $fmt &lookup &error.expected Type:pretty
             $fmt "\n" Fmt:write $fmt Fmt:dedent
             $fmt Fmt:write-indent
             $fmt "but it returns:\n" Fmt:write
@@ -145,12 +147,12 @@ fn display(fmt: .Formatter, error: .Error, file-path: ByteSlice, modules: .Array
             $fmt ". return type of this call to be:\n" Fmt:write
             $fmt Fmt:indent $fmt Fmt:indent
             $fmt Fmt:write-indent
-            $fmt $modules &error.expected Type:pretty
+            $fmt &lookup &error.expected Type:pretty
             $fmt "\n" Fmt:write $fmt Fmt:dedent
             $fmt Fmt:write-indent
             $fmt "but it returns:\n" Fmt:write
             $fmt Fmt:indent $fmt Fmt:write-indent
-            $fmt $modules &error.actual Type:pretty
+            $fmt &lookup &error.actual Type:pretty
             $fmt Fmt:dedent
             $fmt $modules &error.origin $file-path display-origin
             $fmt Fmt:dedent
@@ -163,16 +165,16 @@ fn display(fmt: .Formatter, error: .Error, file-path: ByteSlice, modules: .Array
             $fmt ". return type of this call to be:\n" Fmt:write
             $fmt Fmt:indent $fmt Fmt:indent
             $fmt Fmt:write-indent
-            $fmt $modules &error.expected Type:pretty
+            $fmt &lookup &error.expected Type:pretty
             $fmt "\n" Fmt:write $fmt Fmt:dedent
             $fmt Fmt:write-indent
             $fmt "but that would contradict previosly inferred generic arguments:\n" Fmt:write
             $fmt Fmt:indent $fmt Fmt:write-indent
             $fmt $error.contradiction.generic i32-format
             $fmt " " Fmt:write
-            $fmt $modules &error.contradiction.previous Type:pretty
+            $fmt &lookup &error.contradiction.previous Type:pretty
             $fmt " vs " Fmt:write
-            $fmt $modules &error.contradiction.now Type:pretty
+            $fmt &lookup &error.contradiction.now Type:pretty
             $fmt Fmt:dedent
             // $fmt &error.origin $file-path display-origin
             $fmt Fmt:dedent
@@ -183,12 +185,12 @@ fn display(fmt: .Formatter, error: .Error, file-path: ByteSlice, modules: .Array
             $fmt ": expected this variable lookup to return:\n" Fmt:write
             $fmt Fmt:indent $fmt Fmt:indent
             $fmt Fmt:write-indent
-            $fmt $modules &error.expected Type:pretty
+            $fmt &lookup &error.expected Type:pretty
             $fmt "\n" Fmt:write $fmt Fmt:dedent
             $fmt Fmt:write-indent
             $fmt "but it actually returns:\n" Fmt:write
             $fmt Fmt:indent $fmt Fmt:write-indent
-            $fmt $modules &error.actual Type:pretty
+            $fmt &lookup &error.actual Type:pretty
             $fmt Fmt:dedent
             $fmt $modules &error.origin $file-path display-origin
             $fmt Fmt:dedent

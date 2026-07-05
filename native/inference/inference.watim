@@ -34,7 +34,7 @@ import "../resolving/top-items.watim" as Resolved (
     TypeShape-matches-Type, Struct,
 )
 import "../resolving/module.watim" as Resolved
-import "../resolving/type-lookup.watim" as Resolved
+import "../resolving/type-lookup.watim" as TypeLookup (TypeLookup)
 
 import "../unstacking/source.watim" as Source (
     Source, Source-token, Source-format,
@@ -103,6 +103,7 @@ fn infer-function(
         $log-level @log-level
         $arena 2 Fmt:to-fd "    " Fmt:use-indentation Arena:push<_> @fmt
         $modules @modules
+        $modules TypeLookup:complete @type-lookup
         $module-id @module-id
         $function-handle @function-handle
         &locals-of-function-and-all-closures @locals
@@ -154,10 +155,11 @@ block {
             @returns
 
             $function.signature.returns.len $returns.len /= if {
+                $modules TypeLookup:complete @lookup
                 $arena Fmt:into-new-string @buf @fmt
                 &fmt "unexpected return values:" Fmt:write
                 &fmt "\n\texpected: " Fmt:write
-                &fmt $modules &function.signature.returns Type:Types-pretty-bracketed
+                &fmt &lookup &function.signature.returns Type:Types-pretty-bracketed
                 &fmt "\n\tactual:   [" Fmt:write
                 0 loop {
                     @i $i $returns.len = if { make Maybe<Error>.None break }
@@ -167,7 +169,7 @@ block {
                         case Success -> {}
                     } match {
                         case None -> { &fmt "_" Fmt:write }
-                        case Some -> { & &fmt flip $modules flip Type:pretty }
+                        case Some -> { & &fmt flip &lookup flip Type:pretty }
                     }
                     $i 1 + $returns.len /= if {
                         &fmt ", " Fmt:write
@@ -713,7 +715,7 @@ fn call-argument-mismatch-error(
     &fmt "call to `" Fmt:write
     &fmt $token Token-lexeme Fmt:write
     &fmt "` expected the following arguments:\n\t" Fmt:write
-    &fmt $ctx.modules &parameters Type:Types-pretty-bracketed
+    &fmt &ctx.type-lookup &parameters Type:Types-pretty-bracketed
     0 loop {
         @i $i $generic-arguments.len = if { break }
         &fmt "\n\t" Fmt:write
@@ -731,7 +733,7 @@ fn call-argument-mismatch-error(
         &fmt " = " Fmt:write
         $ctx $generic-argument ~ lookup-hole match {
             case None -> { &fmt "unknown" Fmt:write }
-            case Some -> { &fmt flip $ctx.modules flip Type:pretty }
+            case Some -> { &fmt flip &ctx.type-lookup flip Type:pretty }
         }
         $i 1 +
     }
@@ -740,7 +742,7 @@ fn call-argument-mismatch-error(
         @i $i $argument-types.len = if { break }
         $argument-types $i Array:get<_> match {
             case None -> { &fmt "_" Fmt:write  }
-            case Some -> { &fmt flip $ctx.modules flip Type:pretty }
+            case Some -> { &fmt flip &ctx.type-lookup flip Type:pretty }
         }
         $i 1 + $argument-types.len /= if { &fmt ", " Fmt:write }
         $i 1 +
@@ -786,6 +788,7 @@ struct Ctx {
     function-handle: FunctionHandle
     modules: .Array<Resolved:Module>
     module-id: ModuleId
+    type-lookup: TypeLookup
     locals: .Map<LocalId, Unstacked:Local>
     states: Map<.Source, InferenceState>
     globals: .Array<Resolved:Global>
@@ -1667,9 +1670,9 @@ fn check-from-node(ctx: .Ctx, source: .Source:FromNode, known: .Type, origin: .L
                     &inferred $known Type:eq not if {
                         $ctx.arena Fmt:into-new-string @string @fmt
                         &fmt "If was expected to return different: " Fmt:write
-                        &fmt $ctx.modules &inferred Type:pretty
+                        &fmt &ctx.type-lookup &inferred Type:pretty
                         &fmt " vs " Fmt:write
-                        &fmt $ctx.modules $known Type:pretty
+                        &fmt &ctx.type-lookup $known Type:pretty
                         &source.token $string Array:unpack<_> error make Maybe<Error>.Some break
                     }
                     make Maybe<Error>.None break
@@ -1973,7 +1976,7 @@ fn stack-annotation-mismatch-error(ctx: .Ctx, source: .Source:FromStackAnnotatio
             case Success -> {}
         } match {
             case None -> { &fmt "_" Fmt:write }
-            case Some -> { &fmt flip $ctx.modules flip & Type:pretty }
+            case Some -> { &fmt flip &ctx.type-lookup flip & Type:pretty }
         }
         $i 1 + $source.arguments.len /= if { &fmt ", " Fmt:write }
         $i 1 +
@@ -1982,7 +1985,7 @@ fn stack-annotation-mismatch-error(ctx: .Ctx, source: .Source:FromStackAnnotatio
         case None -> {}
     }
     &fmt "]\n  expected: " Fmt:write
-    &fmt $ctx.modules &source.types WithHoles:Types-pretty-bracketed
+    &fmt &ctx.type-lookup &source.types WithHoles:Types-pretty-bracketed
     &source.token $msg Array:unpack<_> error
 } }
 
@@ -3282,7 +3285,7 @@ fn pretty-sources-inferred(fmt: .Formatter, ctx: .Ctx, sources: .Array<Source>) 
             case Success -> {}
         } match {
             case None -> { $fmt "_" Fmt:write }
-            case Some -> { $fmt flip $ctx.modules flip & Type:pretty }
+            case Some -> { $fmt flip &ctx.type-lookup flip & Type:pretty }
         }
         $i 1 + $sources.len /= if {
             $fmt ", " Fmt:write
@@ -3334,7 +3337,7 @@ fn arms-type-mismatch-error(ctx: .Ctx, source: .Source:FromMatchExit) -> Error {
             } match {
                 case None -> { &fmt "_" Fmt:write }
                 case Some -> {
-                    &fmt flip $ctx.modules flip & Type:pretty
+                    &fmt flip &ctx.type-lookup flip & Type:pretty
                 }
             }
             $j 1 + $returns.len /= if { &fmt ", " Fmt:write }
@@ -3380,7 +3383,7 @@ fn break-types-mismatch-error(ctx: .Ctx, source: .Source:FromBlockExit) -> Error
                         case Success -> {}
                     } match {
                         case None -> { &fmt "_" Fmt:write }
-                        case Some -> { &fmt flip $ctx.modules flip & Type:pretty }
+                        case Some -> { &fmt flip &ctx.type-lookup flip & Type:pretty }
                     }
                     $j 1 + $source.return-types.len /= if { &fmt ", " Fmt:write }
                 }

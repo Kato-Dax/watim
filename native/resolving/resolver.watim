@@ -119,7 +119,7 @@ fn resolve-module(
         case Success -> {}
     } @signatures
 
-    $id &type-definitions.values $modules make TypeLookup @type-lookup
+    $id &type-definitions.values &modules.values TypeLookup:incomplete @type-lookup
 
     1 1 = #type-resolver.allow-holes
 

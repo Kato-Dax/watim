@@ -17,16 +17,45 @@ import "./top-items.watim" as TopItems (TypeDefinition(Struct, Variant))
 import "./words.watim" as Words
 import "./module.watim" as Module (Module)
 
-struct TypeLookup {
+struct WithIncompleteModule {
     module-id: ModuleId
     types: .Array<TypeDefinition>
-    other-modules: .Map<ByteSlice, Module>
+    other-modules: .Array<Module>
+}
+
+variant TypeLookup {
+    case WithIncompleteModule -> WithIncompleteModule
+    case Complete -> .Array<Module>
+}
+fn complete(modules: .Array<Module>) -> TypeLookup {
+    $modules make TypeLookup.Complete
+}
+fn incomplete(module-id: ModuleId, types: .Array<TypeDefinition>, other-modules: .Array<Module>) -> TypeLookup {
+    $module-id $types $other-modules make WithIncompleteModule make TypeLookup.WithIncompleteModule
 }
 fn lookup(lookup: .TypeLookup, handle: .CustomTypeHandle) -> .TypeDefinition {
-    $handle.module $lookup.module-id = if {
-        $lookup.types $handle.index Array:get<_>
-    } else {
-        &lookup.other-modules.values $handle.module.index Array:get<_> .type-definitions.values $handle.index Array:get<_>
+    $lookup match {
+        case Complete -> {
+            ~ $handle.module.index Array:get .type-definitions.values $handle.index Array:get
+        }
+        case WithIncompleteModule -> {
+            ~ @lookup
+            $handle.module $lookup.module-id = if {
+                $lookup.types $handle.index Array:get<_>
+            } else {
+                $lookup.other-modules $handle.module.index Array:get<_> .type-definitions.values $handle.index Array:get<_>
+            }
+        }
+    }
+}
+
+global EMPTY: Array<TypeDefinition>
+
+fn types-of-current-module(lookup: .TypeLookup) -> .Array<TypeDefinition> {
+    Array:new #EMPTY
+    $lookup match {
+        case Complete -> { drop &EMPTY }
+        case WithIncompleteModule -> { .types ~ }
     }
 }
 

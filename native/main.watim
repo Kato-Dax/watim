@@ -24,7 +24,7 @@ import "./resolving/resolver.watim" as Resolved
 import "./resolving/module.watim" as Resolved
 import "./resolving/top-items.watim" as Resolved
 import "./resolving/type.watim" as Resolved (ModuleId)
-import "./resolving/type-lookup.watim" as Resolved (TypeLookup)
+import "./resolving/type-lookup.watim" as TypeLookup
 import "./resolving/words.watim" as Resolved (FunctionHandle)
 import "./unstacking/unstacker.watim" as Unstacker
 import "./unstacking/unstacking.watim" as Unstacking (init-intrinsic-signatures)
@@ -602,18 +602,18 @@ fn run-project-wide-command(fs: .FileSystem, command: ProjectWideCommand) { bloc
 } }
 
 fn forbid-directly-recursive-types(modules: .Map<ByteSlice, Resolved:Module>) {
+    &modules.values TypeLookup:complete @type-lookup
     0 loop {
         @i $i $modules.values.len = if { break }
 
         &modules.values $i Array:get<_> @module
         &modules.keys $i Array:get<_> ~ @path
         $i make ModuleId @module-id
-        $module-id &module.type-definitions.values $modules make Resolved:TypeLookup @type-lookup
         0 loop {
             @i $i $module.type-definitions.values.len = if { break }
             $module-id $i make Resolved:CustomTypeHandle @type-handle
             &module.type-definitions.values $i Array:get<_> @type-definition
-            &type-lookup &type-handle Resolved:is-directly-recursive if {
+            &type-lookup &type-handle TypeLookup:is-directly-recursive if {
                 2 Fmt:to-fd @fmt
                 $type-definition Resolved:TypeDefinition-name @name
                 &fmt $path ByteSlice:unpack Fmt:write
@@ -828,10 +828,10 @@ fn determine-compilation-order(arena: .Arena, modules: .Map<ByteSlice, Parser:Mo
                 $module-file-path ~ ByteSlice:unpack "-" Bytes:eq if {
                     $imp-path-ptr $imp-path-len make ByteSlice
                 } else {
-                    Array:new<i8> @absolute-path
+                    Array:new @absolute-path
                     $temp &absolute-path $module-file-path ~ ByteSlice:unpack FS:path-dir Array:append-raw<_>
                     $temp &absolute-path $imp-path-ptr $imp-path-len Array:append-raw<_>
-                    $temp &absolute-path Array:unpack<_> FS:normalize make ByteSlice
+                    $temp &absolute-path Array:unpack<i8> FS:normalize make ByteSlice
                 } @absolute-path
 
                 // Is this an import of an already `ordered` module?

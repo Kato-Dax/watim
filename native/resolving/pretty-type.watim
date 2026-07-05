@@ -9,8 +9,9 @@ import "./module.watim" as Module (Module)
 import "./type.watim" as Type (
     Type(Bool, I8, I32, I64, Ptr, Custom, Fun, Closure, Generic, Hole),
     CustomTypeType, FunType)
+import "./type-lookup.watim" as TypeLookup (TypeLookup)
 
-fn pretty(fmt: .Formatter, lookup: .Array<Module>, self: .Type) { block {
+fn pretty(fmt: .Formatter, lookup: .TypeLookup, self: .Type) { block {
     $fmt $self match {
         case Bool -> { drop "bool" }
         case I8 -> { drop "i8" }
@@ -25,43 +26,41 @@ fn pretty(fmt: .Formatter, lookup: .Array<Module>, self: .Type) { block {
     } Fmt:write
 } }
 
-fn FunType-pretty(fmt: .Formatter, modules: .Array<Module>, self: .FunType) {
+fn FunType-pretty(fmt: .Formatter, lookup: .TypeLookup, self: .FunType) {
     $fmt "(" Fmt:write
-    $fmt $modules &self.parameters Types-pretty
+    $fmt $lookup &self.parameters Types-pretty
     $fmt " -> " Fmt:write
-    $fmt $modules &self.returns Types-pretty
+    $fmt $lookup &self.returns Types-pretty
     $fmt ")" Fmt:write
 }
 
-fn ClosureType-pretty(fmt: .Formatter, modules: .Array<Module>, self: .FunType) {
+fn ClosureType-pretty(fmt: .Formatter, lookup: .TypeLookup, self: .FunType) {
     $fmt "\\(" Fmt:write
-    $fmt $modules &self.parameters Types-pretty
+    $fmt $lookup &self.parameters Types-pretty
     $fmt " -> " Fmt:write
-    $fmt $modules &self.returns Types-pretty
+    $fmt $lookup &self.returns Types-pretty
     $fmt ")" Fmt:write
 }
 
-fn Types-pretty(fmt: .Formatter, modules: .Array<Module>, self: .Array<Type>) {
+fn Types-pretty(fmt: .Formatter, lookup: .TypeLookup, self: .Array<Type>) {
     0 @i
     loop {
         $i $self.len = if { break }
-        $fmt $modules $self $i Array:get<Type> pretty
+        $fmt $lookup $self $i Array:get<Type> pretty
         $i 1 + #i
         $i $self.len = if { break }
         $fmt ", " Fmt:write
     }
 }
-fn Types-pretty-bracketed(fmt: .Formatter, modules: .Array<Module>, self: .Array<Type>) {
+fn Types-pretty-bracketed(fmt: .Formatter, lookup: .TypeLookup, self: .Array<Type>) {
     $fmt "[" Fmt:write
-    $fmt $modules $self Types-pretty
+    $fmt $lookup $self Types-pretty
     $fmt "]" Fmt:write
 }
 
-fn CustomTypeType-pretty(fmt: .Formatter, modules: .Array<Module>, self: .CustomTypeType) {
+fn CustomTypeType-pretty(fmt: .Formatter, lookup: .TypeLookup, self: .CustomTypeType) {
     $fmt
-    $modules $self.type-definition.module.index Array:get
-    .type-definitions.values $self.type-definition.index Array:get
-    match {
+    $lookup &self.type-definition TypeLookup:lookup match {
         case Struct  -> { .name }
         case Variant -> { .name }
     } Token-lexeme Fmt:write
@@ -69,7 +68,7 @@ fn CustomTypeType-pretty(fmt: .Formatter, modules: .Array<Module>, self: .Custom
     loop {
         $i $self.generic-arguments.len = if { break }
         $i 0 = if { $fmt "<" Fmt:write }
-        $fmt $modules &self.generic-arguments $i Array:get<Type> pretty
+        $fmt $lookup &self.generic-arguments $i Array:get<Type> pretty
         $i 1 + #i
         $i $self.generic-arguments.len /= if {
             $fmt ", " Fmt:write

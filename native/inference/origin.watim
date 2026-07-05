@@ -8,6 +8,7 @@ import "../lexer.watim" as Token (Token, Token-location, TokenLocation, format-l
 import "../resolving/type-without-holes.watim" as Type (Type)
 import "../resolving/pretty-type-without-holes.watim" as Type
 import "../resolving/module.watim" as Resolved (Module)
+import "../resolving/type-lookup.watim" as TypeLookup
 
 import "../unstacking/unstacker.watim" as Unstacker
 import "../unstacking/voids.watim" as Voids (StackVoid)
@@ -38,6 +39,7 @@ variant Origin {
 }
 
 fn display(fmt: .Formatter, modules: .Array<Module>, self: .Origin, file-path: ByteSlice) {
+    $modules TypeLookup:complete @lookup
     $self match {
         case FromReturn -> {
             @origin
@@ -45,7 +47,7 @@ fn display(fmt: .Formatter, modules: .Array<Module>, self: .Origin, file-path: B
             $fmt ": The " Fmt:write
             $fmt $origin.return-index 1 + i32-format
             $fmt ". return type: " Fmt:write
-            $fmt $modules &origin.type Type:pretty
+            $fmt &lookup &origin.type Type:pretty
         }
         case FromCall -> {
             @origin
@@ -53,13 +55,13 @@ fn display(fmt: .Formatter, modules: .Array<Module>, self: .Origin, file-path: B
             $fmt ": The " Fmt:write
             $fmt $origin.argument 1 + i32-format
             $fmt ". argument of this call: " Fmt:write
-            $fmt $modules &origin.expected Type:pretty
+            $fmt &lookup &origin.expected Type:pretty
         }
         case FromLocal -> {
             @origin
             $fmt $file-path &origin.token Token-location make TokenLocation & format-location
             $fmt ": This variable lookup: " Fmt:write
-            $fmt $modules &origin.expected Type:pretty
+            $fmt &lookup &origin.expected Type:pretty
         }
         case _ -> {
             drop

@@ -592,7 +592,7 @@ fn resolve-make-struct-named(ctx: .WordCtx, word: .P:MakeStructNamed) -> Result<
             $temp flip &type.generic-arguments with-generics @type
             &fmt "\n\t" Fmt:write &fmt $name ~ ByteSlice:unpack Fmt:write
             &fmt ": " Fmt:write
-            &fmt &ctx.modules.values &type Type:pretty
+            &fmt $ctx.type-lookup &type Type:pretty
             $i 1 +
         }
         &ctx &word.token $buf Array:unpack<_> abort<Word> break
@@ -981,12 +981,13 @@ fn lookup-constructor(ctx: .WordCtx, constructor: .Token) -> Result<VariantTypeW
         case None -> {}
     }
 
+    $ctx.type-lookup TypeLookup:types-of-current-module @defs-in-module
     0 @i
     loop {
-        $i $ctx.type-lookup.types.len = if {
+        $i $defs-in-module.len = if {
             $ctx $constructor "constructor not found" abort<VariantTypeWithTag> break
         }
-        $ctx.type-lookup.types $i Array:get<_> match {
+        $defs-in-module $i Array:get<_> match {
             case Variant -> {
                 @varint
                 $ctx $varint $constructor lookup-constructor-in-variant match {
