@@ -75,6 +75,16 @@ fn copy-origin(arena: .Arena, list: .List<Origin>) -> Array<Origin> {
     }
     $array
 }
+fn copy-origin-list(arena: .Arena, list: .List<Origin>) -> .List<Origin> {
+    $list match {
+        case List.Empty -> { $list }
+        case List.Cons -> {
+            @cons
+            $cons.elem $arena $cons.next copy-origin-list List:cons
+            $arena flip Arena:push
+        }
+    }
+}
 
 fn infer-function(
     arena: .Arena,
@@ -84,7 +94,7 @@ fn infer-function(
     function: .Unstacked:Function,
     function-handle: FunctionHandle,
     log-level: LogLevel
-) -> Result<Array<Function>, Error> { block {
+) -> Result<Array<Function>, Error> {
     $arena Arena:temp @temp @save
     $temp &function.locals Map:clone @locals-of-function-and-all-closures
     0 loop {
@@ -100,6 +110,7 @@ fn infer-function(
 
     make Ctx {
         $arena @arena
+        $temp @temp
         $log-level @log-level
         $arena 2 Fmt:to-fd "    " Fmt:use-indentation Arena:push<_> @fmt
         $modules @modules
@@ -117,7 +128,7 @@ fn infer-function(
         $arena make TokenTy.TOKEN_BOOL Token-new-synthetic make Type.Bool Arena:push<_> @type-bool
         $arena make TokenTy.TOKEN_I32  Token-new-synthetic make Type.I32  Arena:push<_> @type-i32
         \CustomTypeHandle-eq Map:new @custom-type-signatures
-        Array:new<DeferredInferAtProgress> @deferred-infers
+        Array:new @deferred
         1 @progress
         0 1 = @ignore-being-inferred
     } @ctx
@@ -135,115 +146,288 @@ fn infer-function(
         }
     }
 
-block {
+    block {
+        0 loop {
+            @i $i $function.locals.values.len = if { break }
+            &function.locals.values $i Array:get<_> @local
+            &local.parameter match {
+                case None -> {}
+                case Some -> {
+                    &ctx flip $local.type flip .type fill-hole
+                }
+            }
+            $i 1 +
+        }
 
-    0 loop {
-        @i $i $function.locals.values.len = if { break }
-        &function.locals.values $i Array:get<_> @local
-        &local.parameter match {
+        &function.returns match {
             case None -> {}
             case Some -> {
-                &ctx flip $local.type flip .type fill-hole
+                @returns
+
+                $function.signature.returns.len $returns.len /= if {
+                    $modules TypeLookup:complete @lookup
+                    $arena Fmt:into-new-string @buf @fmt
+                    &fmt "unexpected return values:" Fmt:write
+                    &fmt "\n\texpected: " Fmt:write
+                    &fmt &lookup &function.signature.returns Type:Types-pretty-bracketed
+                    &fmt "\n\tactual:   [" Fmt:write
+                    0 loop {
+                        @i $i $returns.len = if { make Maybe<Error>.None break }
+                        $returns $i Array:get<_>
+                        &ctx flip infer match {
+                            case Error -> { make Maybe<Error>.Some break }
+                            case Success -> {}
+                        } match {
+                            case None -> { &fmt "_" Fmt:write }
+                            case Some -> { & &fmt flip &lookup flip Type:pretty }
+                        }
+                        $i 1 + $returns.len /= if {
+                            &fmt ", " Fmt:write
+                        }
+                        $i 1 +
+                    } match {
+                        case Some -> { make Result.Error break }
+                        case None -> {}
+                    }
+                    &fmt "]" Fmt:write
+                    &function.name $buf Array:unpack<_> error make Result.Error break
+                }
             }
         }
-        $i 1 +
-    }
 
-    &function.returns match {
-        case None -> {}
-        case Some -> {
-            @returns
+        &function.returns match {
+            case None -> {}
+            case Some -> {
+                @returns
 
-            $function.signature.returns.len $returns.len /= if {
-                $modules TypeLookup:complete @lookup
-                $arena Fmt:into-new-string @buf @fmt
-                &fmt "unexpected return values:" Fmt:write
-                &fmt "\n\texpected: " Fmt:write
-                &fmt &lookup &function.signature.returns Type:Types-pretty-bracketed
-                &fmt "\n\tactual:   [" Fmt:write
                 0 loop {
-                    @i $i $returns.len = if { make Maybe<Error>.None break }
-                    $returns $i Array:get<_>
-                    &ctx flip infer match {
+                    @i $i $returns.len = if {
+                        unit make Result<Unit, Error>.Success break
+                    }
+                    $returns $i Array:get<_> @source
+                    &function.signature.returns $i Array:get<_> @expected
+
+                    List:empty @origin
+                    $i $expected ~ make Origin:FromReturn make Origin.FromReturn &origin List:cons @origin
+                    &ctx $source $expected &origin check match {
+                        case None -> {}
+                        case Some -> { make Result<Unit, Error>.Error break }
+                    }
+
+                    $i 1 +
+                } match {
+                    case Error -> { make Result.Error break }
+                    case Success -> { useless }
+                }
+            }
+        }
+
+        0 loop (i32 ->) {
+            @i $i $function.voids.len = if { break }
+            $ctx.arena &ctx.deferred &function.voids $i Array:get<_> make DeferredInfer.StackVoid $ctx.progress make DeferredInferAtProgress make DeferredItem.DeferredInfer Array:push<_>
+            $i 1 +
+        }
+
+        $ctx.progress 1 + #ctx.progress
+
+        loop (-> Maybe<Error>) {
+            $ctx.deferred.len 0 = if { make Maybe<Error>.None break }
+            &ctx.deferred Array:pop @deferred
+
+            $deferred match {
+                case DeferredCheck -> {
+                    @deferred
+                    $deferred.progress $ctx.progress = if {
+                        $ctx.fmt $deferred.source Source-format
+                        $ctx.arena $deferred.source Source-token $deferred.origin "failed to check item" error-with-origin make Maybe<Error>.Some break
+                    }
+                    &ctx $deferred.source $deferred.known $deferred.origin check match {
+                        case None -> {}
+                        case _ -> { break }
+                    }
+                }
+                case DeferredInfer -> {
+                    @deferred
+                    $deferred.deferred match {
+                        case DeferredInfer.StackVoid -> {}
+                    } @void
+
+                    $deferred.progress $ctx.progress = if {
+                        $void match {
+                            case StackVoid.NonSpecific -> { .token }
+                            case StackVoid.Store -> { .token }
+                            case StackVoid.IndirectCall -> { .token }
+                            case StackVoid.Call -> { .token }
+                            case StackVoid.ImpossibleMatch -> { .token }
+                            case StackVoid.SetGlobal -> { .token }
+                        }
+                        "failed to infer type of void" error make Maybe<Error>.Some break
+                    }
+
+                    &ctx $void infer-stack-void match {
+                        case None -> {}
+                        case _ -> { break }
+                    }
+                }
+            }
+        } match {
+            case None -> {}
+            case Some -> { make Result.Error break }
+        }
+
+        0 loop {
+            @i $i $function.locals.values.len = if { make Maybe<Error>.None break }
+            &function.locals.values $i Array:get<_> @local
+
+            &ctx $local.type lookup-hole match {
+                case Some -> { ~ }
+                case None -> {
+                    &ctx $local infer-local match {
                         case Error -> { make Maybe<Error>.Some break }
                         case Success -> {}
                     } match {
-                        case None -> { &fmt "_" Fmt:write }
-                        case Some -> { & &fmt flip &lookup flip Type:pretty }
+                        case None -> {
+                            &local.name Name-token
+                            "StackVoid.SetLocal failed to infer type of local" error make Maybe<Error>.Some break
+                        }
+                        case Some -> {}
                     }
-                    $i 1 + $returns.len /= if {
-                        &fmt ", " Fmt:write
-                    }
-                    $i 1 +
-                } match {
-                    case Some -> { make Result.Error break }
-                    case None -> {}
                 }
-                &fmt "]" Fmt:write
-                &function.name $buf Array:unpack<_> error make Result.Error break
+            } @local-type
+
+            &local.name Name-token ~ $local-type make Origin:FromLocal make Origin.FromLocal List:empty & List:cons @origin
+            &ctx $local &local-type &origin check-local-assignments match {
+                case None -> {}
+                case _ -> { break }
             }
+
+            $i 1 +
+        } match {
+            case None -> {}
+            case Some -> { make Result.Error break }
         }
-    }
 
-    &function.returns match {
-        case None -> {}
-        case Some -> {
-            @returns
+        $ctx.arena $function.closures.len 1 + Array:new-with-capacity @functions
 
+        $ctx.arena &function.signature.generic-parameters generic-types-from-generic-parameters @pass-through-generic-arguments
+
+        $ctx.modules $module-id.index Array:get<_> .type-definitions Core:dup $ctx.arena flip Map:clone store
+
+        $function.closures.len loop {
+            @i $i 0 = if { make Maybe<Error>.None break }
+            $i 1 - @closure-index
+            &function.closures $closure-index Array:get @closure
+
+            Array:new @environment-fields
             0 loop {
-                @i $i $returns.len = if {
-                    unit make Result<Unit, Error>.Success break
-                }
-                $returns $i Array:get<_> @source
-                &function.signature.returns $i Array:get<_> @expected
+                @i $i $closure.captured.len = if { break }
+                &closure.captured $i Array:get @captured-local-id
+                &locals-of-function-and-all-closures $captured-local-id Map:get Maybe:assert-some @captured-local
 
-                List:empty @origin
-                $i $expected ~ make Origin:FromReturn make Origin.FromReturn &origin List:cons @origin
-                &ctx $source $expected &origin check match {
-                    case None -> {}
-                    case Some -> { make Result<Unit, Error>.Error break }
-                }
-
+                &ctx $captured-local.type lookup-hole Maybe:assert-some make Type.Ptr
+                $captured-local.name flip make NamedType
+                $ctx.arena flip &environment-fields flip Array:push
                 $i 1 +
-            } match {
-                case Error -> { make Result.Error break }
-                case Success -> { useless }
             }
-        }
-    }
 
-    0 loop (i32 ->) {
-        @i $i $function.voids.len = if { break }
-        $ctx.arena &ctx.deferred-infers &function.voids $i Array:get<_> make DeferredInfer.StackVoid $ctx.progress make DeferredInferAtProgress Array:push<_>
-        $i 1 +
-    }
+            make Struct {
+                $closure.token @name
+                $closure.generic-parameters @generic-parameters
+                $environment-fields @fields
+            } make TypeDefinition.Struct @environment-struct
 
-    $ctx.progress 1 + #ctx.progress
+            $module-id $ctx.modules $module-id.index Array:get<_> .type-definitions.values.len ~ make CustomTypeHandle @environment-struct-handle
+            make Type:CustomTypeType {
+                $closure.token @token
+                $environment-struct-handle @type-definition
+                $ctx.arena &closure.generic-parameters generic-types-from-generic-parameters @generic-arguments
+            } @environment-struct-type
 
-    loop (-> Maybe<Error>) {
-        $ctx.deferred-infers.len 0 = if { make Maybe<Error>.None break }
-        &ctx.deferred-infers Array:pop<_> @deferred
+            $ctx.arena $ctx.environment-types make Maybe.None $closure-index $environment-struct-type make Maybe.Some Array:extending-set
 
-        $deferred.deferred match {
-            case DeferredInfer.StackVoid -> {}
-        } @void
+            $ctx.arena $ctx.modules $module-id.index Array:get<_> .type-definitions.values $environment-struct Array:push
 
-        $deferred.progress $ctx.progress = if {
-            $void match {
-                case StackVoid.NonSpecific -> { .token }
-                case StackVoid.Store -> { .token }
-                case StackVoid.IndirectCall -> { .token }
-                case StackVoid.Call -> { .token }
-                case StackVoid.ImpossibleMatch -> { .token }
-                case StackVoid.SetGlobal -> { .token }
-            }
-            "failed to infer type of void" error make Maybe<Error>.Some break
+            &closure.locals &closure.environment-local Map:get Maybe:assert-some @environment-local
+            &ctx $environment-local.type $environment-struct-type make Type.Custom & make Type.Ptr & fill-hole
+
+            $i 1 -
+        } match {
+            case None -> {}
+            case Some -> { make Result.Error break }
         }
 
-        &ctx logging if {
+        &ctx &function.body fill-holes-scope @body
+        &functions make Function {
+            $function.name make Name.User @name
+            $function.export @export
+            $function.signature @signature
+            &ctx &function.locals fill-holes-locals @locals
+            $body @body
+        } Array:push-assert-no-alloc
+
+        $function.closures.len loop {
+            @i $i 0 = if { break }
+            $i 1 - @closure-index
+            &function.closures $closure-index Array:get @closure
+
+            &ctx &closure.parameters fill-holes @parameter-types
+
+            $function.name $closure.token $closure-index make AnonymousFunctionName make Name.AnonymousFunction @closure-name
+
+            Array:new @parameters
+            0 loop {
+                @i $i $parameter-types.len = if { break }
+                $ctx.arena &parameters make Parameter {
+                    $closure.token make Name.ClosureParam @name
+                    &parameter-types $i Array:get ~ @type
+                    $i @index
+                } Array:push
+                $i 1 +
+            }
+
+            &ctx &closure.locals fill-holes-locals @locals
+            &locals &closure.environment-local Map:get Maybe:assert-some @environment-local
+            make Parameter {
+                $parameters.len @index
+                $closure-name @name
+                $environment-local.type @type
+            } @environment-parameter
+            $ctx.arena &parameters $environment-parameter Array:push
+
+            make FunctionSignature {
+                $closure.generic-parameters @generic-parameters
+                $parameters @parameters
+                &ctx &closure.returns fill-holes @returns
+            } @signature
+
+            $environment-parameter.index make Maybe.Some #environment-local.parameter-index
+
+            &functions make Function {
+                $closure-name @name
+                make Maybe.None @export
+                $signature @signature
+                $closure.environment-local @environment-local
+                $locals @locals
+                &ctx &closure.body fill-holes-scope @body
+            } Array:push-assert-no-alloc
+
+            $i 1 -
+        }
+
+        &functions $functions.len $function.closures.len - $functions.len 1 - Array:slice & Array:reverse
+
+        $functions make Result.Success
+    }
+    $temp $save Arena:restore
+    &ctx logging if { $ctx.fmt Fmt:dedent }
+}
+
+fn infer-stack-void(ctx: .Ctx, void: .StackVoid) -> Maybe<Error> {
+    block {
+        $ctx logging if {
             $ctx.fmt Fmt:write-indent
             $ctx.fmt "> infer void: " Fmt:write
-            $ctx.fmt $void &ctx full-sources if {
+            $ctx.fmt $void $ctx full-sources if {
                 Unstacked:StackVoid-format
             } else {
                 Unstacked:StackVoid-format-shallow
@@ -265,20 +449,17 @@ block {
                 } @source
                 &void.known match {
                     case None -> {
-                        &ctx $source infer match {
+                        $ctx $source infer match {
                             case Error -> { make Maybe<Error>.Some break }
                             case Success -> {}
                         } match {
-                            case None -> {
-                                make Maybe<Type>.None
-                                // &void.token "failed to infer type of void" error make Maybe<Error>.Some break
-                            }
+                            case None -> { make Maybe<Type>.None }
                             case _ -> {}
                         }
                     }
                     case Some -> {
                         @known
-                        &ctx $source $known &origin check match {
+                        $ctx $source $known &origin check match {
                             case None -> {}
                             case _ -> { break }
                         }
@@ -289,7 +470,7 @@ block {
                     case Some -> {
                         $void.type match {
                             case None -> { drop }
-                            case Some -> { @hole &ctx flip $hole flip & fill-hole }
+                            case Some -> { @hole $ctx flip $hole flip & fill-hole }
                         }
                         0 1 =
                     }
@@ -310,12 +491,12 @@ block {
                     case Some -> {}
                 } @src
 
-                &ctx $dst infer match {
+                $ctx $dst infer match {
                     case Error -> { make Maybe<Error>.Some break }
                     case Success -> {}
                 } match {
                     case None -> {
-                        &ctx $src infer match {
+                        $ctx $src infer match {
                             case Error -> { make Maybe<Error>.Some break }
                             case Success -> {}
                         } match {
@@ -324,7 +505,7 @@ block {
                             }
                             case Some -> {}
                         } @src
-                        &ctx $dst &src make Type.Ptr & &origin check match {
+                        $ctx $dst &src make Type.Ptr & &origin check match {
                             case None -> {}
                             case _ -> { break }
                         } $src
@@ -337,13 +518,13 @@ block {
                                 drop &void.token "cannot store into non-ptr" error make Maybe<Error>.Some break
                             }
                         } @dst
-                        &ctx $src $dst &origin check match {
+                        $ctx $src $dst &origin check match {
                             case None -> {}
                             case _ -> { break }
                         } $dst ~
                     }
                 } @type
-                &ctx $void.type &type fill-hole
+                $ctx $void.type &type fill-hole
                 0 1 =
             }
             case StackVoid.IndirectCall -> {
@@ -352,19 +533,19 @@ block {
                     case None -> { &void.token "expected function on stack" error make Maybe<Error>.Some break }
                     case Some -> {}
                 } @function
-                &ctx &void.parameters lookup-holes match {
+                $ctx &void.parameters lookup-holes match {
                     case None -> { 1 1 = }
                     case Some -> {
                         @parameters
-                        &ctx &void.returns lookup-holes match {
+                        $ctx &void.returns lookup-holes match {
                             case None -> { 1 1 = }
                             case Some -> {
                                 @returns
 
                                 $void.token $parameters $returns make Type:FunType 
                                 $void.closure if { make Type.Closure } else { make Type.Fun } @known
-                                &ctx $void.function-type &known fill-hole
-                                &ctx $function &known &origin check match {
+                                $ctx $void.function-type &known fill-hole
+                                $ctx $function &known &origin check match {
                                     case None -> { 0 1 = }
                                     case _ -> { break }
                                 }
@@ -375,7 +556,7 @@ block {
             }
             case StackVoid.SetGlobal -> {
                 @void
-                &ctx &void.global-type &void.fields traverse-fields match {
+                $ctx &void.global-type &void.fields traverse-fields match {
                     case Success -> {}
                     case Error -> { make Maybe<Error>.Some break }
                 } @field-type
@@ -385,8 +566,8 @@ block {
                     case Some -> {}
                 } @source
 
-                &ctx $void.type &field-type fill-hole
-                &ctx $source &field-type &origin check match {
+                $ctx $void.type &field-type fill-hole
+                $ctx $source &field-type &origin check match {
                     case None -> {}
                     case _ -> { break }
                 }
@@ -394,13 +575,13 @@ block {
             }
             case StackVoid.Call -> {
                 @void
-                &ctx $void.function lookup-signature @signature
-                &ctx &void.arguments infer-over-array match {
+                $ctx $void.function lookup-signature @signature
+                $ctx &void.arguments infer-over-array match {
                     case Error -> { make Maybe<Error>.Some break }
                     case Success -> {}
                 } @argument-types
                 $void.arguments.len $signature Signature-parameters-len /= if {
-                    &ctx &void.token $signature &void.generic-arguments &argument-types
+                    $ctx &void.token $signature &void.generic-arguments &argument-types
                     call-argument-mismatch-error make Maybe<Error>.Some break
                 }
                 1 1 = 0 loop (bool, i32 -> Result<bool, Error>) {
@@ -411,7 +592,7 @@ block {
                     $expected Type:contains-generic not if {
                         &argument-types $i Array:get<_> match {
                             case None -> {
-                                &ctx
+                                $ctx
                                 &void.arguments $i Array:get<_>
                                 $expected &origin check match {
                                     case None -> {}
@@ -420,7 +601,7 @@ block {
                             }
                             case Some -> {
                                 $expected Type:eq not if {
-                                    &ctx &void.token $signature &void.generic-arguments &argument-types
+                                    $ctx &void.token $signature &void.generic-arguments &argument-types
                                     call-argument-mismatch-error make Result<bool, Error>.Error break
                                 }
                             }
@@ -431,10 +612,10 @@ block {
                             case None -> {}
                             case Some -> {
                                 @argument-type
-                                &ctx &void.generic-arguments $expected $argument-type unify-types match {
+                                $ctx &void.generic-arguments $expected $argument-type unify-types match {
                                     case UnificationResult.Success -> {}
                                     case _ -> {
-                                        drop &ctx &void.token $signature &void.generic-arguments &argument-types
+                                        drop $ctx &void.token $signature &void.generic-arguments &argument-types
                                         call-argument-mismatch-error make Result<bool, Error>.Error break
                                     }
                                 }
@@ -449,7 +630,7 @@ block {
                 } @there-are-no-generic-parameters
 
                 $there-are-no-generic-parameters not if {
-                    &ctx &void.generic-arguments lookup-holes match {
+                    $ctx &void.generic-arguments lookup-holes match {
                         case Some -> {
                             @generic-arguments
                             // The generic-arguments are known, use them to monomorphise the parameters
@@ -462,14 +643,14 @@ block {
                                 &generic-arguments Type:with-generics @parameter
                                 &argument-types $i Array:get<_> match {
                                     case None -> {
-                                        &ctx &void.arguments $i Array:get<_> &parameter &origin check match {
+                                        $ctx &void.arguments $i Array:get<_> &parameter &origin check match {
                                             case None -> {}
                                             case _ -> { break }
                                         }
                                     }
                                     case Some -> {
                                         &parameter Type:eq not if {
-                                            &ctx &void.token $signature &void.generic-arguments &argument-types
+                                            $ctx &void.token $signature &void.generic-arguments &argument-types
                                             call-argument-mismatch-error make Maybe<Error>.Some break
                                         }
                                     }
@@ -483,7 +664,7 @@ block {
                         case None -> {
                             0 loop (i32 -> Maybe<Error>) {
                                 @i $i $signature Signature-parameters-len = if { make Maybe<Error>.None break }
-                                &ctx
+                                $ctx
                                 &void.generic-arguments
                                 $signature $i Unstacked:Signature-parameter
                                 &argument-types $i Array:get<_> match {
@@ -492,7 +673,7 @@ block {
                                 } unify-types match {
                                     case UnificationResult.Success -> {}
                                     case _ -> {
-                                        drop &ctx &void.token $signature &void.generic-arguments &argument-types
+                                        drop $ctx &void.token $signature &void.generic-arguments &argument-types
                                         call-argument-mismatch-error make Maybe<Error>.Some break
                                     }
                                 }
@@ -512,7 +693,7 @@ block {
                     case None -> { &void.token "match expected value" error make Maybe<Error>.Some break }
                     case Some -> {}
                 } @source
-                &ctx $source infer match {
+                $ctx $source infer match {
                     case Error -> { make Maybe<Error>.Some break }
                     case Success -> {}
                 } match {
@@ -526,7 +707,7 @@ block {
                     } }
                     case _ -> { drop &void.token "expected to match on a variant" error make Maybe<Error>.Some break }
                 } .type-definition @varint
-                &ctx &varint lookup-type-definition match {
+                $ctx &varint lookup-type-definition match {
                     case TypeDefinition.Struct -> {
                         drop &void.token "expected to match on a variant" error make Maybe<Error>.Some break
                     }
@@ -538,160 +719,12 @@ block {
                 0 1 =
             }
         } if {
-            $ctx.arena &ctx.deferred-infers $void make DeferredInfer.StackVoid $ctx.progress make DeferredInferAtProgress Array:push-front<_>
+            $ctx.arena &ctx.deferred $void make DeferredInfer.StackVoid $ctx.progress make DeferredInferAtProgress make DeferredItem.DeferredInfer Array:push-front
         }
-        &ctx logging if { $ctx.fmt Fmt:dedent }
-    } match {
-        case None -> {}
-        case Some -> { make Result.Error break }
+        $ctx logging if { $ctx.fmt Fmt:dedent }
+        make Maybe.None
     }
-
-    0 loop {
-        @i $i $function.locals.values.len = if { make Maybe<Error>.None break }
-        &function.locals.values $i Array:get<_> @local
-
-        &ctx $local.type lookup-hole match {
-            case Some -> { ~ }
-            case None -> {
-                &ctx $local infer-local match {
-                    case Error -> { make Maybe<Error>.Some break }
-                    case Success -> {}
-                } match {
-                    case None -> {
-                        &local.name Name-token
-                        "StackVoid.SetLocal failed to infer type of local" error make Maybe<Error>.Some break
-                    }
-                    case Some -> {}
-                }
-            }
-        } @local-type
-
-        &local.name Name-token ~ $local-type make Origin:FromLocal make Origin.FromLocal List:empty & List:cons @origin
-        &ctx $local &local-type &origin check-local-assignments match {
-            case None -> {}
-            case _ -> { break }
-        }
-
-        $i 1 +
-    } match {
-        case None -> {}
-        case Some -> { make Result.Error break }
-    }
-
-    $ctx.arena $function.closures.len 1 + Array:new-with-capacity @functions
-
-    $ctx.arena &function.signature.generic-parameters generic-types-from-generic-parameters @pass-through-generic-arguments
-
-    $ctx.modules $module-id.index Array:get<_> .type-definitions Core:dup $ctx.arena flip Map:clone store
-
-    $function.closures.len loop {
-        @i $i 0 = if { make Maybe<Error>.None break }
-        $i 1 - @closure-index
-        &function.closures $closure-index Array:get @closure
-
-        Array:new @environment-fields
-        0 loop {
-            @i $i $closure.captured.len = if { break }
-            &closure.captured $i Array:get @captured-local-id
-            &locals-of-function-and-all-closures $captured-local-id Map:get Maybe:assert-some @captured-local
-
-            &ctx $captured-local.type lookup-hole Maybe:assert-some make Type.Ptr
-            $captured-local.name flip make NamedType
-            $ctx.arena flip &environment-fields flip Array:push
-            $i 1 +
-        }
-
-        make Struct {
-            $closure.token @name
-            $closure.generic-parameters @generic-parameters
-            $environment-fields @fields
-        } make TypeDefinition.Struct @environment-struct
-
-        $module-id $ctx.modules $module-id.index Array:get<_> .type-definitions.values.len ~ make CustomTypeHandle @environment-struct-handle
-        make Type:CustomTypeType {
-            $closure.token @token
-            $environment-struct-handle @type-definition
-            $ctx.arena &closure.generic-parameters generic-types-from-generic-parameters @generic-arguments
-        } @environment-struct-type
-
-        $ctx.arena $ctx.environment-types make Maybe.None $closure-index $environment-struct-type make Maybe.Some Array:extending-set
-
-        $ctx.arena $ctx.modules $module-id.index Array:get<_> .type-definitions.values $environment-struct Array:push
-
-        &closure.locals &closure.environment-local Map:get Maybe:assert-some @environment-local
-        &ctx $environment-local.type $environment-struct-type make Type.Custom & make Type.Ptr & fill-hole
-
-        $i 1 -
-    } match {
-        case None -> {}
-        case Some -> { make Result.Error break }
-    }
-
-    &ctx &function.body fill-holes-scope @body
-    &functions make Function {
-        $function.name make Name.User @name
-        $function.export @export
-        $function.signature @signature
-        &ctx &function.locals fill-holes-locals @locals
-        $body @body
-    } Array:push-assert-no-alloc
-
-    $function.closures.len loop {
-        @i $i 0 = if { break }
-        $i 1 - @closure-index
-        &function.closures $closure-index Array:get @closure
-
-        &ctx &closure.parameters fill-holes @parameter-types
-
-        $function.name $closure.token $closure-index make AnonymousFunctionName make Name.AnonymousFunction @closure-name
-
-        Array:new @parameters
-        0 loop {
-            @i $i $parameter-types.len = if { break }
-            $ctx.arena &parameters make Parameter {
-                $closure.token make Name.ClosureParam @name
-                &parameter-types $i Array:get ~ @type
-                $i @index
-            } Array:push
-            $i 1 +
-        }
-
-        &ctx &closure.locals fill-holes-locals @locals
-        &locals &closure.environment-local Map:get Maybe:assert-some @environment-local
-        make Parameter {
-            $parameters.len @index
-            $closure-name @name
-            $environment-local.type @type
-        } @environment-parameter
-        $ctx.arena &parameters $environment-parameter Array:push
-
-        make FunctionSignature {
-            $closure.generic-parameters @generic-parameters
-            $parameters @parameters
-            &ctx &closure.returns fill-holes @returns
-        } @signature
-
-        $environment-parameter.index make Maybe.Some #environment-local.parameter-index
-
-        &functions make Function {
-            $closure-name @name
-            make Maybe.None @export
-            $signature @signature
-            $closure.environment-local @environment-local
-            $locals @locals
-            &ctx &closure.body fill-holes-scope @body
-        } Array:push-assert-no-alloc
-
-        $i 1 -
-    }
-
-    &functions $functions.len $function.closures.len - $functions.len 1 - Array:slice & Array:reverse
-
-    $functions make Result<Array<Function>, Error>.Success
 }
-$temp $save Arena:restore
-&ctx logging if { $ctx.fmt Fmt:dedent }
-} }
 
 fn generic-types-from-generic-parameters(arena: .Arena, parameters: .Array<Token>) -> Array<Type> {
     $arena $parameters.len Array:new-with-capacity @types
@@ -781,8 +814,21 @@ struct DeferredInferAtProgress {
     progress: i32
 }
 
+struct DeferredCheck {
+    source: .Source
+    known: .Type
+    origin: .List<Origin>
+    progress: i32
+}
+
+variant DeferredItem {
+    case DeferredCheck -> DeferredCheck
+    case DeferredInfer -> DeferredInferAtProgress
+}
+
 struct Ctx {
     arena: .Arena
+    temp: .Arena
     log-level: LogLevel
     fmt: .Formatter
     function-handle: FunctionHandle
@@ -800,7 +846,7 @@ struct Ctx {
     type-bool: .Type
     type-i32: .Type
     custom-type-signatures: Map<CustomTypeHandle, FunctionSignature>
-    deferred-infers: Array<DeferredInferAtProgress>
+    deferred: Array<DeferredItem>
     progress: i32
     ignore-being-inferred: bool
 }
@@ -1530,6 +1576,7 @@ fn check-from-make-variant(ctx: .Ctx, source: .Source:FromMakeVariant, known: .T
 } }
 
 fn check-from-node(ctx: .Ctx, source: .Source:FromNode, known: .Type, origin: .List<Origin>) -> Maybe<Error> { block {
+    $source @entire-source
     $source.ret @return-depth
     $ctx $source.index get-node @node
 
@@ -1577,52 +1624,64 @@ fn check-from-node(ctx: .Ctx, source: .Source:FromNode, known: .Type, origin: .L
                 @i $i $source.arguments.len = if { make Maybe<Error>.None break }
                 &source.arguments $i Array:get<_> @argument
                 $signature $i Unstacked:Signature-parameter @generic-parameter
-                $ctx $generic-parameter &source.generic-arguments try-with-generics match {
-                    case None -> {
-                        $ctx $argument infer match {
-                            case Error -> { make Maybe.Some break }
-                            case Success -> {}
-                        } match {
-                            case None -> {
-                                &source.token "check FromCall: TODO 2" error make Maybe<Error>.Some break
-                            }
-                            case Some -> {}
-                        } @argument-type
+                block {
+                    $ctx $generic-parameter &source.generic-arguments try-with-generics match {
+                        case None -> {
+                            $ctx $argument infer match {
+                                case Error -> { make Maybe.Some break }
+                                case Success -> {}
+                            } match {
+                                case None -> {
+                                    $ctx.temp &ctx.deferred make DeferredCheck {
+                                        $ctx.temp $entire-source ~ make Source.FromNode Arena:push @source
+                                        $known @known
+                                        $ctx.progress @progress
+                                        $ctx.temp $origin copy-origin-list @origin
+                                    } make DeferredItem.DeferredCheck Array:push
+                                    make Maybe.None break
+                                }
+                                case Some -> {}
+                            } @argument-type
 
-                        $signature match {
-                            case Signature.Function -> { $ctx flip .parameters &source.generic-arguments $i &argument-type fit-to-parameters }
-                            case Signature.Intrinsic -> { $ctx flip .parameters &source.generic-arguments $i &argument-type fit-to-types }
-                        } match {
-                            case UnificationResult.Success -> {}
-                            case _ -> {
-                                drop
-                                $ctx &source.arguments infer-over-array match {
-                                    case Error -> { make Maybe<Error>.Some break }
-                                    case Success -> {}
-                                } @argument-types
-                                $ctx &source.token $signature &source.generic-arguments &argument-types
-                                call-argument-mismatch-error make Maybe<Error>.Some break
+                            $signature match {
+                                case Signature.Function -> { $ctx flip .parameters &source.generic-arguments $i &argument-type fit-to-parameters }
+                                case Signature.Intrinsic -> { $ctx flip .parameters &source.generic-arguments $i &argument-type fit-to-types }
+                            } match {
+                                case UnificationResult.Success -> {}
+                                case _ -> {
+                                    drop
+                                    $ctx &source.arguments infer-over-array match {
+                                        case Error -> { make Maybe<Error>.Some break }
+                                        case Success -> {}
+                                    } @argument-types
+                                    $ctx &source.token $signature &source.generic-arguments &argument-types
+                                    call-argument-mismatch-error make Maybe<Error>.Some break
+                                }
+                            }
+                        }
+                        case Some -> {
+                            @parameter
+                            $ctx.arena Arena:temp @arena @save
+                            $arena $generic-parameter Type:generics @generics
+
+                            List:empty & @empty-list
+                            $source.token $i $parameter make Origin:FromCall make Origin.FromCall
+                            $generics.len 0 /= if {
+                                $origin List:cons
+                            } else {
+                                $empty-list List:cons
+                            } & @origin
+                            $arena $save Arena:restore
+                            $ctx $argument &parameter $origin check match {
+                                case None -> {}
+                                case _ -> { break }
                             }
                         }
                     }
-                    case Some -> {
-                        @parameter
-                        $ctx.arena Arena:temp @arena @save
-                        $arena $generic-parameter Type:generics @generics
-
-                        List:empty & @empty-list
-                        $source.token $i $parameter make Origin:FromCall make Origin.FromCall
-                        $generics.len 0 /= if {
-                            $origin List:cons
-                        } else {
-                            $empty-list List:cons
-                        } & @origin
-                        $arena $save Arena:restore
-                        $ctx $argument &parameter $origin check match {
-                            case None -> {}
-                            case _ -> { break }
-                        }
-                    }
+                    make Maybe.None
+                } match {
+                    case None -> {}
+                    case _ -> { break }
                 }
                 $i 1 +
             } match {
@@ -2134,12 +2193,20 @@ fn UnificationResult-merge(a: UnificationResult, b: UnificationResult) -> Unific
 fn unify-types(ctx: .Ctx, generic-arguments: .Array<InferenceHole>, holey: .Type, known: .Type:Type) -> UnificationResult {
     $ctx full-sources if {
         $ctx.fmt Fmt:write-indent
-        $ctx.fmt "unify-types(generic-arguments: " Fmt:write
+        $ctx.fmt "unify-types(\n" Fmt:write
+        $ctx.fmt Fmt:indent
+        $ctx.fmt Fmt:write-indent
+        $ctx.fmt "generic-arguments: " Fmt:write
         $ctx.fmt \Unstacked:InferenceHole-format $generic-arguments Array:format<_>
-        $ctx.fmt ", holey: " Fmt:write
+        $ctx.fmt ",\n" Fmt:write
+        $ctx.fmt Fmt:write-indent
+        $ctx.fmt "holey: " Fmt:write
         $ctx.fmt $holey Type:format
-        $ctx.fmt ", known: " Fmt:write
+        $ctx.fmt ",\n" Fmt:write
+        $ctx.fmt Fmt:write-indent
+        $ctx.fmt "known: " Fmt:write
         $ctx.fmt $known Type:format
+        $ctx.fmt Fmt:dedent
         $ctx.fmt "):\n" Fmt:write
         $ctx.fmt Fmt:indent
     }
