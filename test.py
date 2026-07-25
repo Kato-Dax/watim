@@ -9,6 +9,7 @@ import sys
 import os
 import difflib
 import concurrent.futures
+from threading import Lock
 from pathlib import Path
 
 sys.path.insert(0, os.path.abspath('./bootstrap'))
@@ -80,7 +81,7 @@ def run_bootstrap_compiler(cwd, args: List[str] | None, stdin: str) -> CompilerO
     stdout = ""
     status = 0
     try:
-        stdout = main(["bootstrap.py"] + (args or ["compile", "-", "--quiet"]), stdin=stdin, cwd=cwd)
+        stdout = main(["bootstrap.py"] + (args or ["compile", "-", "--quiet"]), stdin=stdin)
     except bootstrap_compiler.CliArgException as e:
         stderr = e.message
         status = 1
@@ -98,7 +99,7 @@ def run_bootstrap_compiler(cwd, args: List[str] | None, stdin: str) -> CompilerO
 def accept(test_path: str):
     test = parse_test_file(test_path)
     if test is None:
-        print(f"{path}: failed to parse test file")
+        print(f"{test_path}: failed to parse test file")
         return
     if native:
         compiler = run_native_compiler("./tests/fixtures", test['compiler-args'], test['compiler-stdin'])
@@ -115,7 +116,7 @@ def accept(test_path: str):
         stdout = None if test['stdout'] is None else program.stdout.decode()
         stderr = None if test['stderr'] is None else program.stderr.decode()
         status = None if test['status'] is None else program.returncode
-    write_test_file(path, {
+    write_test_file(test_path, {
         "compiler-stdin": test['compiler-stdin'],
         "compiler-args": test['compiler-args'],
         "compiler-stdout": None if test['compiler-stdout'] is None else compiler.stdout,
@@ -154,7 +155,9 @@ class Test:
     stdout: str | None
     stderr: str | None
 
-def run_test(path: str) -> bool:
+printing_lock = Lock()
+
+def run_test(tmpdir: str, path: str) -> bool:
     test = parse_test_file(path)
     if test is None:
         print(f"{path}: failed to parse test file")
@@ -174,59 +177,63 @@ def run_test(path: str) -> bool:
             if response == "y":
                 accept(path)
 
-    if test['compiler-status'] is not None and compiler.returncode != test['compiler-status']:
-        print(f"{path}: expected different compiler status:")
-        print(f"Expected:\n{test['compiler-status']}")
-        print(f"Actual:\n{compiler.returncode}")
-        print(f"compiler-stderr was: {compiler.stderr}")
-        on_error()
-        return False
-    if compare_stderr and test['compiler-stderr'] is not None and compiler.stderr != test['compiler-stderr'].strip():
-        print(f"{path}: expected different compiler stderr:")
-        print_mismatch(test['compiler-stderr'], compiler.stderr)
-        on_error()
-        return False
-    if test['compiler-stdout'] is not None and compiler.stdout != test['compiler-stdout'].strip():
-        print(f"{path}: expected different compiler stdout:")
-        print_mismatch(test['compiler-stdout'], compiler.stdout)
-        print(f"stderr was: {compiler.stderr}")
-        on_error()
-        return False
+    try:
+        printing_lock.acquire()
+        if test['compiler-status'] is not None and compiler.returncode != test['compiler-status']:
+            print(f"{path}: expected different compiler status:")
+            print(f"Expected:\n{test['compiler-status']}")
+            print(f"Actual:\n{compiler.returncode}")
+            print(f"compiler-stderr was: {compiler.stderr}")
+            on_error()
+            return False
+        if compare_stderr and test['compiler-stderr'] is not None and compiler.stderr != test['compiler-stderr'].strip():
+            print(f"{path}: expected different compiler stderr:")
+            print_mismatch(test['compiler-stderr'], compiler.stderr)
+            on_error()
+            return False
+        if test['compiler-stdout'] is not None and compiler.stdout != test['compiler-stdout'].strip():
+            print(f"{path}: expected different compiler stdout:")
+            print_mismatch(test['compiler-stdout'], compiler.stdout)
+            print(f"stderr was: {compiler.stderr}")
+            on_error()
+            return False
 
-    outwat_path = Path(os.path.join(tmpdir, os.path.basename(path))).with_suffix('.wat')
-    with open(outwat_path, 'wb') as outwat:
-        outwat.write(compiler.stdout.encode("UTF-8"))
-    if compiler.returncode == 0 and test['status'] is not None:
-        program = subprocess.run(["wasmtime", outwat_path], input=bytes(test["stdin"] or "", 'UTF-8'), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if test['stderr'] is not None and program.stderr.strip() != test['stderr'].encode('UTF-8').strip():
-            print(f"{path}: expected different stderr:")
-            print(f"Expected:\n{test['stderr']}")
-            print(f"Actual:\n{program.stderr.decode('UTF-8')}")
-            on_error()
-            return False
-        if test['stdout'] is not None and program.stdout.strip() != test['stdout'].encode('UTF-8').strip():
-            print(f"{path}: expected different stdout:")
-            print(f"Expected:\n{test['stdout']}")
-            print(f"Actual:\n{program.stdout.decode('UTF-8')}")
-            on_error()
-            return False
-        if test['status'] is not None and program.returncode != test['status']:
-            print(f"{path}: expected different status:")
-            print(f"Expected:\n{test['status']}")
-            print(f"Actual:\n{program.returncode}")
-            if test['stderr'] is None:
-                print(f"stderr was: {program.stderr.decode('UTF-8')}")
-            on_error()
-            return False
-    print(f"{path} passed")
-    return True
+        outwat_path = Path(os.path.join(tmpdir, os.path.basename(path))).with_suffix('.wat')
+        with open(outwat_path, 'wb') as outwat:
+            outwat.write(compiler.stdout.encode("UTF-8"))
+        if compiler.returncode == 0 and test['status'] is not None:
+            program = subprocess.run(["wasmtime", outwat_path], input=bytes(test["stdin"] or "", 'UTF-8'), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            if test['stderr'] is not None and program.stderr.strip() != test['stderr'].encode('UTF-8').strip():
+                print(f"{path}: expected different stderr:")
+                print(f"Expected:\n{test['stderr']}")
+                print(f"Actual:\n{program.stderr.decode('UTF-8')}")
+                on_error()
+                return False
+            if test['stdout'] is not None and program.stdout.strip() != test['stdout'].encode('UTF-8').strip():
+                print(f"{path}: expected different stdout:")
+                print(f"Expected:\n{test['stdout']}")
+                print(f"Actual:\n{program.stdout.decode('UTF-8')}")
+                on_error()
+                return False
+            if test['status'] is not None and program.returncode != test['status']:
+                print(f"{path}: expected different status:")
+                print(f"Expected:\n{test['status']}")
+                print(f"Actual:\n{program.returncode}")
+                if test['stderr'] is None:
+                    print(f"stderr was: {program.stderr.decode('UTF-8')}")
+                on_error()
+                return False
+        print(f"{path} passed")
+        return True
+    finally:
+        printing_lock.release()
 
 failed = False
 with tempfile.TemporaryDirectory() as tmpdir:
     with concurrent.futures.ThreadPoolExecutor() as executor:
         futures: List[concurrent.futures.Future[bool]] = []
         for path in tests:
-            futures.append(executor.submit(run_test, path))
+            futures.append(executor.submit(run_test, tmpdir, path))
         failed = not all(future.result() for future in futures)
 
 if failed:
