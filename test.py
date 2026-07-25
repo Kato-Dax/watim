@@ -34,7 +34,7 @@ if "--native" in sys.argv:
     sys.argv.remove("--native")
 
 if not os.path.isfile("test.wat"):
-    with open("./test.wat", encoding="utf-8") as test_wat:
+    with open("./test.wat", "w", encoding="utf-8") as test_wat:
         if subprocess.run(["bash", "./run.sh", "./native/main.watim", "compile", "./test.watim", "-q"], stdout=test_wat).returncode != 0:
             exit(1)
 
@@ -60,12 +60,12 @@ class CompilerOutput:
 watim_bin_path = None
 if native:
     if os.path.isfile("./watim.wasm"):
-        with open("./watim.wat", encoding="utf-8") as watim_wat:
+        with open("./watim.wat", "w", encoding="utf-8") as watim_wat:
             output = subprocess.run(["wasmtime", "--dir=.", "--", "./watim.wasm", "compile", "./native/main.watim"], stdout=watim_wat)
             if output.returncode != 0:
                 exit(output.returncode)
     else:
-        with open("./watim.wat", encoding="utf-8") as watim_wat:
+        with open("./watim.wat", "w", encoding="utf-8") as watim_wat:
             output = subprocess.run(["python", "bootstrap", "compile", "./native/main.watim"], stdout=watim_wat)
             if output.returncode != 0:
                 exit(output.returncode)

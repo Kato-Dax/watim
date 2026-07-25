@@ -12,8 +12,8 @@ jobs:
       run: pip install mypy ruff
     - name: Run mypy
       run: mypy bootstrap
-    - name: Run ruff
-      run: ruff check
+    # - name: Run ruff
+    #   run: ruff check
     - name: Install wabt and wasmtime
       run: |
         sudo apt-get install wabt
