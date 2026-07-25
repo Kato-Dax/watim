@@ -1,14 +1,15 @@
-from typing import Tuple
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 import format
+import resolving.types as with_holes
 from format import Formattable, Formatter
 from lexer import Token
+from resolving.type_without_holes import CustomTypeHandle, Type
+from resolving.words import FunctionHandle, GlobalId, IntrinsicType, LocalId
 
-from resolving.words import FunctionHandle, GlobalId, LocalId, IntrinsicType
-from resolving.type_without_holes import Type, CustomTypeHandle
-import resolving.types as with_holes
-from unstacking.word import InferenceHole, FieldAccess
+from unstacking.word import FieldAccess, InferenceHole
 
 type Source = FromNumber | FromLocal | FromGlobal | FromNode | FromCase | FromProxied | FromCast | FromString | FromGetField | FromLoad | FromMakeStruct | FromMakeVariant | FromFunRef | FromAdd
 
@@ -29,7 +30,7 @@ class FromLocal(Formattable):
     token: Token
     var: LocalId
     taip: InferenceHole
-    fields: Tuple[FieldAccess, ...]
+    fields: tuple[FieldAccess, ...]
     result_type: InferenceHole
     by_reference: bool
     def format(self, fmt: Formatter):
@@ -46,7 +47,7 @@ class FromGlobal(Formattable):
     token: Token
     var: GlobalId
     taip: Type
-    fields: Tuple[FieldAccess, ...]
+    fields: tuple[FieldAccess, ...]
     result_type: InferenceHole
     by_reference: bool
     def format(self, fmt: Formatter):
@@ -71,7 +72,7 @@ class FromNode(Formattable):
 class FromCase(Formattable):
     token: Token
     variant: CustomTypeHandle
-    generic_arguments: Tuple[InferenceHole, ...]
+    generic_arguments: tuple[InferenceHole, ...]
     tag: int
     scrutinee: Source | None
     scrutinee_type: InferenceHole
@@ -123,8 +124,8 @@ class FromMakeStruct(Formattable):
     token: Token
     name: Token
     type_definition: CustomTypeHandle
-    arguments: Tuple[Source, ...]
-    generic_arguments: Tuple[InferenceHole, ...]
+    arguments: tuple[Source, ...]
+    generic_arguments: tuple[InferenceHole, ...]
     taip: InferenceHole
     def format(self, fmt: Formatter):
         fmt.named_record("FromMakeStruct", [
@@ -139,7 +140,7 @@ class FromMakeStruct(Formattable):
 class FromMakeVariant(Formattable):
     token: Token
     type_definition: CustomTypeHandle
-    generic_arguments: Tuple[InferenceHole, ...]
+    generic_arguments: tuple[InferenceHole, ...]
     taip: InferenceHole
     source: Source | None
     tag: int
@@ -156,8 +157,8 @@ class FromMakeVariant(Formattable):
 class FromCall(Formattable):
     token: Token
     function: FunctionHandle | IntrinsicType
-    generic_arguments: Tuple[InferenceHole, ...]
-    arguments: Tuple[Source, ...]
+    generic_arguments: tuple[InferenceHole, ...]
+    arguments: tuple[Source, ...]
     def format(self, fmt: Formatter):
         fmt.named_record("FromCall", [
             ("token", self.token),
@@ -170,7 +171,7 @@ class FromGetField(Formattable):
     token: Token
     base_type: InferenceHole
     source: Source | None
-    fields: Tuple[FieldAccess, ...]
+    fields: tuple[FieldAccess, ...]
     def format(self, fmt: Formatter):
         fmt.named_record("FromGetField", [
             ("token", self.token),
@@ -182,7 +183,7 @@ class FromGetField(Formattable):
 class FromFunRef(Formattable):
     token: Token
     function: FunctionHandle
-    generic_arguments: Tuple[InferenceHole, ...]
+    generic_arguments: tuple[InferenceHole, ...]
     def format(self, fmt: Formatter):
         fmt.named_record("FromFunRef", [
             ("token", self.token),
@@ -212,8 +213,8 @@ class PlaceHolder(Formattable):
 class FromIfEntry(Formattable):
     token: Token
     condition: Source | None
-    parameters: Tuple[InferenceHole, ...]
-    arguments: Tuple[Source, ...]
+    parameters: tuple[InferenceHole, ...]
+    arguments: tuple[Source, ...]
     def format(self, fmt: Formatter):
         fmt.named_record("FromIfEntry", [
             ("token", self.token),
@@ -225,9 +226,9 @@ class FromIfEntry(Formattable):
 class FromIfExit(Formattable):
     token: Token
     condition: Source | None
-    return_types: Tuple[InferenceHole, ...]
-    true_branch_returns: Tuple[Source, ...] | None
-    false_branch_returns: Tuple[Source, ...]
+    return_types: tuple[InferenceHole, ...]
+    true_branch_returns: tuple[Source, ...] | None
+    false_branch_returns: tuple[Source, ...]
     def format(self, fmt: Formatter):
         fmt.named_record("FromIfExit", [
             ("token", self.token),
@@ -240,9 +241,9 @@ class FromIfExit(Formattable):
 class FromMatchEntry(Formattable):
     token: Token
     scrutinee_type: InferenceHole
-    parameters: Tuple[InferenceHole, ...]
+    parameters: tuple[InferenceHole, ...]
     scrutinee: Source | None
-    arguments: Tuple[Source, ...]
+    arguments: tuple[Source, ...]
     def format(self, fmt: Formatter):
         fmt.named_record("FromMatchEntry", [
             ("token", self.token),
@@ -254,7 +255,7 @@ class FromMatchEntry(Formattable):
 @dataclass(frozen=True)
 class ReturnsOfCase(Formattable):
     tag: int | None
-    returns: Tuple[Source, ...]
+    returns: tuple[Source, ...]
     def format(self, fmt: Formatter):
         fmt.unnamed_record("ReturnsOfCase", [format.Optional(self.tag), format.Seq(self.returns, multi_line=True)])
 
@@ -262,10 +263,10 @@ class ReturnsOfCase(Formattable):
 class FromMatchExit(Formattable):
     token: Token
     variant: CustomTypeHandle
-    return_types: Tuple[InferenceHole, ...]
+    return_types: tuple[InferenceHole, ...]
     scrutinee_type: InferenceHole
     scrutinee: Source | None
-    returns: Tuple[ReturnsOfCase, ...]
+    returns: tuple[ReturnsOfCase, ...]
     def format(self, fmt: Formatter):
         fmt.named_record("FromMatchExit", [
             ("token", self.token),
@@ -278,8 +279,8 @@ class FromMatchExit(Formattable):
 @dataclass(frozen=True)
 class FromBlockEntry(Formattable):
     token: Token
-    parameters: Tuple[InferenceHole, ...]
-    arguments: Tuple[Source, ...]
+    parameters: tuple[InferenceHole, ...]
+    arguments: tuple[Source, ...]
     def format(self, fmt: Formatter):
         fmt.named_record("FromBlockEntry", [
             ("token", self.token),
@@ -295,15 +296,15 @@ class BreakReturnSource(Formattable):
 
 @dataclass(frozen=True)
 class BreakReturns(Formattable):
-    sources: Tuple[BreakReturnSource, ...]
+    sources: tuple[BreakReturnSource, ...]
     def format(self, fmt: Formatter):
         fmt.named_record("BreakReturns", [("sources", format.Seq(self.sources, multi_line=True))])
 
 @dataclass(frozen=True)
 class FromBlockExit(Formattable):
     token: Token
-    return_types: Tuple[InferenceHole, ...]
-    break_returns: Tuple[BreakReturns, ...]
+    return_types: tuple[InferenceHole, ...]
+    break_returns: tuple[BreakReturns, ...]
     def format(self, fmt: Formatter):
         fmt.named_record("FromBlockExit", [
             ("token", self.token),
@@ -313,9 +314,9 @@ class FromBlockExit(Formattable):
 @dataclass(frozen=True)
 class FromLoopEntry(Formattable):
     token: Token
-    parameters: Tuple[InferenceHole, ...]
-    arguments: Tuple[Source, ...]
-    next_arguments: Tuple[Source, ...]
+    parameters: tuple[InferenceHole, ...]
+    arguments: tuple[Source, ...]
+    next_arguments: tuple[Source, ...]
     def format(self, fmt: Formatter):
         fmt.named_record("FromLoopEntry", [
             ("token", self.token),
@@ -326,10 +327,10 @@ class FromLoopEntry(Formattable):
 @dataclass(frozen=True)
 class FromIndirectCall(Formattable):
     token: Token
-    return_types: Tuple[InferenceHole, ...]
-    parameters: Tuple[InferenceHole, ...]
+    return_types: tuple[InferenceHole, ...]
+    parameters: tuple[InferenceHole, ...]
     function: Source | None
-    arguments: Tuple[Source, ...]
+    arguments: tuple[Source, ...]
     def format(self, fmt: Formatter):
         fmt.named_record("FromIndirectCall", [
             ("token", self.token),
@@ -341,8 +342,8 @@ class FromIndirectCall(Formattable):
 @dataclass(frozen=True)
 class FromStackAnnotation(Formattable):
     token: Token
-    types: Tuple[with_holes.Type, ...]
-    arguments: Tuple[Source, ...]
+    types: tuple[with_holes.Type, ...]
+    arguments: tuple[Source, ...]
     def format(self, fmt: Formatter):
         fmt.named_record("FromStackAnnotation", [
             ("token", self.token),

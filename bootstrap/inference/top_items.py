@@ -1,14 +1,22 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 import format
 from format import Formattable, Formatter
 from indexed_dict import IndexedDict
-
 from lexer import Token
-from resolving import FunctionSignature, LocalId, LocalName, Extern as Extern, Global as Global
+from resolving import (
+    Extern as Extern,
+    FunctionSignature,
+    Global as Global,
+    LocalId,
+    LocalName,
+)
 from resolving.type_without_holes import Type
 
 from inference.words import Scope
+
 
 @dataclass(frozen=True)
 class Local(Formattable):

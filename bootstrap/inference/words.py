@@ -1,14 +1,33 @@
-from typing import Tuple
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 import format
 from format import Formattable, Formatter
-
 from lexer import Token
 from parsing.words import NumberWord
-from resolving import LocalId, GlobalId, FunctionHandle, ScopeId
-from resolving.type_without_holes import Type, CustomTypeType, FunctionType, PtrType, Bool, I8, I32, I64
-from unstacking import MatchVoid, StringWord, MemGrow, SetStackSize, Break, MemCopy, MemFill, Sizeof
+from resolving import FunctionHandle, GlobalId, LocalId, ScopeId
+from resolving.type_without_holes import (
+    I8,
+    I32,
+    I64,
+    Bool,
+    CustomTypeType,
+    FunctionType,
+    PtrType,
+    Type,
+)
+from unstacking import (
+    Break,
+    MatchVoid,
+    MemCopy,
+    MemFill,
+    MemGrow,
+    SetStackSize,
+    Sizeof,
+    StringWord,
+)
+
 
 @dataclass
 class FieldAccess(Formattable):
@@ -24,7 +43,7 @@ class GetLocal(Formattable):
     name: Token
     var: LocalId | GlobalId
     var_type: Type
-    fields: Tuple[FieldAccess, ...]
+    fields: tuple[FieldAccess, ...]
     result_taip: Type
     def format(self, fmt: Formatter):
         fmt.unnamed_record("GetLocal", [
@@ -38,7 +57,7 @@ class GetLocal(Formattable):
 class RefLocal(Formattable):
     name: Token
     var: LocalId | GlobalId
-    fields: Tuple[FieldAccess, ...]
+    fields: tuple[FieldAccess, ...]
     def format(self, fmt: Formatter):
         fmt.unnamed_record("RefLocal", [
             self.name,
@@ -61,7 +80,7 @@ class InitLocal(Formattable):
 class Call(Formattable):
     name: Token
     function: FunctionHandle
-    generic_arguments: Tuple[Type, ...]
+    generic_arguments: tuple[Type, ...]
     def format(self, fmt: Formatter):
         fmt.unnamed_record("Call", [self.name, self.function, format.Seq(self.generic_arguments)])
 
@@ -89,15 +108,15 @@ class FunRef(Formattable):
 @dataclass(frozen=True)
 class Scope(Formattable):
     id: ScopeId
-    words: Tuple['Word', ...]
+    words: tuple[Word, ...]
     def format(self, fmt: Formatter):
         fmt.unnamed_record("Scope", [self.id, format.Seq(self.words, multi_line=True)])
 
 @dataclass(frozen=True)
 class If(Formattable):
     token: Token
-    parameters: Tuple[Type, ...]
-    returns: Tuple[Type, ...] | None
+    parameters: tuple[Type, ...]
+    returns: tuple[Type, ...] | None
     true_branch: Scope
     false_branch: Scope
     def format(self, fmt: Formatter):
@@ -112,7 +131,7 @@ class If(Formattable):
 class SetLocal(Formattable):
     name: Token
     var: LocalId | GlobalId
-    fields: Tuple[FieldAccess, ...]
+    fields: tuple[FieldAccess, ...]
     type: Type
     def format(self, fmt: Formatter):
         return fmt.unnamed_record("SetLocal", [self.name, self.var, self.type, format.Seq(self.fields, multi_line=True)])
@@ -122,7 +141,7 @@ class StoreLocal(Formattable):
     name: Token
     var: LocalId
     type: Type
-    fields: Tuple[FieldAccess, ...]
+    fields: tuple[FieldAccess, ...]
     def format(self, fmt: Formatter):
         return fmt.unnamed_record("StoreLocal", [self.name, self.var, self.type, format.Seq(self.fields)])
 
@@ -139,10 +158,10 @@ class Match(Formattable):
     token: Token
     variant: CustomTypeType
     by_ref: bool
-    cases: Tuple[MatchCase, ...]
+    cases: tuple[MatchCase, ...]
     default: Scope | None
-    parameters: Tuple[Type, ...]
-    returns: Tuple[Type, ...] | None
+    parameters: tuple[Type, ...]
+    returns: tuple[Type, ...] | None
     def format(self, fmt: Formatter):
         return fmt.named_record("Match", [
             ("token", self.token),
@@ -156,8 +175,8 @@ class Match(Formattable):
 @dataclass(frozen=True)
 class Loop(Formattable):
     token: Token
-    parameters: Tuple[Type, ...]
-    returns: Tuple[Type, ...] | None
+    parameters: tuple[Type, ...]
+    returns: tuple[Type, ...] | None
     body: Scope
     def format(self, fmt: Formatter):
         fmt.named_record("Loop", [
@@ -169,8 +188,8 @@ class Loop(Formattable):
 @dataclass(frozen=True)
 class Block(Formattable):
     token: Token
-    parameters: Tuple[Type, ...]
-    returns: Tuple[Type, ...] | None
+    parameters: tuple[Type, ...]
+    returns: tuple[Type, ...] | None
     body: Scope
     def format(self, fmt: Formatter):
         fmt.named_record("Block", [
@@ -182,7 +201,7 @@ class Block(Formattable):
 @dataclass(frozen=True)
 class GetField(Formattable):
     token: Token
-    fields: Tuple[FieldAccess, ...]
+    fields: tuple[FieldAccess, ...]
     on_ptr: bool
     type: Type
     def format(self, fmt: Formatter):

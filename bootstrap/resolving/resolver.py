@@ -1,28 +1,49 @@
-from typing import Dict, Tuple, NoReturn
-from dataclasses import dataclass
-import os
+from __future__ import annotations
 
-from util import normalize_path
+import os
+from dataclasses import dataclass
+from typing import NoReturn
+
+import parsing as parser
 from indexed_dict import IndexedDict
 from lexer import Token
-import parsing as parser
-from resolving.words import Scope
-from resolving.top_items import Function, FunctionSignature, Import, Global, Extern, Local, Struct, Variant, VariantCase, TypeDefinition, FunctionImport, StructImport, VariantImport, FunctionHandle, ImportItem, CustomTypeHandle
-from resolving.env import Env
-from resolving.word_resolver import WordResolver
-from resolving.type_resolver import TypeResolver, TypeLookup
-from resolving.module import Module, ResolveException
-from resolving.types import Type, NamedType
+from util import normalize_path
+
 import resolving.type_without_holes as without_holes
+from resolving.env import Env
+from resolving.module import Module, ResolveException
+from resolving.top_items import (
+    CustomTypeHandle,
+    Extern,
+    Function,
+    FunctionHandle,
+    FunctionImport,
+    FunctionSignature,
+    Global,
+    Import,
+    ImportItem,
+    Local,
+    Struct,
+    StructImport,
+    TypeDefinition,
+    Variant,
+    VariantCase,
+    VariantImport,
+)
+from resolving.type_resolver import TypeLookup, TypeResolver
+from resolving.types import NamedType, Type
+from resolving.word_resolver import WordResolver
+from resolving.words import Scope
+
 
 class ModuleResolver:
     module_id: int
     module_path: str
-    imports: Dict[str, Tuple[Import, ...]]
+    imports: dict[str, tuple[Import, ...]]
     module: parser.Module
     modules: IndexedDict[str, Module]
 
-    def __init__(self, module_id: int, module_path: str, imports: Dict[str, Tuple[Import,...]], module: parser.Module, modules: IndexedDict[str, Module]):
+    def __init__(self, module_id: int, module_path: str, imports: dict[str, tuple[Import,...]], module: parser.Module, modules: IndexedDict[str, Module]):
         self.module_id = module_id
         self.module_path = module_path
         self.imports = imports
@@ -35,7 +56,7 @@ class ModuleResolver:
 
     @staticmethod
     def resolve_module(modules: IndexedDict[str, Module], module: parser.Module, id: int) -> Module:
-        imports: Dict[str, Tuple[Import, ...]] = { imp.qualifier.lexeme: () for imp in module.imports }
+        imports: dict[str, tuple[Import, ...]] = { imp.qualifier.lexeme: () for imp in module.imports }
         for imp in module.imports:
             imports[imp.qualifier.lexeme] += ModuleResolver.resolve_import(modules, module.path, imp),
 
@@ -107,7 +128,7 @@ class ModuleResolver:
                             return i
                     raise ResolveException(importing_module_path, constructor, "constructor not found")
                 return VariantImport(parsed_item.name, item, tuple(
-                    (lookup_constructor(constructor) for constructor in parsed_item.constructors)))
+                    lookup_constructor(constructor) for constructor in parsed_item.constructors))
         return Import(imp.token, path, imp.qualifier, imported_module_id, tuple(map(resolve_item, imp.items)))
 
     def resolve_type_definition(self, type_definition: parser.TypeDefinition) -> TypeDefinition:
@@ -132,7 +153,7 @@ class ModuleResolver:
 @dataclass
 class FunctionResolver:
     module_resolver: ModuleResolver
-    imports: Dict[str, Tuple[Import, ...]]
+    imports: dict[str, tuple[Import, ...]]
     globals: IndexedDict[str, Global]
     type_definitions: IndexedDict[str, TypeDefinition]
     signatures: IndexedDict[str, FunctionSignature]

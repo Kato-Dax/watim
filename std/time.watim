@@ -1,0 +1,30 @@
+import "./result.watim" as Result (Result(Success, Error))
+import "./io.watim" as IO
+
+extern "wasi_snapshot_preview1" "clock_res_get" fn clock-res-get(id: ClockId, timestamp: .Timestamp) -> i32
+extern "wasi_snapshot_preview1" "clock_time_get" fn clock-time-get(id: ClockId, precision: Timestamp, time: .Timestamp) -> i32
+struct ClockId {
+    raw: i32
+}
+
+struct Timestamp {
+    nanoseconds: i64
+}
+
+fn realtime-clock() -> ClockId { 0 make ClockId }
+fn monotonic-clock() -> ClockId { 1 make ClockId }
+fn process-cputime-clock() -> ClockId { 2 make ClockId }
+fn thread-cputime-clock() -> ClockId { 3 make ClockId }
+
+fn realtime() -> Result<Timestamp, IO:Error> { block {
+    uninit @precision
+    uninit @timestamp
+
+    realtime-clock &precision clock-res-get @code
+    $code 0 /= if { $code IO:error-from-raw make Result.Error break }
+
+    realtime-clock $precision &timestamp clock-time-get @code
+    $code 0 /= if { $code IO:error-from-raw make Result.Error break }
+
+    $timestamp make Result.Success
+} }

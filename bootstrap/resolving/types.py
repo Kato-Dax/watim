@@ -1,14 +1,15 @@
-from typing import Tuple
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 
-from parsing.types import PrimitiveType, GenericType, HoleType
 import format
 from format import Formattable, Formatter
 from lexer import Token
+from parsing.types import GenericType, HoleType, PrimitiveType
 
 type Type = PrimitiveType | PtrType | GenericType | CustomTypeType | FunctionType | HoleType
 
-def with_generics(taip: Type, generics: Tuple[Type, ...]) -> Type:
+def with_generics(taip: Type, generics: tuple[Type, ...]) -> Type:
     match taip:
         case PtrType(child):
             return PtrType(with_generics(child, generics))
@@ -42,7 +43,7 @@ class CustomTypeHandle(Formattable):
 @dataclass(eq=True, frozen=True)
 class CustomTypeType(Formattable):
     type_definition: CustomTypeHandle
-    generic_arguments: Tuple[Type, ...]
+    generic_arguments: tuple[Type, ...]
     def format(self, fmt: Formatter):
         return fmt.unnamed_record("CustomType", [
             self.type_definition.module,
@@ -52,8 +53,8 @@ class CustomTypeType(Formattable):
 @dataclass(frozen=True, eq=True)
 class FunctionType(Formattable):
     token: Token = field(compare=False)
-    parameters: Tuple[Type, ...]
-    returns: Tuple[Type, ...]
+    parameters: tuple[Type, ...]
+    returns: tuple[Type, ...]
     def format(self, fmt: Formatter):
         return fmt.unnamed_record("FunType", [self.token, format.Seq(self.parameters), format.Seq(self.returns)])
 

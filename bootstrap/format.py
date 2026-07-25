@@ -1,13 +1,16 @@
-from typing import List, Callable, Tuple, Protocol, runtime_checkable, Iterable
-from dataclasses import dataclass
+from __future__ import annotations
 
-type Writable = None | str | int | bool | Tuple[Formattable, ...] | Formattable
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass
+from typing import Protocol, runtime_checkable
+
+type Writable = str | int | bool | tuple[Formattable, ...] | Formattable | None
 
 @dataclass
 class Formatter:
     indentation: str
     indentation_level: int
-    splits: List[str]
+    splits: list[str]
 
     def indent(self):
         self.indentation_level += 1
@@ -22,7 +25,7 @@ class Formatter:
     def write_indent(self):
         self.splits.extend(self.indentation for _ in range(self.indentation_level))
 
-    def write(self, *values: Writable) -> 'Formatter':
+    def write(self, *values: Writable) -> Formatter:
         for value in values:
             if isinstance(value, str):
                 self.splits.append(value)
@@ -45,13 +48,13 @@ class Formatter:
     def to_string(self) -> str:
         return "".join(self.splits)
 
-    def unnamed_record(self, name: str, fields: List[Writable]):
+    def unnamed_record(self, name: str, fields: list[Writable]):
         self.write("(", name)
         for field in fields:
             self.write(" ", field)
         self.write(")")
 
-    def named_record(self, name: str, fields: List[Tuple[str, Writable]]) -> None:
+    def named_record(self, name: str, fields: list[tuple[str, Writable]]) -> None:
         if len(fields) == 0:
             self.write("(", name, ")")
             return
@@ -133,7 +136,7 @@ class Optional(Formattable):
 @dataclass(frozen=True)
 class UnnamedRecord(Formattable):
     name: str
-    fields: List[Writable]
+    fields: list[Writable]
     def format(self, fmt: Formatter):
         fmt.unnamed_record(self.name, self.fields)
 

@@ -1,16 +1,16 @@
-from typing import Tuple
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 import format
 from format import Formattable, Formatter
-
 from lexer import Token
-
-from resolving.type_without_holes import Type
 from resolving import FunctionHandle, IntrinsicType
+from resolving.type_without_holes import Type
 
-from unstacking.word import FieldAccess
 from unstacking.source import InferenceHole, Source
+from unstacking.word import FieldAccess
+
 
 @dataclass(frozen=True)
 class StoreVoid(Formattable):
@@ -42,8 +42,8 @@ class NonSpecificVoid(Formattable):
 class CallVoid(Formattable):
     token: Token
     function: FunctionHandle | IntrinsicType
-    arguments: Tuple[Source, ...]
-    generic_arguments: Tuple[InferenceHole, ...]
+    arguments: tuple[Source, ...]
+    generic_arguments: tuple[InferenceHole, ...]
     def format(self, fmt: Formatter):
         fmt.named_record("CallVoid", [
             ("token", self.token),
@@ -55,7 +55,7 @@ class CallVoid(Formattable):
 class SetGlobalVoid(Formattable):
     token: Token
     global_type: Type
-    fields: Tuple[FieldAccess, ...]
+    fields: tuple[FieldAccess, ...]
     type: InferenceHole
     source: Source | None
     def format(self, fmt: Formatter):
@@ -70,8 +70,8 @@ class SetGlobalVoid(Formattable):
 class IndirectCallVoid(Formattable):
     token: Token
     function: Source | None
-    parameters: Tuple[InferenceHole, ...]
-    returns: Tuple[InferenceHole, ...]
+    parameters: tuple[InferenceHole, ...]
+    returns: tuple[InferenceHole, ...]
     def format(self, fmt: Formatter):
         fmt.named_record("IndirectCallVoid", [
             ("token", self.token),

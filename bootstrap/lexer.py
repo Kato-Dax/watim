@@ -1,10 +1,12 @@
-from typing import List
+from __future__ import annotations
+
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 
-from format import Formatter, Formattable
+from format import Formattable, Formatter
 
-class TokenType(str, Enum):
+
+class TokenType(StrEnum):
     NUMBER = "NUMBER"
     FN = "FN"
     IMPORT = "IMPORT"
@@ -65,11 +67,11 @@ class Token(Formattable):
     lexeme: str
 
     @staticmethod
-    def space(line: int, column: int) -> 'Token':
+    def space(line: int, column: int) -> Token:
         return Token(TokenType.SPACE, line, column, " ")
 
     @staticmethod
-    def keyword(ty: TokenType, line: int, column: int) -> 'Token':
+    def keyword(ty: TokenType, line: int, column: int) -> Token:
         return Token(ty, line, column, Token.keyword_lexeme(ty))
 
     @staticmethod
@@ -77,7 +79,7 @@ class Token(Formattable):
         return TYPE_LEXEME_DICT[ty]
 
     @staticmethod
-    def dummy(lexeme: str) -> 'Token':
+    def dummy(lexeme: str) -> Token:
         return Token(TokenType.STRING, 0, 0, lexeme)
 
     def format(self, fmt: Formatter):
@@ -141,7 +143,7 @@ class Lexer:
     cursor: int = 0
     line: int = 1
     column: int = 1
-    tokens: List[Token] = field(default_factory=list)
+    tokens: list[Token] = field(default_factory=list)
 
     def current(self) -> str:
         return self.input[self.cursor]
@@ -162,9 +164,8 @@ class Lexer:
     def add_space(self):
         if len(self.tokens) == 0 or self.tokens[-1].ty != TokenType.SPACE:
             self.tokens.append(Token.space(self.line, self.column))
-        pass
 
-    def lex(self) -> List[Token]:
+    def lex(self) -> list[Token]:
         while not self.eof():
             if not self.last_char() and self.current() == '/' and self.peek() == '/':
                 while not self.eof() and self.current() != '\n':
@@ -193,17 +194,15 @@ class Lexer:
                 self.advance()
                 continue
 
-            if self.current() == '-':
-                if not self.last_char() and self.peek() == '>':
-                    self.tokens.append(Token.keyword(TokenType.ARROW, self.line, self.column))
-                    self.advance(2)
-                    continue
+            if self.current() == '-' and not self.last_char() and self.peek() == '>':
+                self.tokens.append(Token.keyword(TokenType.ARROW, self.line, self.column))
+                self.advance(2)
+                continue
 
-            if self.current() == '=':
-                if not self.last_char() and self.peek() == '>':
-                    self.tokens.append(Token.keyword(TokenType.DOUBLE_ARROW, self.line, self.column))
-                    self.advance(2)
-                    continue
+            if self.current() == '=' and not self.last_char() and self.peek() == '>':
+                self.tokens.append(Token.keyword(TokenType.DOUBLE_ARROW, self.line, self.column))
+                self.advance(2)
+                continue
 
             one_char_tokens = "<>(){}:.,$&#@!~\\_[]"
             if self.current() in one_char_tokens:

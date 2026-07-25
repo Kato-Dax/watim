@@ -1,114 +1,141 @@
-from typing import Never, Tuple, Dict, Literal, List, Sequence, assert_never, cast
-from dataclasses import dataclass
+from __future__ import annotations
+
 import sys
-
-from format import Formattable, Formatter
-from indexed_dict import IndexedDict
-
-from lexer import Token
+from collections.abc import Sequence
+from dataclasses import dataclass
+from typing import Literal, Never, assert_never, cast
 
 import resolving.module as resolved
-from resolving.resolver import FunctionSignature
-from resolving.words import LocalId, IntrinsicType
-from resolving.top_items import TypeDefinition, Variant, Struct, MustBeOneOf, MustSatisfyPredicate, IntrinsicSignature, Signature
-from resolving.types import CustomTypeHandle
-from resolving.type_resolver import TypeLookup
-from resolving.type_without_holes import Type, PtrType, CustomTypeType, GenericType, FunctionType, I8, I32, I64, Bool, NamedType
 import resolving.type_without_holes as without_holes
-
 import unstacking as unstacked
-from unstacking.unstacker import Holes, StackVoid, intrinsic_signatures
-from unstacking.source import (
-        FromCast,
-        Source,
-        MultiReturnNode,
-        InferenceHole,
-        FromLocal,
-        FromNumber,
-        FromNode,
-        FromCall,
-        FromMakeStruct,
-        FromString,
-        FromFunRef,
-        FromIfExit,
-        FromIfEntry,
-        FromMatchEntry,
-        FromMatchExit,
-        FromBlockEntry,
-        FromBlockExit,
-        FromLoopEntry,
-        FromCase,
-        FromGlobal,
-        FromLoad,
-        FromProxied,
-        FromGetField,
-        FromMakeVariant,
-        FromIndirectCall,
-        FromAdd,
-        FromStackAnnotation,
-        PlaceHolder,
+from format import Formattable, Formatter
+from indexed_dict import IndexedDict
+from lexer import Token
+from resolving.resolver import FunctionSignature
+from resolving.top_items import (
+    IntrinsicSignature,
+    MustBeOneOf,
+    MustSatisfyPredicate,
+    Signature,
+    Struct,
+    TypeDefinition,
+    Variant,
 )
-from unstacking.voids import NonSpecificVoid, CallVoid, ImpossibleMatchVoid, SetGlobalVoid, StoreVoid, IndirectCallVoid
+from resolving.type_resolver import TypeLookup
+from resolving.type_without_holes import (
+    I8,
+    I32,
+    I64,
+    Bool,
+    CustomTypeType,
+    FunctionType,
+    GenericType,
+    NamedType,
+    PtrType,
+    Type,
+)
+from resolving.types import CustomTypeHandle
+from resolving.words import IntrinsicType, LocalId
 from unstacking import InferenceFieldHole
-
-from inference.top_items import Function, Scope, Local
-from inference.words import (
-        Word,
-        InitLocal,
-        GetLocal,
-        SetLocal,
-        StoreLocal,
-        FieldAccess,
-        Drop,
-        Eq,
-        NotEq,
-        Call,
-        Uninit,
-        Cast,
-        MakeStruct,
-        RefLocal,
-        FunRef,
-        If,
-        Mul,
-        Div,
-        Mod,
-        Add,
-        Sub,
-        Match,
-        MatchCase,
-        Block,
-        Loop,
-        Load,
-        Flip,
-        Store,
-        Lt,
-        Le,
-        Ge,
-        Gt,
-        And,
-        Or,
-        Shl,
-        Shr,
-        Rotl,
-        Rotr,
-        MakeVariant,
-        Not,
-        GetField,
-        FieldInit,
-        MakeStructNamed,
-        IndirectCall,
+from unstacking.source import (
+    FromAdd,
+    FromBlockEntry,
+    FromBlockExit,
+    FromCall,
+    FromCase,
+    FromCast,
+    FromFunRef,
+    FromGetField,
+    FromGlobal,
+    FromIfEntry,
+    FromIfExit,
+    FromIndirectCall,
+    FromLoad,
+    FromLocal,
+    FromLoopEntry,
+    FromMakeStruct,
+    FromMakeVariant,
+    FromMatchEntry,
+    FromMatchExit,
+    FromNode,
+    FromNumber,
+    FromProxied,
+    FromStackAnnotation,
+    FromString,
+    InferenceHole,
+    MultiReturnNode,
+    PlaceHolder,
+    Source,
 )
+from unstacking.unstacker import Holes, StackVoid, intrinsic_signatures
+from unstacking.voids import (
+    CallVoid,
+    ImpossibleMatchVoid,
+    IndirectCallVoid,
+    NonSpecificVoid,
+    SetGlobalVoid,
+    StoreVoid,
+)
+
+from inference.top_items import Function, Local, Scope
+from inference.words import (
+    Add,
+    And,
+    Block,
+    Call,
+    Cast,
+    Div,
+    Drop,
+    Eq,
+    FieldAccess,
+    FieldInit,
+    Flip,
+    FunRef,
+    Ge,
+    GetField,
+    GetLocal,
+    Gt,
+    If,
+    IndirectCall,
+    InitLocal,
+    Le,
+    Load,
+    Loop,
+    Lt,
+    MakeStruct,
+    MakeStructNamed,
+    MakeVariant,
+    Match,
+    MatchCase,
+    Mod,
+    Mul,
+    Not,
+    NotEq,
+    Or,
+    RefLocal,
+    Rotl,
+    Rotr,
+    SetLocal,
+    Shl,
+    Shr,
+    Store,
+    StoreLocal,
+    Sub,
+    Uninit,
+    Word,
+)
+
 
 def assert_is_number(t: Type) -> I8 | I32 | I64:
-    assert isinstance(t, I8) or isinstance(t, I32) or isinstance(t, I64)
+    assert isinstance(t, (I8, I32, I64))
     return t
 
 def assert_is_addable(t: Type) -> I8 | I32 | I64 | PtrType:
-    assert isinstance(t, I8) or isinstance(t, I32) or isinstance(t, I64) or isinstance(t, PtrType)
+    assert isinstance(t, (I8, I32, I64, PtrType))
     return t
 
 def assert_is_primitive(t: Type) -> Bool | I8 | I32 | I64:
-    assert isinstance(t, Bool) or isinstance(t, I8) or isinstance(t, I32) or isinstance(t, I64)
+    assert isinstance(t, (Bool, I8, I32, I64))
     return t
 
 @dataclass
@@ -122,7 +149,7 @@ class InferenceException(Exception):
         column = self.token.column
         return f"{self.path}:{line}:{column} {self.message}"
 
-def infer_function(path: str, modules: Tuple[resolved.Module, ...], globals: Tuple[resolved.Global, ...], function: unstacked.Function) -> Function:
+def infer_function(path: str, modules: tuple[resolved.Module, ...], globals: tuple[resolved.Global, ...], function: unstacked.Function) -> Function:
     ctx = Ctx(
             path=path,
             modules=modules,
@@ -154,7 +181,7 @@ def infer_function(path: str, modules: Tuple[resolved.Module, ...], globals: Tup
                     fmt.write(ctx.type_lookup.type_pretty(inferred))
                 fmt.write(", ")
             ctx.abort(function.name, fmt.to_string())
-        for source, expected in zip(function.returns, function.signature.returns):
+        for source, expected in zip(function.returns, function.signature.returns, strict=True):
             ctx.check(source, expected)
 
     for void in function.voids:
@@ -168,7 +195,7 @@ def infer_function(path: str, modules: Tuple[resolved.Module, ...], globals: Tup
         if deferred.progress == ctx.progress:
             ctx.abort(deferred.deferred.token, "failed to infer type of void")
         void = deferred.deferred
-        def defer():
+        def defer(void=void):
             ctx.deferred_infers.insert(0, DeferredStackVoid(ctx.progress, void))
         match void:
             case NonSpecificVoid():
@@ -189,7 +216,7 @@ def infer_function(path: str, modules: Tuple[resolved.Module, ...], globals: Tup
                 if len(void.arguments) != len(signature.parameters):
                     ctx.call_argument_mismatch_error(void.token, signature, void.generic_arguments, argument_types)
                 there_are_no_generic_arguments = True
-                for argument_source, parameter, argument in zip(void.arguments, signature.parameters, argument_types):
+                for argument_source, parameter, argument in zip(void.arguments, signature.parameters, argument_types, strict=True):
                     parameter_taip = parameter.taip if isinstance(parameter, without_holes.NamedType) else parameter
                     if without_holes.contains_generic(parameter_taip):
                         there_are_no_generic_arguments = False
@@ -211,7 +238,7 @@ def infer_function(path: str, modules: Tuple[resolved.Module, ...], globals: Tup
                 if not there_are_no_generic_arguments:
                     generic_arguments = ctx.lookup_holes(void.generic_arguments)
                     if generic_arguments is not None:
-                        for argument_source, argument, param in zip(void.arguments, argument_types, signature.parameters):
+                        for argument_source, argument, param in zip(void.arguments, argument_types, signature.parameters, strict=True):
                             param_taip = param.taip if isinstance(param, without_holes.NamedType) else param
                             param_type = without_holes.with_generics(param_taip, generic_arguments)
                             if argument is None:
@@ -220,7 +247,7 @@ def infer_function(path: str, modules: Tuple[resolved.Module, ...], globals: Tup
                                 if param_type != argument:
                                     ctx.call_argument_mismatch_error(void.token, signature, void.generic_arguments, argument_types)
                     else:
-                        for parameter, argument in zip(signature.parameters, argument_types):
+                        for parameter, argument in zip(signature.parameters, argument_types, strict=True):
                             if argument is None:
                                 defer()
                                 continue
@@ -299,7 +326,7 @@ def infer_function(path: str, modules: Tuple[resolved.Module, ...], globals: Tup
 
         ctx.check_local_assignments(local, local_type)
 
-    foo: Dict[LocalId, unstacked.Local] = function.locals
+    foo: dict[LocalId, unstacked.Local] = function.locals
 
     body = ctx.fill_holes_scope(function.body)
     return Function(
@@ -313,7 +340,7 @@ def infer_function(path: str, modules: Tuple[resolved.Module, ...], globals: Tup
 class Known(Formattable):
     taip: Type
 
-type InferenceState = Literal["BeingInferred"] | Literal["BeingChecked"] | Known
+type InferenceState = Literal["BeingInferred", "BeingChecked"] | Known
 
 @dataclass(frozen=True)
 class GenericsContradict:
@@ -321,7 +348,7 @@ class GenericsContradict:
     previous: Type
     now: Type
 
-type UnificationResult = Literal["Success"] | Literal["TypeMismatch"] | GenericsContradict
+type UnificationResult = Literal["Success", "TypeMismatch"] | GenericsContradict
 
 @dataclass
 class DeferredStackVoid:
@@ -333,18 +360,18 @@ type DeferredInfer = DeferredStackVoid
 @dataclass
 class Ctx:
     path: str
-    modules: Tuple[resolved.Module, ...]
+    modules: tuple[resolved.Module, ...]
     type_lookup: TypeLookup
-    locals: Dict[LocalId, unstacked.Local]
-    states: Dict[Source, InferenceState]
-    globals: Tuple[resolved.Global, ...]
+    locals: dict[LocalId, unstacked.Local]
+    states: dict[Source, InferenceState]
+    globals: tuple[resolved.Global, ...]
     holes: Holes
-    nodes: Tuple[MultiReturnNode, ...]
-    field_holes: List[int | None]
-    struct_signatures: Dict[CustomTypeHandle, FunctionSignature]
-    deferred_infers: List[DeferredInfer]
+    nodes: tuple[MultiReturnNode, ...]
+    field_holes: list[int | None]
+    struct_signatures: dict[CustomTypeHandle, FunctionSignature]
+    deferred_infers: list[DeferredInfer]
     progress: int
-    log_level: Literal["NoLogs"] | Literal["OnlyStructure"] | Literal["FullSources"] = "NoLogs"
+    log_level: Literal["NoLogs", "OnlyStructure", "FullSources"] = "NoLogs"
 
     def abort(self, token: Token, msg: str) -> Never:
         raise InferenceException(self.path, token, msg)
@@ -361,8 +388,8 @@ class Ctx:
     def lookup_hole(self, hole: InferenceHole) -> Type | None:
         return self.holes.lookup(hole)
 
-    def lookup_holes(self, holes: Sequence[InferenceHole]) -> Tuple[Type, ...] | None:
-        res: List[Type] = []
+    def lookup_holes(self, holes: Sequence[InferenceHole]) -> tuple[Type, ...] | None:
+        res: list[Type] = []
         for hole in holes:
             taip = self.lookup_hole(hole)
             if taip is None:
@@ -386,7 +413,7 @@ class Ctx:
             case IntrinsicType():
                 return intrinsic_signatures[function].signature
 
-    def infer_over_array(self, sources: Sequence[Source]) -> Tuple[Type | None, ...]:
+    def infer_over_array(self, sources: Sequence[Source]) -> tuple[Type | None, ...]:
         return tuple(self.infer(source) for source in sources)
 
     def check_inner(self, source: Source, known: Type):
@@ -464,11 +491,11 @@ class Ctx:
                 if len(known.parameters) != len(signature.parameters) or len(known.returns) != len(signature.returns):
                     self.abort(source.token, "check: FromFunRef: expected different signature")
 
-                for parameter, known_param in zip(signature.parameters, known.parameters):
+                for parameter, known_param in zip(signature.parameters, known.parameters, strict=True):
                     res = self.unify_types(source.generic_arguments, parameter.taip if isinstance(parameter, without_holes.NamedType) else parameter, known_param)
                     if res != "Success":
                         self.abort(source.token, "check: FromFunRef: TODO")
-                for ret, known_ret in zip(signature.returns, known.returns):
+                for ret, known_ret in zip(signature.returns, known.returns, strict=True):
                     res = self.unify_types(source.generic_arguments, ret, known_ret)
                     if res != "Success":
                         self.abort(source.token, "check: FromFunRef: TODO")
@@ -555,7 +582,7 @@ class Ctx:
         res = self.unify_types(source.generic_arguments, signature.returns[0], known)
         if res != "Success":
             if source.source is not None:
-                argument_types: Tuple[Type | None, ...] = (self.infer(source.source),)
+                argument_types: tuple[Type | None, ...] = (self.infer(source.source),)
             else:
                 argument_types = ()
             self.call_argument_mismatch_error(source.token, signature, source.generic_arguments, argument_types)
@@ -599,7 +626,7 @@ class Ctx:
                 if res != "Success":
                     self.call_argument_mismatch_error(node.token, signature, node.generic_arguments, argument_types)
 
-                for argument, argument_type, parameter in zip(node.arguments, argument_types, signature.parameters):
+                for argument, argument_type, parameter in zip(node.arguments, argument_types, signature.parameters, strict=True):
                     parameter_taip = parameter.taip if isinstance(parameter, without_holes.NamedType) else parameter
                     monomorphic_parameter = self.try_with_generics(parameter_taip, node.generic_arguments)
                     if monomorphic_parameter is None:
@@ -668,11 +695,11 @@ class Ctx:
                         self.abort(node.token, "check IndirectCall: expected function")
                     if len(function_type.parameters) != len(node.parameters) or len(function_type.returns) != len(node.return_types):
                         self.abort(node.token, "check IndirectCall: invalid annotation")
-                    for param_hole, param in zip(node.parameters, function_type.parameters):
+                    for param_hole, param in zip(node.parameters, function_type.parameters, strict=True):
                         self.fill_hole(param_hole, param)
-                    for ret_hole, ret in zip(node.return_types, function_type.returns):
+                    for ret_hole, ret in zip(node.return_types, function_type.returns, strict=True):
                         self.fill_hole(ret_hole, ret)
-                    for arg, param in zip(node.arguments, function_type.parameters):
+                    for arg, param in zip(node.arguments, function_type.parameters, strict=True):
                         self.check(arg, param)
                     return_type = function_type.returns[return_index]
                 if return_type != known:
@@ -709,7 +736,7 @@ class Ctx:
     def infer_block_exit(self, node: FromBlockExit, return_depth: int) -> Type | None:
         return_index = len(node.return_types) - return_depth - 1
         returns_of_breaks = node.break_returns[return_index]
-        inferred_break_types: List[Type | None] = []
+        inferred_break_types: list[Type | None] = []
         for source in returns_of_breaks.sources:
             if source.source is None:
                 self.abort(source.token, "TODO: implement function break-types-mismatch-error")
@@ -723,7 +750,7 @@ class Ctx:
             if taip is not None and taip != inferred:
                 self.abort(node.token, "TODO: implement function break-types-mismatch-error")
 
-        for inferred_break_type, source in zip(inferred_break_types, returns_of_breaks.sources):
+        for inferred_break_type, source in zip(inferred_break_types, returns_of_breaks.sources, strict=True):
             if inferred_break_type is not None:
                 continue
             if source.source is None:
@@ -877,7 +904,7 @@ class Ctx:
 
                 signature = self.signature_of_variant(source.type_definition, source.tag)
                 if source.source is not None:
-                    arguments: Tuple[Source, ...] = (source.source,)
+                    arguments: tuple[Source, ...] = (source.source,)
                 else:
                     arguments = ()
                 inferred = self.infer_signature_application(source.token, source.generic_arguments, arguments, signature, 0)
@@ -919,9 +946,9 @@ class Ctx:
             case other:
                 assert_never(other)
 
-    def check_make_struct_fields(self, struct: Struct, arguments: Tuple[Source, ...], known: CustomTypeType):
+    def check_make_struct_fields(self, struct: Struct, arguments: tuple[Source, ...], known: CustomTypeType):
         assert(len(arguments) == len(struct.fields))
-        for field_source, field in zip(arguments, struct.fields):
+        for field_source, field in zip(arguments, struct.fields, strict=True):
             field_type = without_holes.with_generics(field.taip, known.generic_arguments)
             self.check(field_source, field_type)
 
@@ -939,7 +966,7 @@ class Ctx:
         taip = CustomTypeType(handle, generic_arguments)
         case = variant.cases[case_index]
         if case.taip is not None:
-            parameters: Tuple[NamedType, ...] = (NamedType(case.name, case.taip),)
+            parameters: tuple[NamedType, ...] = (NamedType(case.name, case.taip),)
         else:
             parameters = ()
         return FunctionSignature(generic_parameters=variant.generic_parameters, parameters=parameters, returns=(taip,))
@@ -987,7 +1014,7 @@ class Ctx:
                 return self.infer_if_exit(node, return_depth)
             case FromMatchExit():
                 return_index = len(node.return_types) - return_depth - 1
-                inferred_arms: List[Type | None] = []
+                inferred_arms: list[Type | None] = []
                 for returns in node.returns:
                     if return_index >= len(returns.returns):
                         self.arms_type_mismatch_error(node)
@@ -1036,11 +1063,11 @@ class Ctx:
                     self.abort(node.token, "infer IndirectCall: expected function")
                 if len(function_type.parameters) != len(node.parameters) or len(function_type.returns) != len(node.return_types):
                     self.abort(node.token, "infer IndirectCall: invalid annotation")
-                for param_hole, param in zip(node.parameters, function_type.parameters):
+                for param_hole, param in zip(node.parameters, function_type.parameters, strict=True):
                     self.fill_hole(param_hole, param)
-                for ret_hole, ret in zip(node.return_types, function_type.returns):
+                for ret_hole, ret in zip(node.return_types, function_type.returns, strict=True):
                     self.fill_hole(ret_hole, ret)
-                for arg, param in zip(node.arguments, function_type.parameters):
+                for arg, param in zip(node.arguments, function_type.parameters, strict=True):
                     self.check(arg, param)
                 return function_type.returns[return_index]
             case PlaceHolder():
@@ -1113,14 +1140,14 @@ class Ctx:
     def infer_signature_application(
             self,
             token: Token,
-            generic_arguments: Tuple[InferenceHole, ...],
-            arguments: Tuple[Source, ...],
+            generic_arguments: tuple[InferenceHole, ...],
+            arguments: tuple[Source, ...],
             signature: Signature,
             return_index: int) -> Type | None:
         if len(arguments) != len(signature.parameters):
             argument_types = self.infer_over_array(arguments)
             self.call_argument_mismatch_error(token, signature, generic_arguments, argument_types)
-        for argument, parameter in zip(arguments, signature.parameters):
+        for argument, parameter in zip(arguments, signature.parameters, strict=True):
             argument_type = self.infer(argument)
             parameter_taip = parameter.taip if isinstance(parameter, without_holes.NamedType) else parameter
             if argument_type is not None:
@@ -1132,7 +1159,7 @@ class Ctx:
             self.check_generic_parameter_constraints(token, generic_arguments, signature, arguments)
         return self.try_with_generics(signature.returns[return_index], generic_arguments)
 
-    def check_generic_parameter_constraints(self, token: Token, generic_arguments: Tuple[InferenceHole, ...], signature: IntrinsicSignature, arguments: Tuple[Source, ...]):
+    def check_generic_parameter_constraints(self, token: Token, generic_arguments: tuple[InferenceHole, ...], signature: IntrinsicSignature, arguments: tuple[Source, ...]):
         for constraint in signature.constraints:
             match constraint:
                 case MustBeOneOf():
@@ -1149,7 +1176,7 @@ class Ctx:
                     if error is not None:
                         self.call_argument_mismatch_error(token, signature, generic_arguments, argument_types)
 
-    def try_with_generics(self, taip: Type, generic_arguments: Tuple[InferenceHole, ...]) -> Type | None:
+    def try_with_generics(self, taip: Type, generic_arguments: tuple[InferenceHole, ...]) -> Type | None:
         match taip:
             case GenericType():
                 return self.lookup_hole(generic_arguments[taip.generic_index])
@@ -1172,8 +1199,8 @@ class Ctx:
                     return None
                 return FunctionType(taip.token, parameters, returns)
 
-    def try_all_with_generics(self, types: Tuple[Type, ...], generic_arguments: Tuple[InferenceHole, ...]) -> Tuple[Type, ...] | None:
-        without_generics: List[Type] = []
+    def try_all_with_generics(self, types: tuple[Type, ...], generic_arguments: tuple[InferenceHole, ...]) -> tuple[Type, ...] | None:
+        without_generics: list[Type] = []
         for taip in types:
             t = self.try_with_generics(taip, generic_arguments)
             if t is None:
@@ -1199,9 +1226,8 @@ class Ctx:
         if taip is not None:
             self.states[source] = Known(taip)
         else:
-            if source in self.states:
-                if self.states[source] == "BeingInferred":
-                    del self.states[source]
+            if source in self.states and self.states[source] == "BeingInferred":
+                del self.states[source]
         return taip
 
     def infer_local(self, local: unstacked.Local) -> Type | None:
@@ -1221,7 +1247,7 @@ class Ctx:
                         return taip
         return None
 
-    def unify_types(self, generic_arguments: Tuple[InferenceHole, ...], holey: Type, known: Type) -> UnificationResult:
+    def unify_types(self, generic_arguments: tuple[InferenceHole, ...], holey: Type, known: Type) -> UnificationResult:
         match holey:
             case without_holes.GenericType():
                 hole = generic_arguments[holey.generic_index]
@@ -1252,14 +1278,14 @@ class Ctx:
                     return res
                 return self.unify_types_all(generic_arguments, holey.returns, known.returns)
 
-    def unify_types_all(self, generic_arguments: Tuple[InferenceHole, ...], holey: Tuple[Type, ...], known: Tuple[Type, ...]) -> UnificationResult:
-        for h, k in zip(holey, known):
+    def unify_types_all(self, generic_arguments: tuple[InferenceHole, ...], holey: tuple[Type, ...], known: tuple[Type, ...]) -> UnificationResult:
+        for h, k in zip(holey, known, strict=True):
             res = self.unify_types(generic_arguments, h, k)
             if res != "Success":
                 return res
         return "Success"
 
-    def traverse_fields(self, local_type: Type, fields: Tuple[unstacked.FieldAccess, ...]) -> Type:
+    def traverse_fields(self, local_type: Type, fields: tuple[unstacked.FieldAccess, ...]) -> Type:
         taip = local_type
         for access in fields:
             self.fill_hole(access.source_type, taip)
@@ -1271,7 +1297,7 @@ class Ctx:
             if isinstance(struc, Variant):
                 self.abort(access.name, "variants do not have fields")
 
-            type_at_field_index: None | Tuple[Type, int] = None
+            type_at_field_index: tuple[Type, int] | None = None
             for i, field in enumerate(struc.fields):
                 if field.name.lexeme == access.name.lexeme:
                     type_at_field_index = (
@@ -1307,7 +1333,7 @@ class Ctx:
     def fill_holes_scope(self, scope: unstacked.Scope) -> Scope:
         return Scope(scope.id, self.fill_holes_words(scope.words))
 
-    def fill_holes_words(self, words: Tuple[unstacked.Word, ...]) -> Tuple[Word, ...]:
+    def fill_holes_words(self, words: tuple[unstacked.Word, ...]) -> tuple[Word, ...]:
         return tuple(self.fill_holes_word(word) for word in words)
 
     def fill(self, hole: InferenceHole) -> Type:
@@ -1326,7 +1352,7 @@ class Ctx:
                 self.fill(field_access.target_type),
                 index)
 
-    def fill_holes_field_accesses(self, field_accesses: Tuple[unstacked.FieldAccess, ...]) -> Tuple[FieldAccess, ...]:
+    def fill_holes_field_accesses(self, field_accesses: tuple[unstacked.FieldAccess, ...]) -> tuple[FieldAccess, ...]:
         return tuple(self.fill_hole_field_access(access) for access in field_accesses)
 
     def fill_holes_word(self, word: unstacked.Word) -> Word:
@@ -1411,7 +1437,7 @@ class Ctx:
                 assert(isinstance(taip, CustomTypeType))
                 variant = self.lookup_type_definition(taip.type_definition)
                 assert(not isinstance(variant, Struct))
-                cases: List[MatchCase] = []
+                cases: list[MatchCase] = []
                 for cays in word.cases:
                     case_type = variant.cases[cays.tag].taip
                     if case_type is not None:
@@ -1506,12 +1532,12 @@ class Ctx:
             case other:
                 assert_never(other)
 
-    def fill_holes_locals(self, locals: Dict[LocalId, unstacked.Local]) -> IndexedDict[LocalId, Local]:
+    def fill_holes_locals(self, locals: dict[LocalId, unstacked.Local]) -> IndexedDict[LocalId, Local]:
         return IndexedDict.from_items(
                 (local_id, Local(local.name, self.fill(local.taip), local.parameter is not None))
                 for local_id, local in locals.items())
 
-    def call_argument_mismatch_error(self, token: Token, signature: Signature, generic_arguments: Tuple[InferenceHole, ...], argument_types: Tuple[Type | None, ...]) -> Never:
+    def call_argument_mismatch_error(self, token: Token, signature: Signature, generic_arguments: tuple[InferenceHole, ...], argument_types: tuple[Type | None, ...]) -> Never:
         msg =  "incorrect arguments in call to:\n"
         msg += f"  fn {token.lexeme}"
         if len(signature.generic_parameters) != 0:
@@ -1534,7 +1560,7 @@ class Ctx:
                 msg += f"{self.type_lookup.type_pretty(param)}"
         msg += ")"
         printed_inferred_header = False
-        for generic_parameter, generic_argument in zip(signature.generic_parameters, generic_arguments):
+        for generic_parameter, generic_argument in zip(signature.generic_parameters, generic_arguments, strict=True):
             inferred = self.lookup_hole(generic_argument)
             if inferred is not None:
                 if not printed_inferred_header:

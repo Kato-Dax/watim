@@ -1,10 +1,27 @@
-from typing import Sequence
+from __future__ import annotations
+
+from collections.abc import Sequence
 
 from format import Formatter
 from indexed_dict import IndexedDict
+from monomorphization import (
+    I8,
+    I32,
+    I64,
+    ROOT_SCOPE,
+    Bool,
+    CustomTypeType,
+    FunType,
+    GlobalId,
+    Local,
+    LocalId,
+    PtrType,
+    TypeId,
+    type_size,
+)
 
 from codegen.ctx import Ctx
-from monomorphization import TypeId, type_size, Bool, I8, I32, I64, PtrType, FunType, CustomTypeType, LocalId, Local, GlobalId, ROOT_SCOPE
+
 
 def generate_var_ident(ctx: Ctx, locals: IndexedDict[LocalId, Local], var_id: LocalId | GlobalId):
     match var_id:

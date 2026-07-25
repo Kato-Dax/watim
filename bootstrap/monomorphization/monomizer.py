@@ -1,18 +1,34 @@
-from typing import Tuple, List, Iterable, Sequence, Dict, assert_never
+from __future__ import annotations
+
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
+from typing import assert_never
 
-from util import Ref, align_to
-from format import Formattable, Formatter
 import format
-from indexed_dict import IndexedDict
-
-from lexer import Token
-from parsing.types import Bool, I8, I32, I64, GenericType
-from resolving import LocalName, LocalId, ScopeId, GlobalId
-import resolving as resolved
-from monomorphization.type import TypeId, NamedTypeId, Type, CustomTypeHandle, PtrType, FunType as FunType, Struct, Variant, VariantCase, TypeDefinition, CustomTypeType
-from inference import Number, String, Break
 import inference as inferred
+import resolving as resolved
+from format import Formattable, Formatter
+from indexed_dict import IndexedDict
+from inference import Break, Number, String
+from lexer import Token
+from parsing.types import I8, I32, I64, Bool, GenericType
+from resolving import GlobalId, LocalId, LocalName, ScopeId
+from util import Ref, align_to
+
+from monomorphization.type import (
+    CustomTypeHandle,
+    CustomTypeType,
+    FunType as FunType,
+    NamedTypeId,
+    PtrType,
+    Struct,
+    Type,
+    TypeDefinition,
+    TypeId,
+    Variant,
+    VariantCase,
+)
+
 
 @dataclass
 class Global(Formattable):
@@ -33,8 +49,8 @@ class Local(Formattable):
 
 @dataclass(frozen=True, eq=True)
 class Signature(Formattable):
-    parameters: Tuple[NamedTypeId, ...]
-    returns: Tuple[TypeId, ...]
+    parameters: tuple[NamedTypeId, ...]
+    returns: tuple[TypeId, ...]
     def format(self, fmt: Formatter):
         fmt.unnamed_record("Signature", [format.Seq(self.parameters, multi_line=True), format.Seq(self.returns, multi_line=True)])
 
@@ -79,7 +95,7 @@ class FieldAccess(Formattable):
 class GetLocal(Formattable):
     name: Token
     var: LocalId | GlobalId
-    fields: Tuple[FieldAccess, ...]
+    fields: tuple[FieldAccess, ...]
     result_type: TypeId
     copy_space_offset: int
     def format(self, fmt: Formatter):
@@ -89,7 +105,7 @@ class GetLocal(Formattable):
 class RefLocal(Formattable):
     name: Token
     var: LocalId | GlobalId
-    fields: Tuple[FieldAccess, ...]
+    fields: tuple[FieldAccess, ...]
     def format(self, fmt: Formatter):
         fmt.unnamed_record("RefLocal", [self.name, self.var, format.Seq(self.fields, multi_line=True)])
 
@@ -117,7 +133,7 @@ class MakeStruct(Formattable):
 @dataclass
 class MakeStructNamed(Formattable):
     type: TypeId
-    body: 'Scope'
+    body: Scope
     copy_space_offset: int
     def format(self, fmt: Formatter):
         fmt.unnamed_record("MakeStructNamed", [self.type, self.copy_space_offset, self.body])
@@ -132,7 +148,7 @@ class Load(Formattable):
 @dataclass
 class GetField(Formattable):
     token: Token
-    fields: Tuple[FieldAccess, ...]
+    fields: tuple[FieldAccess, ...]
     type: TypeId
     on_ptr: bool
     copy_space_offset: int
@@ -223,7 +239,7 @@ class StoreLocal(Formattable):
     name: Token
     var: LocalId | GlobalId
     type: TypeId
-    fields: Tuple[FieldAccess, ...]
+    fields: tuple[FieldAccess, ...]
     def format(self, fmt: Formatter):
         fmt.unnamed_record("StoreLocal", [self.name, self.var, self.type, format.Seq(self.fields, multi_line=True)])
 
@@ -231,7 +247,7 @@ class StoreLocal(Formattable):
 class SetLocal(Formattable):
     name: Token
     var: LocalId | GlobalId
-    fields: Tuple[FieldAccess, ...]
+    fields: tuple[FieldAccess, ...]
     type: TypeId
     def format(self, fmt: Formatter):
         fmt.unnamed_record("SetLocal", [self.name, self.var, format.Seq(self.fields, multi_line=True), self.type])
@@ -247,7 +263,7 @@ class MakeVariant(Formattable):
 @dataclass
 class Call(Formattable):
     name: Token
-    function: 'FunctionHandle'
+    function: FunctionHandle
     copy_space_offset: int
     def format(self, fmt: Formatter):
         fmt.unnamed_record("Call", [self.name, self.function, self.copy_space_offset])
@@ -269,9 +285,9 @@ class FunRef(Formattable):
 @dataclass
 class Block(Formattable):
     token: Token
-    parameters: Tuple[TypeId, ...]
-    returns: Tuple[TypeId, ...] | None
-    body: 'Scope'
+    parameters: tuple[TypeId, ...]
+    returns: tuple[TypeId, ...] | None
+    body: Scope
     def format(self, fmt: Formatter):
         fmt.named_record("Block", [
             ("token", self.token),
@@ -282,9 +298,9 @@ class Block(Formattable):
 @dataclass
 class Loop(Formattable):
     token: Token
-    parameters: Tuple[TypeId, ...]
-    returns: Tuple[TypeId, ...] | None
-    body: 'Scope'
+    parameters: tuple[TypeId, ...]
+    returns: tuple[TypeId, ...] | None
+    body: Scope
     def format(self, fmt: Formatter):
         fmt.named_record("Loop", [
             ("token", self.token),
@@ -317,10 +333,10 @@ class Cast(Formattable):
 @dataclass(frozen=True)
 class If(Formattable):
     token: Token
-    parameters: Tuple[TypeId, ...]
-    returns: Tuple[TypeId, ...] | None
-    true_branch: 'Scope'
-    false_branch: 'Scope'
+    parameters: tuple[TypeId, ...]
+    returns: tuple[TypeId, ...] | None
+    true_branch: Scope
+    false_branch: Scope
     def format(self, fmt: Formatter):
         fmt.named_record("If", [
             ("token", self.token),
@@ -333,7 +349,7 @@ class If(Formattable):
 class MatchCase(Formattable):
     type: TypeId | None
     tag: int
-    body: 'Scope'
+    body: Scope
     def format(self, fmt: Formatter):
         fmt.unnamed_record("MatchCase", [format.Optional(self.type), self.tag, self.body])
 
@@ -341,10 +357,10 @@ class MatchCase(Formattable):
 class Match(Formattable):
     type: TypeId
     by_ref: bool
-    cases: Tuple[MatchCase, ...]
-    default: 'Scope | None'
-    parameters: Tuple[TypeId, ...]
-    returns: Tuple[TypeId, ...] | None
+    cases: tuple[MatchCase, ...]
+    default: Scope | None
+    parameters: tuple[TypeId, ...]
+    returns: tuple[TypeId, ...] | None
     def format(self, fmt: Formatter):
         fmt.named_record("Match", [
             ("type", self.type),
@@ -396,7 +412,7 @@ type Word = ( Number
 @dataclass(frozen=True)
 class Scope(Formattable):
     id: ScopeId
-    words: Tuple[Word, ...]
+    words: tuple[Word, ...]
     def format(self, fmt: Formatter):
         fmt.unnamed_record("Scope", [self.id, format.Seq(self.words, multi_line=True)])
 
@@ -409,7 +425,7 @@ class Function(Formattable):
     local_copy_space: int
     max_stack_returns: int
     body: Scope
-    generic_arguments: Tuple[TypeId, ...]
+    generic_arguments: tuple[TypeId, ...]
     def format(self, fmt: Formatter):
         fmt.named_record("Function", [
             ("name", self.name),
@@ -429,14 +445,14 @@ class FunctionHandle(Formattable):
     def format(self, fmt: Formatter):
         fmt.unnamed_record("FunctionHandle", [self.module, self.index, self.instance])
 
-type ExternOrInstances = Extern | Tuple[Function, ...]
+type ExternOrInstances = Extern | tuple[Function, ...]
 
 @dataclass
 class Module(Formattable):
-    type_definitions: Tuple[TypeDefinition, ...]
-    globals: Tuple[Global, ...]
+    type_definitions: tuple[TypeDefinition, ...]
+    globals: tuple[Global, ...]
     static_data: bytes
-    functions: Tuple[ExternOrInstances, ...]
+    functions: tuple[ExternOrInstances, ...]
     def format(self, fmt: Formatter):
         fmt.named_record("Module", [
             ("custom-types", format.Seq(self.type_definitions, multi_line=True)),
@@ -448,7 +464,7 @@ class Module(Formattable):
 @dataclass(eq=True, unsafe_hash=True)
 class CustomTypeKey(Formattable):
     handle: CustomTypeHandle
-    generic_arguments: Tuple[TypeId, ...]
+    generic_arguments: tuple[TypeId, ...]
     type: Type | None = field(hash=False, compare=False)
     def format(self, fmt: Formatter):
         if self.type is None:
@@ -460,10 +476,10 @@ type Key = CustomTypeKey | Type
 
 @dataclass(frozen=True)
 class Monomized(Formattable):
-    types: Tuple[Type | None, ...]
+    types: tuple[Type | None, ...]
     modules: IndexedDict[str, Module]
-    sizes: Tuple[int, ...]
-    function_table: Tuple[FunctionHandle, ...]
+    sizes: tuple[int, ...]
+    function_table: tuple[FunctionHandle, ...]
     def format(self, fmt: Formatter):
         fmt.named_record("Monomized", [
             ("types", format.Seq(tuple(format.Optional(t) for t in self.types), multi_line=True)),
@@ -482,7 +498,7 @@ class Monomized(Formattable):
     def lookup_global(self, id: GlobalId) -> Global:
         return self.modules.index(id.module).globals[id.index]
 
-def primitive_types() -> List[Key | None]:
+def primitive_types() -> list[Key | None]:
     return [Bool(), I8(), I32(), I64()]
 
 BOOL_ID = TypeId(0)
@@ -490,17 +506,17 @@ I8_ID = TypeId(1)
 I32_ID = TypeId(2)
 I64_ID = TypeId(3)
 
-type ExternOrInstancesMap = Extern | IndexedDict[Tuple[TypeId, ...], Ref[Function | None]]
+type ExternOrInstancesMap = Extern | IndexedDict[tuple[TypeId, ...], Ref[Function | None]]
 
 @dataclass
 class Ctx:
     module_id: int
-    modules: Tuple[inferred.Module, ...]
-    types: List[Key | None]
-    function_table: List[FunctionHandle]
-    type_definitions: List[TypeDefinition]
-    functions: List[List[ExternOrInstancesMap]]
-    types_dict: Dict[Key, int] = field(default_factory=dict)
+    modules: tuple[inferred.Module, ...]
+    types: list[Key | None]
+    function_table: list[FunctionHandle]
+    type_definitions: list[TypeDefinition]
+    functions: list[list[ExternOrInstancesMap]]
+    types_dict: dict[Key, int] = field(default_factory=dict)
 
     def lookup_type(self, type: TypeId) -> Type:
         key = self.types[type.index]
@@ -522,7 +538,7 @@ class Ctx:
                         slot, _ = self.pre_insert_function(handle, generic_arguments)
                         slot.value = self.monomize_function(function, generic_arguments)
 
-    def pre_insert_function(self, handle: resolved.FunctionHandle, generic_arguments: Tuple[TypeId, ...]) -> Tuple[Ref[Function | None], int]:
+    def pre_insert_function(self, handle: resolved.FunctionHandle, generic_arguments: tuple[TypeId, ...]) -> tuple[Ref[Function | None], int]:
         slot: Ref[Function | None] = Ref(None)
         while len(self.functions) <= handle.module:
             self.functions.append([])
@@ -536,7 +552,7 @@ class Ctx:
         instances[generic_arguments] = slot
         return slot, index
 
-    def monomize_function(self, function: inferred.Function, generic_arguments: Tuple[TypeId, ...]) -> Function:
+    def monomize_function(self, function: inferred.Function, generic_arguments: tuple[TypeId, ...]) -> Function:
         locals = self.monomize_locals(function.locals, generic_arguments)
         ctx = WordCtx(self, locals, None)
         return Function(
@@ -549,10 +565,10 @@ class Ctx:
                 ctx.monomize_scope(function.body, generic_arguments),
                 generic_arguments)
 
-    def monomize_locals(self, locals: IndexedDict[LocalId, inferred.Local], generic_arguments: Tuple[TypeId, ...]) -> IndexedDict[LocalId, Local]:
+    def monomize_locals(self, locals: IndexedDict[LocalId, inferred.Local], generic_arguments: tuple[TypeId, ...]) -> IndexedDict[LocalId, Local]:
         return IndexedDict.from_items((id, self.monomize_local(local, generic_arguments)) for id, local in locals.items())
 
-    def monomize_local(self, local: inferred.Local, generic_arguments: Tuple[TypeId, ...]) -> Local:
+    def monomize_local(self, local: inferred.Local, generic_arguments: tuple[TypeId, ...]) -> Local:
         return Local(local.name, self.monomize_type(local.type, generic_arguments), False, local.is_parameter)
 
     def monomize_extern(self, extern: resolved.Extern) -> Extern:
@@ -566,14 +582,14 @@ class Ctx:
             module_functions.append(IndexedDict())
         module_functions[handle.index] = extern
 
-    def monomize_signature(self, signature: resolved.FunctionSignature, generic_arguments: Tuple[TypeId, ...]) -> Signature:
+    def monomize_signature(self, signature: resolved.FunctionSignature, generic_arguments: tuple[TypeId, ...]) -> Signature:
         return Signature(self.monomize_named_types(signature.parameters, generic_arguments),
                          self.monomize_types(signature.returns, generic_arguments))
 
-    def monomize_types(self, types: Iterable[inferred.Type], generic_arguments: Tuple[TypeId, ...]) -> Tuple[TypeId, ...]:
+    def monomize_types(self, types: Iterable[inferred.Type], generic_arguments: tuple[TypeId, ...]) -> tuple[TypeId, ...]:
         return tuple(self.monomize_type(t, generic_arguments) for t in types)
 
-    def monomize_type(self, type: inferred.Type, generic_arguments: Tuple[TypeId, ...]) -> TypeId:
+    def monomize_type(self, type: inferred.Type, generic_arguments: tuple[TypeId, ...]) -> TypeId:
         match type:
             case Bool():
                 return BOOL_ID
@@ -606,16 +622,15 @@ class Ctx:
         except KeyError:
             self.types[type_id.index] = key
             self.types_dict[key] = type_id.index
-            if isinstance(key, CustomTypeKey):
-                if isinstance(type, inferred.CustomTypeType):
-                    monomized_type = self.monomize_custom_type(type, key.generic_arguments)
-                    key.type = CustomTypeType(monomized_type)
+            if isinstance(key, CustomTypeKey) and isinstance(type, inferred.CustomTypeType):
+                monomized_type = self.monomize_custom_type(type, key.generic_arguments)
+                key.type = CustomTypeType(monomized_type)
             return type_id
 
-    def monomize_named_type(self, type: inferred.NamedType, generic_arguments: Tuple[TypeId, ...]) -> NamedTypeId:
+    def monomize_named_type(self, type: inferred.NamedType, generic_arguments: tuple[TypeId, ...]) -> NamedTypeId:
         return NamedTypeId(type.name, self.monomize_type(type.taip, generic_arguments))
 
-    def monomize_custom_type(self, custom_type: inferred.CustomTypeType, generic_arguments: Tuple[TypeId, ...]) -> CustomTypeHandle:
+    def monomize_custom_type(self, custom_type: inferred.CustomTypeType, generic_arguments: tuple[TypeId, ...]) -> CustomTypeHandle:
         type_definitions = self.modules[custom_type.type_definition.module].type_definitions
         type_definition = type_definitions[custom_type.type_definition.index]
         match type_definition:
@@ -646,10 +661,10 @@ class Ctx:
             self.type_definitions.append(type)
             return CustomTypeHandle(self.module_id, index)
 
-    def monomize_named_types(self, types: Tuple[inferred.NamedType, ...], generic_arguments: Tuple[TypeId, ...]) -> Tuple[NamedTypeId, ...]:
+    def monomize_named_types(self, types: tuple[inferred.NamedType, ...], generic_arguments: tuple[TypeId, ...]) -> tuple[NamedTypeId, ...]:
         return tuple(self.monomize_named_type(t, generic_arguments) for t in types)
 
-    def monomize_globals(self, globals: Iterable[inferred.Global]) -> Tuple[Global, ...]:
+    def monomize_globals(self, globals: Iterable[inferred.Global]) -> tuple[Global, ...]:
         return tuple(map(self.monomize_global, globals))
 
     def monomize_global(self, globl: inferred.Global) -> Global:
@@ -664,7 +679,7 @@ class Ctx:
     def lookup_checked_function(self, handle: inferred.FunctionHandle) -> inferred.Extern | inferred.Function:
         return self.modules[handle.module].functions[handle.index]
 
-    def lookup_function(self, handle: inferred.FunctionHandle, generic_arguments: Tuple[TypeId, ...]) -> int | None:
+    def lookup_function(self, handle: inferred.FunctionHandle, generic_arguments: tuple[TypeId, ...]) -> int | None:
         if len(self.functions) <= handle.module:
             return None
         module_functions = self.functions[handle.module]
@@ -698,13 +713,13 @@ class WordCtx:
             case GlobalId():
                 self.ctx.modules[var.module].globals[var.index].reffed = True
 
-    def monomize_scope(self, scope: inferred.Scope, generic_arguments: Tuple[TypeId, ...]) -> Scope:
+    def monomize_scope(self, scope: inferred.Scope, generic_arguments: tuple[TypeId, ...]) -> Scope:
         return Scope(scope.id, self.monomize_words(scope.words, generic_arguments))
 
-    def monomize_words(self, words: Iterable[inferred.Word], generic_arguments: Tuple[TypeId, ...]) -> Tuple[Word, ...]:
+    def monomize_words(self, words: Iterable[inferred.Word], generic_arguments: tuple[TypeId, ...]) -> tuple[Word, ...]:
         return tuple(self.monomize_word(word, generic_arguments) for word in words)
 
-    def monomize_word(self, word: inferred.Word, generic_arguments: Tuple[TypeId, ...]) -> Word:
+    def monomize_word(self, word: inferred.Word, generic_arguments: tuple[TypeId, ...]) -> Word:
         match word:
             case inferred.Number() | inferred.String():
                 return word
@@ -848,7 +863,7 @@ class WordCtx:
                 assert self.struct_env is not None
                 return FieldInit(self.struct_env, self.ctx.monomize_type(word.type, generic_arguments), word.field_index, (1 << 32) - 1)
 
-    def monomize_call(self, word: inferred.Call, generic_arguments: Tuple[TypeId, ...]) -> Call:
+    def monomize_call(self, word: inferred.Call, generic_arguments: tuple[TypeId, ...]) -> Call:
         generic_arguments_of_this_call = self.ctx.monomize_types(word.generic_arguments, generic_arguments)
         function = self.ctx.lookup_checked_function(word.function)
         match function:
@@ -861,10 +876,10 @@ class WordCtx:
                     slot.value = self.ctx.monomize_function(function, generic_arguments_of_this_call)
                 return Call(word.name, FunctionHandle(word.function.module, word.function.index, instance), (1 << 32) - 1)
 
-    def monomize_field_accesses(self, fields: Iterable[inferred.FieldAccess], generic_arguments: Tuple[TypeId, ...]) -> Tuple[FieldAccess, ...]:
+    def monomize_field_accesses(self, fields: Iterable[inferred.FieldAccess], generic_arguments: tuple[TypeId, ...]) -> tuple[FieldAccess, ...]:
         return tuple(self.monomize_field_access(field, generic_arguments) for field in fields)
 
-    def monomize_field_access(self, field: inferred.FieldAccess, generic_arguments: Tuple[TypeId, ...]) -> FieldAccess:
+    def monomize_field_access(self, field: inferred.FieldAccess, generic_arguments: tuple[TypeId, ...]) -> FieldAccess:
         return FieldAccess(
                 name=field.name,
                 source_type=self.ctx.monomize_type(field.source_type, generic_arguments),
@@ -873,9 +888,9 @@ class WordCtx:
 
 def monomize(modules: IndexedDict[str, inferred.Module]) -> Monomized:
     monomized_modules: IndexedDict[str, Module] = IndexedDict()
-    functions: List[List[ExternOrInstancesMap]] = []
+    functions: list[list[ExternOrInstancesMap]] = []
     types = primitive_types()
-    function_table: List[FunctionHandle] = []
+    function_table: list[FunctionHandle] = []
     for i, (path, module) in enumerate(modules.items()):
         ctx = Ctx(
                 module_id=i,
@@ -918,13 +933,13 @@ def monomize(modules: IndexedDict[str, inferred.Module]) -> Monomized:
         return key
     return Monomized(tuple(key_type(t) for t in types), monomized_modules, sizes, tuple(function_table))
 
-def compute_sizes(modules: IndexedDict[str, Module], types: Tuple[Key | None, ...]) -> Tuple[int, ...]:
-    sizes = list((1 << 32) - 1 for _ in types)
+def compute_sizes(modules: IndexedDict[str, Module], types: tuple[Key | None, ...]) -> tuple[int, ...]:
+    sizes = [(1 << 32) - 1 for _ in types]
     for i in range(len(types)):
         compute_size(modules, sizes, types, i)
     return tuple(sizes)
 
-def compute_size(modules: IndexedDict[str, Module], sizes: List[int], types: Tuple[Key | None, ...], index: int):
+def compute_size(modules: IndexedDict[str, Module], sizes: list[int], types: tuple[Key | None, ...], index: int):
     if sizes[index] != (1 << 32) - 1:
         return
     type = types[index]
@@ -954,7 +969,7 @@ def compute_size(modules: IndexedDict[str, Module], sizes: List[int], types: Tup
 
     sizes[index] = size
 
-def compute_custom_type_size(modules: IndexedDict[str, Module], sizes: List[int], types: Tuple[Key | None, ...], type: TypeDefinition) -> int:
+def compute_custom_type_size(modules: IndexedDict[str, Module], sizes: list[int], types: tuple[Key | None, ...], type: TypeDefinition) -> int:
     match type:
         case Struct():
             size = 0
@@ -969,12 +984,12 @@ def compute_custom_type_size(modules: IndexedDict[str, Module], sizes: List[int]
             return align_to(size, largest_field)
         case Variant():
             size = 0
-            for i, case in enumerate(type.cases):
+            for case in type.cases:
                 if case.taip is not None:
                     size = max(size, compute_typeid_size(modules, sizes, types, case.taip))
             return size + 4
 
-def compute_typeid_size(modules: IndexedDict[str, Module], sizes: List[int], types: Tuple[Key | None, ...], type: TypeId) -> int:
+def compute_typeid_size(modules: IndexedDict[str, Module], sizes: list[int], types: tuple[Key | None, ...], type: TypeId) -> int:
     size = sizes[type.index]
     if size == (1 << 32) - 1:
         compute_size(modules, sizes, types, type.index)
@@ -982,11 +997,11 @@ def compute_typeid_size(modules: IndexedDict[str, Module], sizes: List[int], typ
     else:
         return size
 
-def measure_copy_space(modules: IndexedDict[str, Module], types: Sequence[Key | None], sizes: Tuple[int, ...]):
+def measure_copy_space(modules: IndexedDict[str, Module], types: Sequence[Key | None], sizes: tuple[int, ...]):
     for module in modules.values():
         module_measure_copy_space(tuple(modules.values()), module, types, sizes)
 
-def module_measure_copy_space(modules: Tuple[Module, ...], module: Module, types: Sequence[Key | None], sizes: Tuple[int, ...]):
+def module_measure_copy_space(modules: tuple[Module, ...], module: Module, types: Sequence[Key | None], sizes: tuple[int, ...]):
     for function in module.functions:
         match function:
             case Extern():
@@ -1021,13 +1036,13 @@ def field_offset(sizes: Sequence[int], struct: Struct, field_index: int) -> int:
 
 @dataclass
 class CopySpaceCtx:
-    modules: Tuple[Module, ...]
+    modules: tuple[Module, ...]
     types: Sequence[Key | None]
-    sizes: Tuple[int, ...]
-    struct_offset: None | int
+    sizes: tuple[int, ...]
+    struct_offset: int | None
     max_stack_returns: int
 
-    def words_measure_copy_space(self, words: Tuple[Word, ...], offset: Ref[int]):
+    def words_measure_copy_space(self, words: tuple[Word, ...], offset: Ref[int]):
         for word in words:
             self.word_measure_copy_space(word, offset)
 
@@ -1106,7 +1121,7 @@ def returns_measure_copy_space(returns: Sequence[TypeId], sizes: Sequence[int], 
             offset.value += type_size(sizes, type)
     return value
 
-def function_measure_copy_space(modules: Tuple[Module, ...], function: Function, types: Sequence[Key | None], sizes: Tuple[int, ...]):
+def function_measure_copy_space(modules: tuple[Module, ...], function: Function, types: Sequence[Key | None], sizes: tuple[int, ...]):
     ctx = CopySpaceCtx(modules, types, sizes, None, 0)
     function.local_copy_space = 0
     local_copy_space = Ref(0)

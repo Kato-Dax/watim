@@ -1,14 +1,26 @@
+from __future__ import annotations
+
 from format import Formatter
-from util import align_to
 from indexed_dict import IndexedDict
-
 from lexer import Token
-from resolving import ScopeId, ROOT_SCOPE
-from monomorphization import Monomized, Extern, Signature, type_size, can_live_in_reg, Local, LocalId, Function, local_lives_in_memory
+from monomorphization import (
+    Extern,
+    Function,
+    Local,
+    LocalId,
+    Monomized,
+    Signature,
+    can_live_in_reg,
+    local_lives_in_memory,
+    type_size,
+)
+from resolving import ROOT_SCOPE, ScopeId
+from util import align_to
 
-from codegen.common import generate_type, generate_type_pretty, generate_returns
+from codegen.common import generate_returns, generate_type, generate_type_pretty
 from codegen.ctx import Ctx
 from codegen.words import generate_words
+
 
 def generate(fmt: Formatter, program: Monomized, guard_stack: bool):
     fmt.write("(module\n")
@@ -170,7 +182,7 @@ def generate_function(ctx: Ctx, function: Function, module: int, instance_id: in
     ctx.fmt.write("\n")
     ctx.fmt.indent()
     generate_locals(ctx, function.locals)
-    for i in range(0, function.max_stack_returns):
+    for i in range(function.max_stack_returns):
         ctx.fmt.write_indent()
         ctx.fmt.write(f"(local $s{i}:4 i32) (local $s{i}:8 i64)\n")
     if function.local_copy_space != 0:

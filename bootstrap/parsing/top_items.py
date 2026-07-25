@@ -1,11 +1,13 @@
-from typing import List, Tuple
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 import format
 from format import Formattable, Formatter
 from lexer import Token
+
+from parsing.types import NamedType, Type
 from parsing.words import Word
-from parsing.types import Type, NamedType
 
 type TypeDefinition = Struct | Variant
 
@@ -14,7 +16,7 @@ type TopItem = Import | TypeDefinition | Global | Function | Extern
 @dataclass(frozen=True)
 class VariantImport(Formattable):
     name: Token
-    constructors: Tuple[Token, ...]
+    constructors: tuple[Token, ...]
     def format(self, fmt: Formatter):
         fmt.unnamed_record("VariantImport", [
             self.name, format.Seq(self.constructors)])
@@ -26,7 +28,7 @@ class Import(Formattable):
     token: Token
     file_path: Token
     qualifier: Token
-    items: Tuple[ImportItem, ...]
+    items: tuple[ImportItem, ...]
     def format(self, fmt: Formatter):
         fmt.named_record("Import", [
             ("start", self.token),
@@ -38,9 +40,9 @@ class Import(Formattable):
 class FunctionSignature(Formattable):
     export_name: Token | None
     name: Token
-    generic_parameters: Tuple[Token, ...]
-    parameters: Tuple[NamedType, ...]
-    returns: Tuple[Type, ...]
+    generic_parameters: tuple[Token, ...]
+    parameters: tuple[NamedType, ...]
+    returns: tuple[Type, ...]
     def format(self, fmt: Formatter):
         fmt.named_record("Signature", [
             ("generic-parameters", format.Seq(self.generic_parameters)),
@@ -71,7 +73,7 @@ class Global(Formattable):
 class Function(Formattable):
     start: Token
     signature: FunctionSignature
-    body: Tuple[Word, ...]
+    body: tuple[Word, ...]
     def format(self, fmt: Formatter):
         fmt.named_record("Function", [
             ("start", self.start),
@@ -84,8 +86,8 @@ class Function(Formattable):
 class Struct(Formattable):
     token: Token
     name: Token
-    fields: Tuple[NamedType, ...]
-    generic_parameters: Tuple[Token, ...]
+    fields: tuple[NamedType, ...]
+    generic_parameters: tuple[Token, ...]
     def format(self, fmt: Formatter):
         fmt.unnamed_record("Struct", [
             self.token,
@@ -101,5 +103,5 @@ class VariantCase:
 @dataclass
 class Variant(Formattable):
     name: Token
-    generic_parameters: Tuple[Token, ...]
-    cases: List[VariantCase]
+    generic_parameters: tuple[Token, ...]
+    cases: list[VariantCase]

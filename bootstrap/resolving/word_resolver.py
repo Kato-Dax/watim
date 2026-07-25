@@ -1,29 +1,46 @@
-from typing import Sequence, Tuple, Dict, NoReturn
-from dataclasses import dataclass
-import copy
+from __future__ import annotations
 
-from indexed_dict import IndexedDict
+import copy
+from collections.abc import Sequence
+from dataclasses import dataclass
+from typing import NoReturn
 
 import parsing.words as parsing
+from indexed_dict import IndexedDict
 from lexer import Token
-from resolving.words import Word, IntrinsicWord, FunctionHandle, GlobalId
-from resolving.module import Module, ResolveException
-import resolving.words as resolved
-from resolving.intrinsics import INTRINSICS
+
 import resolving.type_without_holes as without_holes
 import resolving.types as with_holes
-from resolving.type_resolver import TypeResolver, TypeLookup
-from resolving.top_items import Import, Local, SyntheticName, FromSource, CustomTypeHandle, Variant, Struct, Global, LocalId, FunctionSignature, VariantImport, Signature
+import resolving.words as resolved
 from resolving.env import Env
+from resolving.intrinsics import INTRINSICS
+from resolving.module import Module, ResolveException
+from resolving.top_items import (
+    CustomTypeHandle,
+    FromSource,
+    FunctionSignature,
+    Global,
+    Import,
+    Local,
+    LocalId,
+    Signature,
+    Struct,
+    SyntheticName,
+    Variant,
+    VariantImport,
+)
+from resolving.type_resolver import TypeLookup, TypeResolver
+from resolving.words import FunctionHandle, GlobalId, IntrinsicWord, Word
+
 
 @dataclass
 class StructLiteralEnv:
     struct: CustomTypeHandle
-    all_fields: Dict[str, int]
-    remaining_fields: Dict[str, int]
+    all_fields: dict[str, int]
+    remaining_fields: dict[str, int]
 
     @staticmethod
-    def of_struct(struct: Struct, handle: CustomTypeHandle) -> 'StructLiteralEnv':
+    def of_struct(struct: Struct, handle: CustomTypeHandle) -> StructLiteralEnv:
         return StructLiteralEnv(
             handle,
             { field.name.lexeme: field_index for field_index, field in enumerate(struct.fields) },
@@ -33,7 +50,7 @@ class StructLiteralEnv:
 class WordResolver:
     module_id: int
     module_path: str
-    imports: Dict[str, Tuple[Import, ...]]
+    imports: dict[str, tuple[Import, ...]]
     globals: IndexedDict[str, Global]
     signatures: IndexedDict[str, FunctionSignature]
     type_resolver: TypeResolver
@@ -47,22 +64,22 @@ class WordResolver:
     def abort(self, token: Token, message: str) -> NoReturn:
         raise ResolveException(self.module_path, token, message)
 
-    def with_env(self, env: Env) -> 'WordResolver':
+    def with_env(self, env: Env) -> WordResolver:
         self = copy.copy(self)
         self.env = env
         return self
 
-    def with_struct_literal_env(self, env: StructLiteralEnv) -> 'WordResolver':
+    def with_struct_literal_env(self, env: StructLiteralEnv) -> WordResolver:
         self = copy.copy(self)
         self.struct_literal_env = env
         return self
 
-    def without_struct_literal_env(self) -> 'WordResolver':
+    def without_struct_literal_env(self) -> WordResolver:
         self = copy.copy(self)
         self.struct_literal_env = None
         return self
 
-    def with_in_block(self) -> 'WordResolver':
+    def with_in_block(self) -> WordResolver:
         self = copy.copy(self)
         self.is_in_block = True
         return self
@@ -86,7 +103,7 @@ class WordResolver:
         else:
             return self.modules.index(handle.module).functions.index(handle.index).signature
 
-    def resolve_words(self, words: Sequence[parsing.Word]) -> Tuple[Word, ...]:
+    def resolve_words(self, words: Sequence[parsing.Word]) -> tuple[Word, ...]:
         return tuple(resolved_word for word in words for resolved_word in self.resolve_word(word))
 
     def resolve_word(self, word: parsing.Word) -> Sequence[Word]:
@@ -198,7 +215,7 @@ class WordResolver:
             function_handle,
             generic_arguments)
 
-    def resolve_generic_arguments(self, token: Token, generic_arguments: Tuple[parsing.Type, ...] | None, expected: int) -> Tuple[resolved.Type, ...] | None:
+    def resolve_generic_arguments(self, token: Token, generic_arguments: tuple[parsing.Type, ...] | None, expected: int) -> tuple[resolved.Type, ...] | None:
         if generic_arguments is None:
             return None
         args = self.type_resolver.resolve_types(generic_arguments)
@@ -236,7 +253,7 @@ class WordResolver:
         local_id = self.env.insert(Local(FromSource(word.ident), None))
         return resolved.InitLocal(word.ident, local_id)
 
-    def resolve_scope(self, parsed_words: Tuple[parsing.Word, ...], keep_struct_literal_env=False) -> resolved.Scope:
+    def resolve_scope(self, parsed_words: tuple[parsing.Word, ...], keep_struct_literal_env=False) -> resolved.Scope:
         env = self.env.child()
         if not keep_struct_literal_env:
             self = self.without_struct_literal_env()
@@ -261,7 +278,7 @@ class WordResolver:
         variant = self.type_lookup.lookup(variant_type.type_definition)
         if not isinstance(variant, Variant):
             self.abort(word.token, "can not make this type")
-        tag: None | int = None
+        tag: int | None = None
         for i,case in enumerate(variant.cases):
             if case.name.lexeme == word.case.lexeme:
                 tag = i
@@ -291,7 +308,7 @@ class WordResolver:
                 default),
 
     def error_on_missing_cases(self, variant: Variant, match: parsing.MatchWord, cases: Sequence[resolved.MatchCase]):
-        cases_matched = list(False for _ in variant.cases)
+        cases_matched = [False for _ in variant.cases]
         for case in cases:
             if cases_matched[case.tag]:
                 self.abort(case.name, "duplicate case")
@@ -338,7 +355,7 @@ class WordResolver:
             self.abort(match.token, "could not determine type of match")
         return inferred
 
-    def lookup_constructor(self, name: Token) -> Tuple[CustomTypeHandle, int]:
+    def lookup_constructor(self, name: Token) -> tuple[CustomTypeHandle, int]:
         for imports in self.imports.values():
             for imp in imports:
                 for item in imp.items:
@@ -348,7 +365,6 @@ class WordResolver:
                         for constructor in item.constructors:
                             if variant.cases[constructor].name.lexeme == name.lexeme:
                                 return item.handle, constructor
-                    pass
         if self.type_lookup.type_definitions is not None:
             for index, type_definition in enumerate(self.type_lookup.type_definitions.values()):
                 if not isinstance(type_definition, Struct):

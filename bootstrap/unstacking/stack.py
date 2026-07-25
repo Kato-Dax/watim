@@ -1,34 +1,37 @@
-from typing import Iterable, List, Tuple
+from __future__ import annotations
+
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 from format import Formattable
 from lexer import Token
 
-from unstacking.source import Source, FromNode
+from unstacking.source import FromNode, Source
+
 
 @dataclass
 class Parent(Formattable):
-    stack: 'Stack'
+    stack: Stack
     node: int
     token: Token
 
-    def clone(self) -> 'Parent':
+    def clone(self) -> Parent:
         return Parent(self.stack.clone(), self.node, self.token)
 
 @dataclass
 class Stack(Formattable):
     parent: Parent | None
-    positive: List[Source]
-    negative: List[Source]
+    positive: list[Source]
+    negative: list[Source]
 
     @staticmethod
-    def root() -> 'Stack':
+    def root() -> Stack:
         return Stack(None, [], [])
 
-    def child(self, parent_node: int, parent_token: Token) -> 'Stack':
+    def child(self, parent_node: int, parent_token: Token) -> Stack:
         return Stack(Parent(self, parent_node, parent_token), [], [])
 
-    def clone(self) -> 'Stack':
+    def clone(self) -> Stack:
         return Stack(self.parent.clone() if self.parent is not None else None, self.positive.copy(), self.negative.copy())
 
     def push(self, source: Source):
@@ -48,8 +51,8 @@ class Stack(Formattable):
             return FromNode(self.parent.token, self.parent.node, len(self.negative) - 1)
         return self.positive.pop()
 
-    def pop_n(self, n: int) -> Tuple[Source, ...]:
-        sources: List[Source] = []
+    def pop_n(self, n: int) -> tuple[Source, ...]:
+        sources: list[Source] = []
         for _ in range(n):
             source = self.pop()
             if source is None:
@@ -70,7 +73,7 @@ class Stack(Formattable):
     def __len__(self) -> int:
         return len(self.positive) + (0 if self.parent is None else len(self.parent.stack))
 
-    def dump(self) -> Tuple[Source, ...]:
+    def dump(self) -> tuple[Source, ...]:
         return self.pop_n(len(self))
 
     def index(self, index: int) -> Source:

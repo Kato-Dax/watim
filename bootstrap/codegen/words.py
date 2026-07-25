@@ -1,41 +1,50 @@
-from typing import Sequence, Tuple, Literal, assert_never
+from __future__ import annotations
+
+from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Literal, assert_never
 
-from indexed_dict import IndexedDict
 import format
-
-from monomorphization import (
-        Local,
-        LocalId, GlobalId,
-        Word,
-        CustomTypeType, PtrType,
-        Variant, Struct,
-        field_offset,
-        TypeId,
-        can_live_in_reg,
-        Bool, I8, I32, I64,
-        local_lives_in_memory,
-        global_lives_in_memory,
-        I32_ID,
-)
 import monomorphization as mono
-
-from codegen.ctx import Ctx
-from codegen.common import (
-        type_size,
-        generate_type_pretty,
-        generate_flip_i32_i32,
-        generate_flip_i64_i32,
-        generate_flip_i32_i64,
-        generate_flip_i64_i64,
-        generate_store,
-        generate_var_ident,
-        generate_type,
-        generate_dup_i64,
-        generate_dup_i32,
-        generate_returns,
-        generate_parameters_unnamed,
+from indexed_dict import IndexedDict
+from monomorphization import (
+    I8,
+    I32,
+    I32_ID,
+    I64,
+    Bool,
+    CustomTypeType,
+    GlobalId,
+    Local,
+    LocalId,
+    PtrType,
+    Struct,
+    TypeId,
+    Variant,
+    Word,
+    can_live_in_reg,
+    field_offset,
+    global_lives_in_memory,
+    local_lives_in_memory,
 )
+
+from codegen.common import (
+    generate_dup_i32,
+    generate_dup_i64,
+    generate_flip_i32_i32,
+    generate_flip_i32_i64,
+    generate_flip_i64_i32,
+    generate_flip_i64_i64,
+    generate_parameters_unnamed,
+    generate_returns,
+    generate_store,
+    generate_type,
+    generate_type_pretty,
+    generate_var_ident,
+    type_size,
+)
+from codegen.ctx import Ctx
+
 
 def generate_words(ctx: Ctx, module: int, locals: IndexedDict[LocalId, Local], words: Sequence[Word]):
     for word in words:
@@ -174,7 +183,6 @@ def generate_word(ctx: Ctx, module: int, locals: IndexedDict[LocalId, Local], wo
                     ctx.fmt.write(" ;; store value\n")
                 ctx.fmt.write_indent()
                 ctx.fmt.write(f"local.get $locl-copy-spac:e i32.const {word.copy_space_offset} i32.add ;; make {variant.name.lexeme}.{case.name.lexeme}")
-            pass
         case mono.Match():
             custom_type_handle = ctx.lookup_type(word.type)
             assert isinstance(custom_type_handle, CustomTypeType)
@@ -572,14 +580,14 @@ class OffsetLoad(format.Formattable):
 
 @dataclass(frozen=True)
 class BitShift(format.Formattable):
-    type: Literal["I32InI64"] | Literal["I8InI32"] | Literal["I16InI32"] | Literal["I8InI64"]
+    type: Literal["I32InI64", "I8InI32", "I16InI32", "I8InI64"]
     extra_offset: int
     def format(self, fmt: format.Formatter):
         fmt.unnamed_record(self.type, [self.extra_offset])
 
 type Load = Offset | OffsetLoad | BitShift
 
-def merge_loads(loads: Tuple[Load, ...]) -> Tuple[Load, ...]:
+def merge_loads(loads: tuple[Load, ...]) -> tuple[Load, ...]:
     if len(loads) <= 1:
         return loads
     first = loads[0]
@@ -589,15 +597,15 @@ def merge_loads(loads: Tuple[Load, ...]) -> Tuple[Load, ...]:
         case OffsetLoad():
             match second:
                 case BitShift():
-                    return (OffsetLoad(I32_ID, first.offset + second.extra_offset),) + rest
+                    return (OffsetLoad(I32_ID, first.offset + second.extra_offset), *rest)
                 case _:
                     return loads
         case Offset():
             match second:
                 case Offset():
-                    return (Offset(first.offset + second.offset),) + rest
+                    return (Offset(first.offset + second.offset), *rest)
                 case OffsetLoad():
-                    return (OffsetLoad(second.type, first.offset + second.offset),) + rest
+                    return (OffsetLoad(second.type, first.offset + second.offset), *rest)
                 case _:
                     return loads
         case BitShift():
@@ -608,7 +616,7 @@ def merge_loads(loads: Tuple[Load, ...]) -> Tuple[Load, ...]:
                 case "I16InI32":
                     match second.type:
                         case "I8InI32":
-                            return (BitShift("I8InI32", first.extra_offset + second.extra_offset),) + rest
+                            return (BitShift("I8InI32", first.extra_offset + second.extra_offset), *rest)
                         case _:
                             return loads
                 case _:
@@ -616,7 +624,7 @@ def merge_loads(loads: Tuple[Load, ...]) -> Tuple[Load, ...]:
                     #         [BitShift.I32InI64 4, BitShift.I8InI32 1] -> BitShift.I8InI64 5
                     return loads
 
-def determine_loads(ctx: Ctx, fields: Tuple[mono.FieldAccess, ...], just_ref: bool, base_in_mem: bool) -> Tuple[Load, ...]:
+def determine_loads(ctx: Ctx, fields: tuple[mono.FieldAccess, ...], just_ref: bool, base_in_mem: bool) -> tuple[Load, ...]:
     if len(fields) == 0:
         return ()
     field = fields[0]
@@ -638,7 +646,7 @@ def determine_loads(ctx: Ctx, fields: Tuple[mono.FieldAccess, ...], just_ref: bo
                 else:
                     load = OffsetLoad(field.target_type, offset)
                 rest = determine_loads(ctx, tail, just_ref, True)
-                return merge_loads((load,) + rest)
+                return merge_loads((load, *rest))
             if target_type_size == 8:
                return determine_loads(ctx, tail, just_ref, base_in_mem)
             if source_type_size > 4:
@@ -649,13 +657,13 @@ def determine_loads(ctx: Ctx, fields: Tuple[mono.FieldAccess, ...], just_ref: bo
                 else:
                     assert False
                 rest = determine_loads(ctx, tail, just_ref, base_in_mem)
-                return merge_loads((load,) + rest)
+                return merge_loads((load, *rest))
             if source_type_size != target_type_size:
                 rest = determine_loads(ctx, tail, just_ref, base_in_mem)
                 if target_type_size == 1:
-                    return merge_loads((BitShift("I8InI32", offset),) + rest)
+                    return merge_loads((BitShift("I8InI32", offset), *rest))
                 if target_type_size == 2:
-                    return merge_loads((BitShift("I16InI32", offset),) + rest)
+                    return merge_loads((BitShift("I16InI32", offset), *rest))
                 assert False # TODO
 
             assert source_type_size == 4
@@ -670,7 +678,7 @@ def determine_loads(ctx: Ctx, fields: Tuple[mono.FieldAccess, ...], just_ref: bo
 
             if base_in_mem:
                 # source_type is a ptr and it is already in mem, effectively ..T
-                return merge_loads((OffsetLoad(field.source_type, 0),) + determine_loads(ctx, tail, just_ref, False))
+                return merge_loads((OffsetLoad(field.source_type, 0), *determine_loads(ctx, tail, just_ref, False)))
 
             if just_ref and len(fields) == 1:
                 if offset == 0:
@@ -678,9 +686,9 @@ def determine_loads(ctx: Ctx, fields: Tuple[mono.FieldAccess, ...], just_ref: bo
                 else:
                     return Offset(offset),
             elif target_type_size <= 8 or len(fields) == 1:
-                return merge_loads((OffsetLoad(field.target_type, offset),) + determine_loads(ctx, tail, just_ref, False))
+                return merge_loads((OffsetLoad(field.target_type, offset), *determine_loads(ctx, tail, just_ref, False)))
             else:
-                return merge_loads((Offset(offset),) + determine_loads(ctx, tail, just_ref, True))
+                return merge_loads((Offset(offset), *determine_loads(ctx, tail, just_ref, True)))
         case _:
             assert False
 
@@ -773,7 +781,7 @@ def generate_set(
         var: LocalId | GlobalId,
         target_type: TypeId,
         target_lives_in_memory: bool,
-        loads: Tuple[Load, ...]):
+        loads: tuple[Load, ...]):
     if len(loads) == 0 and not target_lives_in_memory:
         match var:
             case LocalId():
@@ -866,7 +874,7 @@ def generate_call(ctx: Ctx, word: mono.Call):
         ctx.fmt.write(f":{word.function.instance}")
     generate_return_receivers(ctx, word.copy_space_offset, function.signature.returns)
 
-def generate_return_receivers(ctx: Ctx, offset: int, returns: Tuple[TypeId, ...]):
+def generate_return_receivers(ctx: Ctx, offset: int, returns: tuple[TypeId, ...]):
     if all(can_live_in_reg(ctx.program.sizes, r) for r in returns):
         return
     ctx.fmt.write("\n")

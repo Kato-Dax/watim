@@ -1,6 +1,9 @@
-from enum import Enum
+from __future__ import annotations
 
-class IntrinsicType(str, Enum):
+from enum import StrEnum
+
+
+class IntrinsicType(StrEnum):
     ADD = "Add"
     STORE = "Store"
     DROP = "Drop"

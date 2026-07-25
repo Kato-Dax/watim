@@ -1,19 +1,21 @@
 #!/usr/bin/env python
-from dataclasses import dataclass
-from typing import List
-import subprocess
-import tempfile
+from __future__ import annotations
+
+import concurrent.futures
+import difflib
 import glob
 import json
-import sys
 import os
-import difflib
-import concurrent.futures
-from threading import Lock
+import subprocess
+import sys
+import tempfile
+from dataclasses import dataclass
 from pathlib import Path
+from threading import Lock
 
 sys.path.insert(0, os.path.abspath('./bootstrap'))
 from bootstrap import __main__
+
 bootstrap_compiler = __main__
 
 compare_stderr = True
@@ -32,12 +34,13 @@ if "--native" in sys.argv:
     sys.argv.remove("--native")
 
 if not os.path.isfile("test.wat"):
-    if subprocess.run("bash ./run.sh ./native/main.watim compile ./test.watim -q > test.wat", shell=True).returncode != 0:
-        exit(1)
+    with open("./test.wat", encoding="utf-8") as test_wat:
+        if subprocess.run(["bash", "./run.sh", "./native/main.watim", "compile", "./test.watim", "-q"], stdout=test_wat).returncode != 0:
+            exit(1)
 
 test_wat_path = os.path.abspath("test.wat")
 def parse_test_file(path: str) -> dict | None:
-    output = subprocess.run(f"wasmtime --dir=. -- {test_wat_path} read {path}", shell=True, stdout=subprocess.PIPE)
+    output = subprocess.run(["wasmtime", "--dir=.", "--", test_wat_path, "read", path], stdout=subprocess.PIPE)
     if output.returncode != 0:
         return None
     return json.loads(output.stdout)
@@ -57,25 +60,28 @@ class CompilerOutput:
 watim_bin_path = None
 if native:
     if os.path.isfile("./watim.wasm"):
-        if subprocess.run("wasmtime --dir=. -- ./watim.wasm compile ./native/main.watim > watim.wat", shell=True).returncode != 0:
-            exit(1)
+        with open("./watim.wat", encoding="utf-8") as watim_wat:
+            output = subprocess.run(["wasmtime", "--dir=.", "--", "./watim.wasm", "compile", "./native/main.watim"], stdout=watim_wat)
+            if output.returncode != 0:
+                exit(output.returncode)
     else:
-        if subprocess.run("python bootstrap compile ./native/main.watim > watim.wat", shell=True).returncode != 0:
-            exit(1)
+        with open("./watim.wat", encoding="utf-8") as watim_wat:
+            output = subprocess.run(["python", "bootstrap", "compile", "./native/main.watim"], stdout=watim_wat)
+            if output.returncode != 0:
+                exit(output.returncode)
     watim_bin_path = os.path.realpath("./watim.wat")
 
-def run_native_compiler(cwd: str, args: List[str] | None, stdin: str):
+def run_native_compiler(cwd: str, args: list[str] | None, stdin: str):
     assert(watim_bin_path is not None)
     compiler = subprocess.run(
             ["wasmtime", "--dir=.", "--", watim_bin_path] + (args or ["compile", "-", "--quiet"]),
             input=bytes(stdin, 'UTF-8'),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             cwd=cwd)
     return CompilerOutput(compiler.returncode, compiler.stdout.decode("UTF-8").strip(), compiler.stderr.decode("UTF-8").strip())
 
 bootstrap_entry_path = os.path.realpath("./bootstrap")
-def run_bootstrap_compiler(cwd, args: List[str] | None, stdin: str) -> CompilerOutput:
+def run_bootstrap_compiler(cwd, args: list[str] | None, stdin: str) -> CompilerOutput:
     main = bootstrap_compiler.main
     stderr = ""
     stdout = ""
@@ -112,7 +118,7 @@ def accept(test_path: str):
         watpath = f"/tmp/{os.getpid()}.wat"
         with open(watpath, 'wb') as outwat:
             outwat.write(compiler.stdout.encode("UTF-8"))
-        program = subprocess.run(["wasmtime", watpath], input=bytes(test["stdin"] or "", 'UTF-8'), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        program = subprocess.run(["wasmtime", watpath], input=bytes(test["stdin"] or "", 'UTF-8'), capture_output=True)
         stdout = None if test['stdout'] is None else program.stdout.decode()
         stderr = None if test['stderr'] is None else program.stderr.decode()
         status = None if test['status'] is None else program.returncode
@@ -136,7 +142,7 @@ if len(sys.argv) > 2 and sys.argv[1] == "accept":
 
 tests = set()
 if len(sys.argv) > 1:
-    tests = set(path for pattern in sys.argv[1:] for path in glob.glob(pattern, recursive=True))
+    tests = { path for pattern in sys.argv[1:] for path in glob.glob(pattern, recursive=True) }
 else:
     tests = set(glob.glob("./tests/**/*.watim", recursive=True)).difference(set(glob.glob("./tests/fixtures/**", recursive=True)))
 
@@ -202,7 +208,7 @@ def run_test(tmpdir: str, path: str) -> bool:
         with open(outwat_path, 'wb') as outwat:
             outwat.write(compiler.stdout.encode("UTF-8"))
         if compiler.returncode == 0 and test['status'] is not None:
-            program = subprocess.run(["wasmtime", outwat_path], input=bytes(test["stdin"] or "", 'UTF-8'), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            program = subprocess.run(["wasmtime", outwat_path], input=bytes(test["stdin"] or "", 'UTF-8'), capture_output=True)
             if test['stderr'] is not None and program.stderr.strip() != test['stderr'].encode('UTF-8').strip():
                 print(f"{path}: expected different stderr:")
                 print(f"Expected:\n{test['stderr']}")
@@ -229,12 +235,11 @@ def run_test(tmpdir: str, path: str) -> bool:
         printing_lock.release()
 
 failed = False
-with tempfile.TemporaryDirectory() as tmpdir:
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        futures: List[concurrent.futures.Future[bool]] = []
-        for path in tests:
-            futures.append(executor.submit(run_test, tmpdir, path))
-        failed = not all(future.result() for future in futures)
+with tempfile.TemporaryDirectory() as tmpdir, concurrent.futures.ThreadPoolExecutor() as executor:
+    futures: list[concurrent.futures.Future[bool]] = []
+    for path in tests:
+        futures.append(executor.submit(run_test, tmpdir, path))
+    failed = not all(future.result() for future in futures)
 
 if failed:
     exit(1)

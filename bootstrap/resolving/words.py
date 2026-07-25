@@ -1,19 +1,20 @@
-from typing import Tuple
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 
 import format
 from format import Formattable, Formatter
 from lexer import Token
-
-from resolving.intrinsics import IntrinsicType
-from resolving.types import CustomTypeType, Type, CustomTypeHandle
-import resolving.type_without_holes as without_holes
 from parsing.words import (
     BreakWord as BreakWord,
-    NumberWord as NumberWord,
-    LoadWord as LoadWord,
     GetFieldWord as GetFieldWord,
+    LoadWord as LoadWord,
+    NumberWord as NumberWord,
 )
+
+import resolving.type_without_holes as without_holes
+from resolving.intrinsics import IntrinsicType
+from resolving.types import CustomTypeHandle, CustomTypeType, Type
 
 type Word = (
       NumberWord
@@ -55,7 +56,7 @@ ROOT_SCOPE: ScopeId = ScopeId(0)
 @dataclass
 class Scope(Formattable):
     id: ScopeId
-    words: Tuple[Word, ...]
+    words: tuple[Word, ...]
     def format(self, fmt: Formatter):
         fmt.unnamed_record("Scope", [self.id, format.Seq(self.words, multi_line=True)])
 
@@ -98,7 +99,7 @@ class InitLocal(Formattable):
 class GetLocal(Formattable):
     name: Token
     var: LocalId | GlobalId
-    fields: Tuple[Token, ...]
+    fields: tuple[Token, ...]
     def format(self, fmt: Formatter):
         fmt.unnamed_record("GetLocal", [
             self.name,
@@ -109,7 +110,7 @@ class GetLocal(Formattable):
 class RefLocal(Formattable):
     name: Token
     var: LocalId | GlobalId
-    fields: Tuple[Token, ...]
+    fields: tuple[Token, ...]
     def format(self, fmt: Formatter):
         fmt.unnamed_record("RefLocal", [self.name, self.var, format.Seq(self.fields, multi_line=True)])
 
@@ -117,7 +118,7 @@ class RefLocal(Formattable):
 class SetLocal(Formattable):
     name: Token
     var: LocalId | GlobalId
-    fields: Tuple[Token, ...]
+    fields: tuple[Token, ...]
     def format(self, fmt: Formatter):
         fmt.unnamed_record("SetLocal", [self.name, self.var, format.Seq(self.fields, multi_line=True)])
 
@@ -125,15 +126,15 @@ class SetLocal(Formattable):
 class StoreWord(Formattable):
     name: Token
     var: LocalId | GlobalId
-    fields: Tuple[Token, ...]
+    fields: tuple[Token, ...]
     def format(self, fmt: Formatter):
         fmt.unnamed_record("StoreLocal", [self.name, self.var, self.fields])
 
 @dataclass
 class CallWord(Formattable):
     name: Token
-    function: 'FunctionHandle'
-    generic_arguments: Tuple[Type, ...] | None
+    function: FunctionHandle
+    generic_arguments: tuple[Type, ...] | None
     def format(self, fmt: Formatter):
         fmt.unnamed_record("Call", [
             self.name,
@@ -166,8 +167,8 @@ class IfWord(Formattable):
 
 @dataclass
 class BlockAnnotation(Formattable):
-    parameters: Tuple[Type, ...]
-    returns: Tuple[Type, ...]
+    parameters: tuple[Type, ...]
+    returns: tuple[Type, ...]
     def format(self, fmt: Formatter):
         fmt.unnamed_record("BlockAnnotation", [
             format.Seq(self.parameters),
@@ -270,7 +271,7 @@ class DefaultCase(Formattable):
 class MatchWord(Formattable):
     token: Token
     variant: CustomTypeHandle
-    cases: Tuple[MatchCase, ...]
+    cases: tuple[MatchCase, ...]
     default: DefaultCase | None
     def format(self, fmt: Formatter):
         fmt.named_record("Match", [
@@ -288,8 +289,8 @@ class MatchVoidWord(Formattable):
 @dataclass
 class IndirectCallWord(Formattable):
     token: Token
-    parameters: Tuple[Type, ...]
-    returns: Tuple[Type, ...]
+    parameters: tuple[Type, ...]
+    returns: tuple[Type, ...]
     def format(self, fmt: Formatter):
         fmt.named_record("IndirectCallWord", [
             ("token", self.token),
@@ -299,7 +300,7 @@ class IndirectCallWord(Formattable):
 @dataclass
 class StackAnnotation(Formattable):
     token: Token
-    types: Tuple[Type, ...]
+    types: tuple[Type, ...]
     def format(self, fmt: Formatter):
         fmt.unnamed_record("StackAnnotation", [
             self.token,
@@ -309,7 +310,7 @@ class StackAnnotation(Formattable):
 class IntrinsicWord(Formattable):
     token: Token
     ty: IntrinsicType
-    generic_arguments: Tuple[Type, ...] | None
+    generic_arguments: tuple[Type, ...] | None
     def format(self, fmt: Formatter):
         fmt.unnamed_record("Intrinsic", [self.token, self.ty, format.Optional(format.Seq(self.generic_arguments) if self.generic_arguments is not None else None)])
 

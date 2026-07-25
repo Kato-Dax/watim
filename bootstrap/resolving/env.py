@@ -1,18 +1,20 @@
-from typing import Dict, List, Tuple
+from __future__ import annotations
 
-from util import Ref
 from lexer import Token
+from util import Ref
+
 from resolving.top_items import Local
-from resolving.words import ScopeId, LocalId
+from resolving.words import LocalId, ScopeId
+
 
 class Env:
-    parent: 'Env | None'
+    parent: Env | None
     scope_counter: Ref[int]
     scope_id: ScopeId
-    vars: Dict[str, List[Tuple[Local, LocalId]]]
-    vars_by_id: Dict[LocalId, Local]
+    vars: dict[str, list[tuple[Local, LocalId]]]
+    vars_by_id: dict[LocalId, Local]
 
-    def __init__(self, parent: 'Env | List[Local]'):
+    def __init__(self, parent: Env | list[Local]):
         if isinstance(parent, Env):
             self.parent = parent
         else:
@@ -49,5 +51,5 @@ class Env:
         self.vars_by_id[id] = var
         return id
 
-    def child(self) -> 'Env':
+    def child(self) -> Env:
         return Env(self)

@@ -1,19 +1,31 @@
-from typing import Dict, Tuple, Sequence, NoReturn, Iterable, assert_never
-from dataclasses import dataclass
+from __future__ import annotations
 
+from collections.abc import Iterable, Sequence
+from dataclasses import dataclass
+from typing import NoReturn, assert_never
+
+import parsing.parser as parsed
 from indexed_dict import IndexedDict
 from lexer import Token
-import parsing.parser as parsed
 from parsing.types import I8, I32, I64, Bool, GenericType, HoleType
-from resolving.types import Type, NamedType, PtrType, FunctionType, CustomTypeType, CustomTypeHandle
+
 import resolving.type_without_holes as without_holes
-from resolving.top_items import Import, TypeDefinition, Struct, Variant
 from resolving.module import Module, ResolveException
+from resolving.top_items import Import, Struct, TypeDefinition, Variant
+from resolving.types import (
+    CustomTypeHandle,
+    CustomTypeType,
+    FunctionType,
+    NamedType,
+    PtrType,
+    Type,
+)
+
 
 @dataclass
 class TypeLookup:
     module: int | None
-    modules: Tuple[Module, ...]
+    modules: tuple[Module, ...]
     type_definitions: IndexedDict[str, TypeDefinition] | None
     def lookup(self, handle: CustomTypeHandle) -> TypeDefinition:
         if self.module is not None and self.module == handle.module and self.type_definitions is not None:
@@ -40,14 +52,14 @@ class TypeLookup:
             return "i64"
         if isinstance(taip, Bool):
             return "bool"
-        if isinstance(taip, PtrType) or isinstance(taip, without_holes.PtrType):
+        if isinstance(taip, (PtrType, without_holes.PtrType)):
             return f".{self.type_pretty(taip.child)}"
-        if isinstance(taip, CustomTypeType) or isinstance(taip, without_holes.CustomTypeType):
+        if isinstance(taip, (CustomTypeType, without_holes.CustomTypeType)):
             s = self.lookup(taip.type_definition).name.lexeme
             if len(taip.generic_arguments) != 0:
                 return f"{s}<{self.types_pretty(taip.generic_arguments)}>"
             return s
-        if isinstance(taip, FunctionType) or isinstance(taip, without_holes.FunctionType):
+        if isinstance(taip, (FunctionType, without_holes.FunctionType)):
             return f"({self.types_pretty(taip.parameters)} -> {self.types_pretty(taip.returns)})"
         if isinstance(taip, GenericType):
             return taip.token.lexeme
@@ -62,21 +74,19 @@ class TypeLookup:
             if self.is_directly_recursive(handle, ()):
                 yield handle
 
-    def is_directly_recursive(self, handle: CustomTypeHandle, stack: Tuple[CustomTypeHandle, ...] = ()) -> bool:
+    def is_directly_recursive(self, handle: CustomTypeHandle, stack: tuple[CustomTypeHandle, ...] = ()) -> bool:
         if handle in stack:
             return True
         taip = self.lookup(handle)
         match taip:
             case Struct():
                 for field in taip.fields:
-                    if isinstance(field.taip, without_holes.CustomTypeType):
-                        if self.is_directly_recursive(field.taip.type_definition, (handle,) + stack):
-                            return True
+                    if isinstance(field.taip, without_holes.CustomTypeType) and self.is_directly_recursive(field.taip.type_definition, (handle, *stack)):
+                        return True
             case Variant():
                 for case in taip.cases:
-                    if isinstance(case.taip, without_holes.CustomTypeType):
-                        if self.is_directly_recursive(case.taip.type_definition, (handle,) + stack):
-                            return True
+                    if isinstance(case.taip, without_holes.CustomTypeType) and self.is_directly_recursive(case.taip.type_definition, (handle, *stack)):
+                        return True
             case other:
                 assert_never(other)
         return False
@@ -85,7 +95,7 @@ class TypeLookup:
 class TypeResolver:
     module_id: int
     module_path: str
-    imports: Dict[str, Tuple[Import, ...]]
+    imports: dict[str, tuple[Import, ...]]
     module: parsed.Module
     modules: IndexedDict[str, Module]
 
@@ -98,7 +108,7 @@ class TypeResolver:
     def resolve_type(self, taip: parsed.Type) -> Type:
         if isinstance(taip, parsed.PtrType):
             return PtrType(self.resolve_type(taip.child))
-        if isinstance(taip, parsed.CustomTypeType) or isinstance(taip, parsed.ForeignType):
+        if isinstance(taip, (parsed.CustomTypeType, parsed.ForeignType)):
             return self.resolve_custom_type(taip)
         if isinstance(taip, parsed.FunctionType):
             return FunctionType(
@@ -108,7 +118,7 @@ class TypeResolver:
             )
         return taip
 
-    def resolve_types(self, types: Sequence[parsed.Type]) -> Tuple[Type, ...]:
+    def resolve_types(self, types: Sequence[parsed.Type]) -> tuple[Type, ...]:
         return tuple(self.resolve_type(taip) for taip in types)
 
     def resolve_custom_type(self, taip: parsed.CustomTypeType | parsed.ForeignType) -> CustomTypeType:

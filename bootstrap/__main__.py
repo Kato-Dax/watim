@@ -1,43 +1,39 @@
-#!/usr/bin/env python
-from dataclasses import dataclass
-from typing import List, Dict, Tuple
-import sys
+from __future__ import annotations
+
 import os
+import sys
+from dataclasses import dataclass
 
-import format
-
-from parsing.parser import ParseException
-import parsing.parser as parser
-from util import sys_stdin
-from indexed_dict import IndexedDict
-
-from lexer import TokenLocation, Lexer
-
-import resolving as resolved
-from resolving import ModuleResolver, ResolveException
-
-import unstacking as unstacking
-import inference as inference
-from inference import InferenceException as InferenceException
-
-import monomorphization
-import local_merging
 import codegen
+import format
+import inference as inference
+import local_merging
+import monomorphization
+import parsing.parser as parser
+import resolving as resolved
+import unstacking as unstacking
+from indexed_dict import IndexedDict
+from inference import InferenceException as InferenceException
+from lexer import Lexer, TokenLocation
+from parsing.parser import ParseException
+from resolving import ModuleResolver, ResolveException
+from util import sys_stdin
+
 
 def load_recursive(
-        modules: Dict[str, parser.Module],
+        modules: dict[str, parser.Module],
         path: str,
         path_location: TokenLocation | None,
         stdin: str | None = None,
-        import_stack: List[str]=[]):
+        import_stack: tuple[str, ...]=()):
     if path == "-":
         file = stdin if stdin is not None else sys_stdin.get()
     else:
         try:
-            with open(path, 'r') as reader:
+            with open(path) as reader:
                 file = reader.read()
-        except FileNotFoundError:
-            raise ParseException(path_location, f"File not found: ./{path}")
+        except FileNotFoundError as e:
+            raise ParseException(path_location, f"File not found: ./{path}") from e
 
     tokens = Lexer(file).lex()
     module = parser.Parser(path, file, tokens).parse()
@@ -54,17 +50,15 @@ def load_recursive(
             raise ParseException(TokenLocation(path, imp.file_path.line, imp.file_path.column), error_message)
         if p in modules:
             continue
-        import_stack.append(p)
         load_recursive(
             modules,
             p,
             TokenLocation(path, imp.file_path.line, imp.file_path.column),
             stdin,
-            import_stack,
+            (*import_stack, p),
         )
-        import_stack.pop()
 
-def determine_compilation_order(modules: Dict[str, parser.Module]) -> IndexedDict[str, parser.Module]:
+def determine_compilation_order(modules: dict[str, parser.Module]) -> IndexedDict[str, parser.Module]:
     unprocessed: IndexedDict[str, parser.Module] = IndexedDict.from_items(modules.items())
     ordered: IndexedDict[str, parser.Module] = IndexedDict()
     while len(unprocessed) > 0:
@@ -77,7 +71,7 @@ def determine_compilation_order(modules: Dict[str, parser.Module]) -> IndexedDic
                     path = os.path.normpath(os.path.dirname(module_path) + "/" + imp.file_path.lexeme[1:-1])
                 else:
                     path = os.path.normpath(imp.file_path.lexeme[1:-1])
-                if "./"+path not in ordered.keys():
+                if "./"+path not in ordered:
                     postpone = True
                     break
             if postpone:
@@ -87,7 +81,7 @@ def determine_compilation_order(modules: Dict[str, parser.Module]) -> IndexedDic
             unprocessed.delete(i)
     return ordered
 
-def resolve_modules(modules_unordered: Dict[str, parser.Module]) -> IndexedDict[str, resolved.Module]:
+def resolve_modules(modules_unordered: dict[str, parser.Module]) -> IndexedDict[str, resolved.Module]:
     modules: IndexedDict[str, parser.Module] = determine_compilation_order({
         ("./" + path if path != "-" else path): module
         for path, module in modules_unordered.items()
@@ -103,8 +97,8 @@ def infer_modules(resolved_modules: IndexedDict[str, resolved.Module]) -> Indexe
         inferred[file_path] = infer_module(tuple(resolved_modules.values()), resolved_module)
     return inferred
 
-def infer_module(modules: Tuple[resolved.Module, ...], module: resolved.Module) -> inference.Module:
-    functions: List[inference.Function | inference.Extern] = []
+def infer_module(modules: tuple[resolved.Module, ...], module: resolved.Module) -> inference.Module:
+    functions: list[inference.Function | inference.Extern] = []
     globals = tuple(module.globals.values())
     type_lookup = resolved.TypeLookup(module.id, modules, module.type_definitions)
     for handle in type_lookup.find_directly_recursive_types():
@@ -144,7 +138,7 @@ class Unstack:
 @dataclass
 class Infer:
     path: str
-    functions: Tuple[str, ...]
+    functions: tuple[str, ...]
 
 @dataclass
 class Monomize:
@@ -160,7 +154,7 @@ def read_path(path: str, stdin: str | None = None) -> str:
     if path == "-":
         return stdin if stdin is not None else sys_stdin.get()
     else:
-        with open(path, 'r') as reader:
+        with open(path) as reader:
             return reader.read()
 
 def run(cmd: Cmd, guard_stack: bool, stdin: str | None = None) -> str:
@@ -174,7 +168,7 @@ def run(cmd: Cmd, guard_stack: bool, stdin: str | None = None) -> str:
             module = parser.Parser(path, file_content, tokens).parse()
             return str(module)
         case Resolve(path):
-            modules: Dict[str, parser.Module] = {}
+            modules: dict[str, parser.Module] = {}
             load_recursive(modules, os.path.normpath(path), None, stdin)
             resolved_modules = resolve_modules(modules)
             return str(resolved_modules.formattable(format.Str, lambda x: x))
@@ -263,7 +257,7 @@ Options:
 class CliArgException(Exception):
     message: str
 
-def main(argv: List[str], stdin: str | None = None) -> str:
+def main(argv: list[str], stdin: str | None = None) -> str:
     argv = [arg for arg in argv if arg != "-q" and arg != "--quiet"]
     if len(argv) == 1:
         raise CliArgException(help)

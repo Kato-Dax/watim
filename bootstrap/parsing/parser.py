@@ -1,16 +1,75 @@
-from typing import List, Tuple, NoReturn, TypeGuard, Callable
+from __future__ import annotations
+
+from collections.abc import Callable
 from dataclasses import dataclass
+from typing import NoReturn, TypeGuard
 
 import format
 from format import Formattable, Formatter
-from lexer import Token, TokenType, TokenLocation
-from parsing.types import Type, ForeignType, CustomTypeType, NamedType, I8, I32, I64, Bool, PtrType, GenericType, FunctionType, HoleType
-from parsing.words import Word, Words, IfWord, NumberWord, StringWord, InlineRefWord, GetWord, RefWord, LoadWord, BlockAnnotation, BlockWord, StructWord, VariantWord, CastWord, SetWord, StoreWord, InitWord, IndirectCallWord, SizeofWord, GetFieldWord, ForeignCallWord, FunRefWord, LoopWord, MatchCase, MatchWord, CallWord, BreakWord, StackAnnotation, StructWordNamed
-from parsing.top_items import Struct, Variant, Function, Extern, Global, TypeDefinition, Import, VariantCase, FunctionSignature, VariantImport
+from lexer import Token, TokenLocation, TokenType
+
+from parsing.top_items import (
+    Extern,
+    Function,
+    FunctionSignature,
+    Global,
+    Import,
+    Struct,
+    TypeDefinition,
+    Variant,
+    VariantCase,
+    VariantImport,
+)
+from parsing.types import (
+    I8,
+    I32,
+    I64,
+    Bool,
+    CustomTypeType,
+    ForeignType,
+    FunctionType,
+    GenericType,
+    HoleType,
+    NamedType,
+    PtrType,
+    Type,
+)
+from parsing.words import (
+    BlockAnnotation,
+    BlockWord,
+    BreakWord,
+    CallWord,
+    CastWord,
+    ForeignCallWord,
+    FunRefWord,
+    GetFieldWord,
+    GetWord,
+    IfWord,
+    IndirectCallWord,
+    InitWord,
+    InlineRefWord,
+    LoadWord,
+    LoopWord,
+    MatchCase,
+    MatchWord,
+    NumberWord,
+    RefWord,
+    SetWord,
+    SizeofWord,
+    StackAnnotation,
+    StoreWord,
+    StringWord,
+    StructWord,
+    StructWordNamed,
+    VariantWord,
+    Word,
+    Words,
+)
+
 
 @dataclass
 class ParseException(Exception):
-    location: TokenLocation | Tuple[str, str] | None
+    location: TokenLocation | tuple[str, str] | None
     message: str
 
     def display(self) -> str:
@@ -32,10 +91,10 @@ class ParseException(Exception):
 class Module(Formattable):
     path: str
     file: str
-    imports: List[Import]
-    type_definitions: List[TypeDefinition]
-    globals: List[Global]
-    functions: List[Function | Extern]
+    imports: list[Import]
+    type_definitions: list[TypeDefinition]
+    globals: list[Global]
+    functions: list[Function | Extern]
     def format(self, fmt: Formatter):
         fmt.named_record("Module", [
             ("imports", format.Seq(self.imports, multi_line=True)),
@@ -47,7 +106,7 @@ class Module(Formattable):
 class Parser:
     file_path: str
     file: str
-    tokens: List[Token]
+    tokens: list[Token]
     cursor: int = 0
 
     # ========================================
@@ -90,7 +149,7 @@ class Parser:
     # Parsing routines
     # ========================================
     def parse(self) -> Module:
-        top_items: List[Import | TypeDefinition | Global | Function | Extern] = []
+        top_items: list[Import | TypeDefinition | Global | Function | Extern] = []
         while len(self.tokens) != 0:
             token = self.advance(skip_ws=True)
             if token is None:
@@ -123,7 +182,7 @@ class Parser:
                             items.append(item)
                             break
                         if comma.ty == TokenType.LEFT_PAREN:
-                            constructors: List[Token] = []
+                            constructors: list[Token] = []
                             while True:
                                 constructor = self.advance(skip_ws=True)
                                 if constructor is None:
@@ -197,7 +256,7 @@ class Parser:
                 brace = self.advance(skip_ws=True)
                 if brace is None or brace.ty != TokenType.LEFT_BRACE:
                     self.abort("Expected `{`")
-                cases: List[VariantCase] = []
+                cases: list[VariantCase] = []
                 while True:
                     next = self.peek(skip_ws=True)
                     if next is None or next.ty == TokenType.RIGHT_BRACE:
@@ -233,13 +292,13 @@ class Parser:
         def is_import(obj: object) -> TypeGuard[Import]:
             return isinstance(obj, Import)
         def is_type_definition(obj: object) -> TypeGuard[TypeDefinition]:
-            return isinstance(obj, Struct) or isinstance(obj, Variant)
+            return isinstance(obj, (Struct, Variant))
         def is_global(obj: object) -> TypeGuard[Global]:
            return isinstance(obj, Global)
-        imports: List[Import] = list(filter(is_import, top_items))
-        type_definitions: List[TypeDefinition] = list(filter(is_type_definition, top_items))
-        globals: List[Global] = list(filter(is_global, top_items))
-        functions: List[Function | Extern] = [f for f in top_items if isinstance(f, Function) or isinstance(f, Extern)]
+        imports: list[Import] = list(filter(is_import, top_items))
+        type_definitions: list[TypeDefinition] = list(filter(is_type_definition, top_items))
+        globals: list[Global] = list(filter(is_global, top_items))
+        functions: list[Function | Extern] = [f for f in top_items if isinstance(f, (Function, Extern))]
         return Module(self.file_path, self.file, imports, type_definitions, globals, functions)
 
     def parse_function(self, start: Token) -> Function:
@@ -250,8 +309,8 @@ class Parser:
         body = self.parse_words(signature.generic_parameters)
         return Function(start, signature, body.words)
 
-    def parse_words(self, generic_parameters: Tuple[Token, ...]) -> Words:
-        words: List[Word] = []
+    def parse_words(self, generic_parameters: tuple[Token, ...]) -> Words:
+        words: list[Word] = []
         while True:
             token = self.peek(skip_ws=True)
             if token is not None and token.ty == TokenType.RIGHT_BRACE:
@@ -259,7 +318,7 @@ class Parser:
                 return Words(tuple(words), token)
             words.append(self.parse_word(generic_parameters))
 
-    def parse_word(self, generic_parameters: Tuple[Token, ...]) -> Word:
+    def parse_word(self, generic_parameters: tuple[Token, ...]) -> Word:
         token = self.advance(skip_ws=True)
         if token is None:
             self.abort("Expected a word")
@@ -297,7 +356,7 @@ class Parser:
             if name is None or name.ty != TokenType.IDENT:
                 self.abort("Expected an identifier as variable name")
             token = self.peek(skip_ws=True)
-            def construct(name: Token, fields: Tuple[Token, ...]) -> Word:
+            def construct(name: Token, fields: tuple[Token, ...]) -> Word:
                 match indicator_token.ty:
                     case TokenType.DOLLAR:
                         return GetWord(indicator_token, name, fields)
@@ -420,7 +479,7 @@ class Parser:
             brace = self.advance(skip_ws=True)
             if brace is None or brace.ty != TokenType.LEFT_BRACE:
                 self.abort("Expected `{`")
-            cases: List[MatchCase] = []
+            cases: list[MatchCase] = []
             while True:
                 cays = self.peek(skip_ws=True)
                 if cays is None or cays.ty == TokenType.RIGHT_BRACE:
@@ -467,7 +526,7 @@ class Parser:
             next = self.advance(skip_ws=True)
             if next is None or next.ty != TokenType.LEFT_PAREN:
                 self.abort("Expected `(`")
-            types: List[Type] = []
+            types: list[Type] = []
             while True:
                 next = self.peek(skip_ws=True)
                 if next is not None and next.ty == TokenType.RIGHT_PAREN:
@@ -486,7 +545,7 @@ class Parser:
             return IndirectCallWord(token, fun_type.parameters, fun_type.returns)
         self.abort("Expected word")
 
-    def parse_call_word(self, generic_parameters: Tuple[Token, ...], token: Token) -> CallWord | ForeignCallWord:
+    def parse_call_word(self, generic_parameters: tuple[Token, ...], token: Token) -> CallWord | ForeignCallWord:
         next = self.peek(skip_ws=False)
         if next is not None and next.ty == TokenType.COLON:
             module = token
@@ -501,7 +560,7 @@ class Parser:
         generic_arguments = self.parse_generic_arguments(generic_parameters) if next is not None and next.ty == TokenType.LEFT_TRIANGLE else None
         return CallWord(name, generic_arguments)
 
-    def parse_field_accesses(self) -> Tuple[Token, ...]:
+    def parse_field_accesses(self) -> tuple[Token, ...]:
         fields = []
         while True:
             token = self.peek(skip_ws=False)
@@ -573,7 +632,7 @@ class Parser:
 
         return FunctionSignature(function_export_name, function_ident, generic_parameters, tuple(parameters), tuple(returns))
 
-    def parse_triangle_listed[T](self, elem: Callable[['Parser'], T]) -> Tuple[T, ...]:
+    def parse_triangle_listed[T](self, elem: Callable[[Parser], T]) -> tuple[T, ...]:
         token = self.advance(skip_ws=True)
         if token is None or token.ty != TokenType.LEFT_TRIANGLE:
             self.abort("Expected `<`")
@@ -593,12 +652,12 @@ class Parser:
                 self.abort("Expected `,`")
         return tuple(items)
 
-    def parse_generic_arguments(self, generic_parameters: Tuple[Token, ...]) -> Tuple[Type, ...]:
+    def parse_generic_arguments(self, generic_parameters: tuple[Token, ...]) -> tuple[Type, ...]:
         next = self.peek(skip_ws=False)
         return self.parse_triangle_listed(lambda self: self.parse_type(generic_parameters)) if next is not None and next.ty == TokenType.LEFT_TRIANGLE else ()
 
 
-    def parse_optional_generic_arguments(self, generic_parameters: Tuple[Token, ...]) -> Tuple[Type, ...] | None:
+    def parse_optional_generic_arguments(self, generic_parameters: tuple[Token, ...]) -> tuple[Type, ...] | None:
         next = self.peek(skip_ws=False)
         if next is None:
             return None
@@ -606,7 +665,7 @@ class Parser:
             return None
         return self.parse_generic_arguments(generic_parameters)
 
-    def parse_generic_parameters(self) -> Tuple[Token, ...]:
+    def parse_generic_parameters(self) -> tuple[Token, ...]:
         def parse_ident(self):
             token = self.advance(skip_ws=True)
             if token is None or token.ty != TokenType.IDENT:
@@ -615,7 +674,7 @@ class Parser:
         next = self.peek(skip_ws=False)
         return self.parse_triangle_listed(parse_ident) if next is not None and next.ty == TokenType.LEFT_TRIANGLE else ()
 
-    def parse_struct_type(self, token: Token | None, generic_parameters: Tuple[Token, ...]) -> CustomTypeType | ForeignType:
+    def parse_struct_type(self, token: Token | None, generic_parameters: tuple[Token, ...]) -> CustomTypeType | ForeignType:
         if token is None or token.ty != TokenType.IDENT:
             self.abort("Expected an identifer as struct name")
         next = self.peek(skip_ws=True)
@@ -632,7 +691,7 @@ class Parser:
                 self.abort("Expected an identifier as struct name")
             return CustomTypeType(struct_name, self.parse_optional_generic_arguments(generic_parameters))
 
-    def parse_type(self, generic_parameters: Tuple[Token, ...]) -> Type:
+    def parse_type(self, generic_parameters: tuple[Token, ...]) -> Type:
         token = self.advance(skip_ws=True)
         if token is None:
             self.abort("Expected a type")
@@ -649,7 +708,7 @@ class Parser:
         if token.ty == TokenType.UNDERSCORE:
             return HoleType(token)
         if token.ty == TokenType.IDENT:
-            for generic_index, lexeme in enumerate(map(lambda t: t.lexeme, generic_parameters)):
+            for generic_index, lexeme in enumerate(t.lexeme for t in generic_parameters):
                 if lexeme == token.lexeme:
                     return GenericType(token, generic_index)
             return self.parse_struct_type(token, generic_parameters)
@@ -657,7 +716,7 @@ class Parser:
             return self.parse_fun_type(generic_parameters, token)
         self.abort("Expected type")
 
-    def parse_fun_type(self, generic_parameters: Tuple[Token, ...], token: Token) -> FunctionType:
+    def parse_fun_type(self, generic_parameters: tuple[Token, ...], token: Token) -> FunctionType:
         args = []
         while True:
             next = self.peek(skip_ws=True)

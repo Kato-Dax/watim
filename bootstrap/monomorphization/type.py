@@ -1,13 +1,13 @@
-from typing import Tuple
+from __future__ import annotations
+
 from dataclasses import dataclass
 
-from format import Formattable, Formatter
 import format
-
+from format import Formattable, Formatter
 from lexer import Token
-
-from parsing.types import Bool, I8, I32, I64
+from parsing.types import I8, I32, I64, Bool
 from resolving.types import CustomTypeHandle
+
 
 @dataclass(frozen=True, eq=True)
 class TypeId(Formattable):
@@ -40,7 +40,7 @@ class PtrType(Formattable):
 @dataclass(frozen=True, eq=True)
 class Struct(Formattable):
     name: Token
-    fields: Tuple[NamedTypeId, ...]
+    fields: tuple[NamedTypeId, ...]
     def format(self, fmt: Formatter):
         fmt.named_record("Struct", [("name", self.name), ("fields", format.Seq(self.fields, multi_line=True))])
 
@@ -54,7 +54,7 @@ class VariantCase(Formattable):
 @dataclass(frozen=True)
 class Variant(Formattable):
     name: Token
-    cases: Tuple[VariantCase, ...]
+    cases: tuple[VariantCase, ...]
     def format(self, fmt: Formatter):
         fmt.named_record("Variant", [
             ("name", self.name),
@@ -64,8 +64,8 @@ type TypeDefinition = Struct | Variant
 
 @dataclass(frozen=True, eq=True)
 class FunType(Formattable):
-    parameters: Tuple[TypeId, ...]
-    returns: Tuple[TypeId, ...]
+    parameters: tuple[TypeId, ...]
+    returns: tuple[TypeId, ...]
     def format(self, fmt: Formatter):
         fmt.unnamed_record("FunType", [self.parameters, self.returns])
 

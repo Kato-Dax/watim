@@ -1,15 +1,16 @@
-from typing import Tuple
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 from format import Formatter
+from monomorphization import CustomTypeHandle, Monomized, Type, TypeDefinition, TypeId
 
-from monomorphization import Monomized, TypeId, Type, CustomTypeHandle, TypeDefinition
 
 @dataclass
 class Ctx:
     fmt: Formatter
     program: Monomized
-    module_data_offsets: Tuple[int, ...]
+    module_data_offsets: tuple[int, ...]
     guard_stack: bool
     flip_i32_i32_used: bool
     flip_i32_i64_used: bool

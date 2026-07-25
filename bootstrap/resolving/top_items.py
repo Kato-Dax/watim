@@ -1,13 +1,16 @@
-from typing import Dict, Tuple, Set, Literal, Callable
+from __future__ import annotations
+
+from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Literal
 
 import format
 from format import Formattable, Formatter
-
 from lexer import Token
-from resolving.words import FunctionHandle, Scope, LocalId
-from resolving.types import CustomTypeHandle, NamedType
+
 import resolving.type_without_holes as without_holes
+from resolving.types import CustomTypeHandle, NamedType
+from resolving.words import FunctionHandle, LocalId, Scope
 
 type TopItem = Import | Struct | Variant | Extern | Function
 type TypeDefinition = Struct | Variant
@@ -23,7 +26,7 @@ class StructImport(Formattable):
 class VariantImport(Formattable):
     name: Token
     handle: CustomTypeHandle
-    constructors: Tuple[int, ...]
+    constructors: tuple[int, ...]
     def format(self, fmt: Formatter):
         fmt.unnamed_record("VariantImport", [
             self.name,
@@ -45,7 +48,7 @@ class Import(Formattable):
     file_path: str
     qualifier: Token
     module: int
-    items: Tuple[ImportItem, ...]
+    items: tuple[ImportItem, ...]
     def format(self, fmt: Formatter):
         fmt.unnamed_record("Import", [
             self.token,
@@ -57,8 +60,8 @@ class Import(Formattable):
 @dataclass
 class Struct(Formattable):
     name: Token
-    generic_parameters: Tuple[Token, ...]
-    fields: Tuple[without_holes.NamedType, ...]
+    generic_parameters: tuple[Token, ...]
+    fields: tuple[without_holes.NamedType, ...]
     def format(self, fmt: Formatter):
         fmt.named_record("Struct", [
             ("name", self.name),
@@ -75,8 +78,8 @@ class VariantCase(Formattable):
 @dataclass
 class Variant(Formattable):
     name: Token
-    generic_parameters: Tuple[Token, ...]
-    cases: Tuple[VariantCase, ...]
+    generic_parameters: tuple[Token, ...]
+    cases: tuple[VariantCase, ...]
     def format(self, fmt: Formatter):
         fmt.named_record("Variant", [
             ("name", self.name),
@@ -86,7 +89,7 @@ class Variant(Formattable):
 @dataclass(frozen=True)
 class MustBeOneOf:
     generic: int
-    allowed: Set[without_holes.Type | Literal["AnyPtr"]]
+    allowed: set[without_holes.Type | Literal["AnyPtr"]]
     def format(self, fmt: Formatter):
         return fmt.unnamed_record("MustBeOneOf", [self.generic, format.Seq(self.allowed)])
 
@@ -94,7 +97,7 @@ class MustBeOneOf:
 class MustSatisfyPredicate(Formattable):
     name: str
     description: str
-    predicate: Callable[[Tuple[without_holes.Type | None, ...]], str | None]
+    predicate: Callable[[tuple[without_holes.Type | None, ...]], str | None]
     def format(self, fmt: Formatter):
         return fmt.unnamed_record("MustSatisfyPredicate", [self.name])
 
@@ -102,10 +105,10 @@ type ConstraintOnGeneric = MustBeOneOf | MustSatisfyPredicate
 
 @dataclass
 class FunctionSignature(Formattable):
-    generic_parameters: Tuple[Token, ...]
-    parameters: Tuple[without_holes.NamedType, ...]
-    returns: Tuple[without_holes.Type, ...]
-    constraints: Tuple[ConstraintOnGeneric, ...] = ()
+    generic_parameters: tuple[Token, ...]
+    parameters: tuple[without_holes.NamedType, ...]
+    returns: tuple[without_holes.Type, ...]
+    constraints: tuple[ConstraintOnGeneric, ...] = ()
     def format(self, fmt: Formatter):
         fmt.named_record("Signature", [
             ("generic-parameters", format.Seq(self.generic_parameters)),
@@ -115,10 +118,10 @@ class FunctionSignature(Formattable):
 
 @dataclass
 class IntrinsicSignature(Formattable):
-    generic_parameters: Tuple[str, ...]
-    parameters: Tuple[without_holes.Type, ...]
-    returns: Tuple[without_holes.Type, ...]
-    constraints: Tuple[ConstraintOnGeneric, ...] = ()
+    generic_parameters: tuple[str, ...]
+    parameters: tuple[without_holes.Type, ...]
+    returns: tuple[without_holes.Type, ...]
+    constraints: tuple[ConstraintOnGeneric, ...] = ()
     def format(self, fmt: Formatter):
         fmt.named_record("IntrinsicSignature", [
             ("generic-parameters", format.Seq(map(format.Str, self.generic_parameters))),
@@ -170,11 +173,11 @@ class Local(Formattable):
     parameter: without_holes.Type | None # if this local is a parameter, then this will be non-None
 
     @staticmethod
-    def make(taip: NamedType) -> 'Local':
+    def make(taip: NamedType) -> Local:
         return Local(FromSource(taip.name), None)
 
     @staticmethod
-    def make_parameter(taip: without_holes.NamedType) -> 'Local':
+    def make_parameter(taip: without_holes.NamedType) -> Local:
         return Local(FromSource(taip.name), taip.taip)
 
     def format(self, fmt: Formatter):
@@ -186,13 +189,13 @@ class Function(Formattable):
     export_name: Token | None
     signature: FunctionSignature
     body: Scope
-    locals: Dict[LocalId, Local]
+    locals: dict[LocalId, Local]
     def format(self, fmt: Formatter):
         fmt.named_record("Function", [
             ("name", self.name),
             ("export", format.Optional(self.export_name)),
             ("signature", self.signature),
-            ("locals", format.Dict(dict((k,v) for k,v in self.locals.items()))),
+            ("locals", format.Dict(dict(self.locals.items()))),
             ("body", self.body)])
 
 @dataclass

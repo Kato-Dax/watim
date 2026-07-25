@@ -1,18 +1,28 @@
-from typing import Dict, Tuple
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 import format
 from format import Formattable, Formatter
-
 from indexed_dict import IndexedDict
 from lexer import Token
-from resolving.top_items import Import, TypeDefinition, Function, Extern, Global, FunctionHandle, CustomTypeHandle
+
+from resolving.top_items import (
+    CustomTypeHandle,
+    Extern,
+    Function,
+    FunctionHandle,
+    Global,
+    Import,
+    TypeDefinition,
+)
+
 
 @dataclass
 class Module(Formattable):
     path: str
     id: int
-    imports: Dict[str, Tuple[Import, ...]]
+    imports: dict[str, tuple[Import, ...]]
     type_definitions: IndexedDict[str, TypeDefinition]
     globals: IndexedDict[str, Global]
     functions: IndexedDict[str, Function | Extern]
@@ -20,7 +30,7 @@ class Module(Formattable):
 
     def format(self, fmt: Formatter):
         fmt.named_record("Module", [
-            ("imports", format.Dict(dict((format.Str(k),v) for k,v in self.imports.items()))),
+            ("imports", format.Dict({ format.Str(k): v  for k,v in self.imports.items() })),
             ("type-definitions", self.type_definitions.formattable(format.Str, lambda x: x)),
             ("globals", self.globals.formattable(format.Str, lambda x: x)),
             ("functions", self.functions.formattable(format.Str, lambda x: x)),

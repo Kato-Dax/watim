@@ -1,13 +1,16 @@
-from typing import Sequence, Callable, Tuple, Iterator, Dict, Iterable, List
-from functools import reduce
-from dataclasses import dataclass
+from __future__ import annotations
+
 import sys
+from collections.abc import Callable, Iterable, Iterator, Sequence
+from dataclasses import dataclass
+from functools import reduce
+
 
 def indent_non_first(s: str) -> str:
-    return reduce(lambda a,b: f"{a}  {b}", map(lambda s: f"{s}", s.splitlines(keepends=True)))
+    return reduce(lambda a,b: f"{a}  {b}", (f"{s}" for s in s.splitlines(keepends=True)))
 
 def indent(s: str) -> str:
-    return reduce(lambda a,b: f"{a}{b}", map(lambda s: f"  {s}", s.splitlines(keepends=True)))
+    return reduce(lambda a,b: f"{a}{b}", (f"  {s}" for s in s.splitlines(keepends=True)))
 
 def listtostr[T](seq: Sequence[T], tostr: Callable[[T], str] | None = None, multi_line: bool = False) -> str:
     if len(seq) == 0:
@@ -17,7 +20,7 @@ def listtostr[T](seq: Sequence[T], tostr: Callable[[T], str] | None = None, mult
         v = str(e) if tostr is None else tostr(e)
         s += indent(v) if multi_line else v
         s += ",\n" if multi_line else ", "
-    return s[0:-2] + "]" if multi_line else s[0:-2] + "]"
+    return s[0:-2] + "]"
 
 def intersperse[T](sep: T, seq: Iterable[T]) -> Iterator[T]:
     first = True
@@ -33,10 +36,7 @@ def intercalate(sep: str, seq: Iterable[str]) -> str:
 def seq_eq[T](a: Sequence[T], b: Sequence[T]) -> bool:
     if len(a) != len(b):
         return False
-    for x,y in zip(a, b):
-        if x != y:
-            return False
-    return True
+    return all(x == y for x, y in zip(a, b, strict=True))
 
 @dataclass
 class Lazy[T]:
@@ -60,8 +60,8 @@ sys_stdin = Lazy(lambda: sys.stdin.read())
 class Ref[T]:
     value: T
 
-def bag[K, V](items: Iterator[Tuple[K, V]]) -> Dict[K, List[V]]:
-    bag: Dict[K, List[V]] = {}
+def bag[K, V](items: Iterator[tuple[K, V]]) -> dict[K, list[V]]:
+    bag: dict[K, list[V]] = {}
     for k,v in items:
         if k in bag:
             bag[k].append(v)

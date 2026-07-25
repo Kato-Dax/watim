@@ -1,37 +1,64 @@
-from typing import List, Dict, Tuple, Iterable, Callable, assert_never
-from dataclasses import dataclass
-
-import format
-from format import Formattable, Formatter
+from __future__ import annotations
 
 import copy
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass
+from typing import assert_never
 
-from util import Ref
-
-from lexer import Token, TokenType
-from parsing.types import Bool, I64, I32, I8
-
+import format
 import resolving.module as resolved
 import resolving.type_without_holes as without_holes
-from resolving.type_without_holes import Type, CustomTypeHandle, GenericType, PtrType
 import resolving.types as with_holes
-from resolving.top_items import Signature, IntrinsicSignature, FunctionSignature, LocalName, Global as ResolvedGlobal, TypeDefinition, Variant, Struct, MustBeOneOf, MustSatisfyPredicate
-from resolving.words import LocalId, Scope as ResolvedScope, Word as ResolvedWord, GlobalId, IntrinsicWord as ResolvedIntrinsicWord, IntrinsicType, IfWord as ResolvedIfWord, MatchWord as ResolvedMatchWord
 import resolving.words as resolved_words
+from format import Formattable, Formatter
+from lexer import Token, TokenType
+from parsing.types import I8, I32, I64, Bool
+from resolving.top_items import (
+    FunctionSignature,
+    Global as ResolvedGlobal,
+    IntrinsicSignature,
+    LocalName,
+    MustBeOneOf,
+    MustSatisfyPredicate,
+    Signature,
+    Struct,
+    TypeDefinition,
+    Variant,
+)
+from resolving.type_without_holes import CustomTypeHandle, GenericType, PtrType, Type
+from resolving.words import (
+    GlobalId,
+    IfWord as ResolvedIfWord,
+    IntrinsicType,
+    IntrinsicWord as ResolvedIntrinsicWord,
+    LocalId,
+    MatchWord as ResolvedMatchWord,
+    Scope as ResolvedScope,
+    Word as ResolvedWord,
+)
+from util import Ref
 
-import unstacking.word as words
-from unstacking.word import InferenceHole, InferenceFieldHole, FieldAccess, Scope, Word
-from unstacking.source import Source, MultiReturnNode
 import unstacking.source as source
-from unstacking.voids import StackVoid, NonSpecificVoid, CallVoid, SetGlobalVoid, IndirectCallVoid, ImpossibleMatchVoid
+import unstacking.word as words
+from unstacking.source import MultiReturnNode, Source
 from unstacking.stack import Stack
+from unstacking.voids import (
+    CallVoid,
+    ImpossibleMatchVoid,
+    IndirectCallVoid,
+    NonSpecificVoid,
+    SetGlobalVoid,
+    StackVoid,
+)
+from unstacking.word import FieldAccess, InferenceFieldHole, InferenceHole, Scope, Word
+
 
 @dataclass(frozen=True)
 class IntrinsicDescription:
     signature: IntrinsicSignature
-    construct: Callable[[Token, Tuple[InferenceHole, ...]], Word]
+    construct: Callable[[Token, tuple[InferenceHole, ...]], Word]
 
-def add_sub_generic_constraints(generic_arguments: Tuple[Type | None, ...]) -> str | None:
+def add_sub_generic_constraints(generic_arguments: tuple[Type | None, ...]) -> str | None:
     if generic_arguments[0] is None or generic_arguments[1] is None:
         return None
     if isinstance(generic_arguments[0], PtrType):
@@ -47,21 +74,21 @@ intrinsic_and_signature = IntrinsicSignature(
     (GenericType(Token(TokenType.IDENT, 0, 0, "T"), 0),
      GenericType(Token(TokenType.IDENT, 0, 0, "T"), 0)),
     (GenericType(Token(TokenType.IDENT, 0, 0, "T"), 0),),
-    constraints=(MustBeOneOf(0, allowed=set((I32(), I64(), I8(), Bool()))),))
+    constraints=(MustBeOneOf(0, allowed={I32(), I64(), I8(), Bool()}),))
 
 intrinsic_muldivmod_signature = IntrinsicSignature(
     ("T",),
     (GenericType(Token(TokenType.IDENT, 0, 0, "T"), 0),
      GenericType(Token(TokenType.IDENT, 0, 0, "T"), 0)),
     (GenericType(Token(TokenType.IDENT, 0, 0, "T"), 0),),
-    constraints=(MustBeOneOf(0, allowed=set((I32(), I64(), I8()))),))
+    constraints=(MustBeOneOf(0, allowed={I32(), I64(), I8()}),))
 
 intrinsic_cmp_signature = IntrinsicSignature(
     ("T",),
     (GenericType(Token(TokenType.IDENT, 0, 0, "T"), 0),
      GenericType(Token(TokenType.IDENT, 0, 0, "T"), 0)),
     (Bool(),),
-    constraints=(MustBeOneOf(0, allowed=set((I32(), I64(), I8()))),))
+    constraints=(MustBeOneOf(0, allowed={I32(), I64(), I8()}),))
 
 intrinsic_eq_signature = IntrinsicSignature(
         ("T",),
@@ -74,11 +101,11 @@ intrinsic_sub_signature = IntrinsicSignature(
         (GenericType(Token(TokenType.IDENT, 0, 0, "B"), 0),
          GenericType(Token(TokenType.IDENT, 0, 0, "A"), 1)),
         (GenericType(Token(TokenType.IDENT, 0, 0, "B"), 0),),
-        constraints=(MustBeOneOf(0, allowed=set(("AnyPtr", I8(), I32(), I64()))),
-                     MustBeOneOf(1, allowed=set((I8(), I32(), I64()))),
+        constraints=(MustBeOneOf(0, allowed={"AnyPtr", I8(), I32(), I64()}),
+                     MustBeOneOf(1, allowed={I8(), I32(), I64()}),
                      MustSatisfyPredicate("CanAdd", "foo", add_sub_generic_constraints)))
 
-intrinsic_signatures: Dict[IntrinsicType, IntrinsicDescription] = {
+intrinsic_signatures: dict[IntrinsicType, IntrinsicDescription] = {
         IntrinsicType.EQ: IntrinsicDescription(
             intrinsic_eq_signature,
             lambda token, generic_arguments: words.Eq(token, generic_arguments[0])),
@@ -91,7 +118,7 @@ intrinsic_signatures: Dict[IntrinsicType, IntrinsicDescription] = {
                 (GenericType(Token(TokenType.IDENT, 0, 0, "T"), 0),
                  GenericType(Token(TokenType.IDENT, 0, 0, "T"), 0)),
                 (GenericType(Token(TokenType.IDENT, 0, 0, "T"), 0),),
-                constraints=(MustBeOneOf(0, allowed=set((I8(), I32(), I64()))),)),
+                constraints=(MustBeOneOf(0, allowed={ I8(), I32(), I64() }),)),
             lambda token, generic_arguments: words.Mul(token, generic_arguments[0])),
         IntrinsicType.UNINIT: IntrinsicDescription(
             IntrinsicSignature(
@@ -114,7 +141,7 @@ intrinsic_signatures: Dict[IntrinsicType, IntrinsicDescription] = {
                 ("T",),
                 (GenericType(Token(TokenType.IDENT, 0, 0, "T"), 0),),
                 (GenericType(Token(TokenType.IDENT, 0, 0, "T"), 0),),
-                constraints=(MustBeOneOf(0, allowed=set((Bool(), I8(), I32(), I64()))),)),
+                constraints=(MustBeOneOf(0, allowed={ Bool(), I8(), I32(), I64() }),)),
             lambda token, generic_arguments: words.Not(token, generic_arguments[0])),
         IntrinsicType.MUL: IntrinsicDescription(
             intrinsic_muldivmod_signature, lambda token, generic_arguments: words.Mul(token, generic_arguments[0])),
@@ -175,7 +202,7 @@ intrinsic_signatures: Dict[IntrinsicType, IntrinsicDescription] = {
 class Assignment(Formattable):
     token: Token
     source: Source | None
-    fields: Tuple[FieldAccess, ...]
+    fields: tuple[FieldAccess, ...]
     taip: InferenceHole
     is_store: bool
     def format(self, fmt: Formatter):
@@ -191,7 +218,7 @@ class Local(Formattable):
     name: LocalName
     taip: InferenceHole
     parameter: Type | None
-    assignments: List[Assignment]
+    assignments: list[Assignment]
     reffed: bool
     assignments_checked: bool
     def format(self, fmt: Formatter):
@@ -205,7 +232,7 @@ class Local(Formattable):
 
 @dataclass(frozen=True)
 class Holes(Formattable):
-    holes: List[Type | None]
+    holes: list[Type | None]
 
     def fill(self, hole: InferenceHole, known: Type):
         while len(self.holes) <= hole.index:
@@ -238,25 +265,25 @@ class Function(Formattable):
     name: Token
     export: Token | None
     signature: FunctionSignature
-    locals: Dict[LocalId, Local]
-    voids: Tuple[StackVoid, ...]
+    locals: dict[LocalId, Local]
+    voids: tuple[StackVoid, ...]
     holes: Holes
-    nodes: Tuple[MultiReturnNode, ...]
+    nodes: tuple[MultiReturnNode, ...]
     body: Scope
-    returns: Tuple[Source, ...] | None
+    returns: tuple[Source, ...] | None
     def format(self, fmt: Formatter):
         fmt.named_record("Function", [
             ("name", self.name),
             ("export", format.Optional(self.export)),
             ("signature", self.signature),
-            ("locals", format.Dict(dict((k,v) for k,v in self.locals.items()))),
+            ("locals", format.Dict(dict(self.locals.items()))),
             ("voids", format.Seq(self.voids, multi_line=True)),
             ("holes", self.holes),
             ("nodes", format.Seq(self.nodes, multi_line=True)),
             ("body", self.body),
             ("returns", format.Optional(None if self.returns is None else format.Seq(self.returns, multi_line=True)))])
 
-def unstack_function(modules: Tuple[resolved.Module, ...], function: resolved.Function) -> Function:
+def unstack_function(modules: tuple[resolved.Module, ...], function: resolved.Function) -> Function:
     stack = Stack.root()
 
     unstacker = Unstacker(
@@ -301,36 +328,36 @@ def unstack_function(modules: Tuple[resolved.Module, ...], function: resolved.Fu
 @dataclass(frozen=True)
 class BreakStack(Formattable):
     token: Token
-    sources: Tuple[Source, ...]
+    sources: tuple[Source, ...]
     reachable: bool
 
 @dataclass
 class Unstacker:
-    locals: Dict[LocalId, Local]
-    modules: Tuple[resolved.Module, ...]
-    voids: List[StackVoid]
+    locals: dict[LocalId, Local]
+    modules: tuple[resolved.Module, ...]
+    voids: list[StackVoid]
     holes: Holes
-    multi_return_nodes: List[MultiReturnNode]
+    multi_return_nodes: list[MultiReturnNode]
     next_inference_hole_index: Ref[int]
     next_inference_field_hole_index: Ref[int]
-    break_stacks: List[BreakStack] | None
-    block_returns: Tuple[InferenceHole, ...] | None
+    break_stacks: list[BreakStack] | None
+    block_returns: tuple[InferenceHole, ...] | None
     struct_init_type: InferenceHole | None
-    struct_field_init_arguments: List[Source | None]
+    struct_field_init_arguments: list[Source | None]
     reachable: bool
 
-    def with_cleared_reachable_flag(self) -> 'Unstacker':
+    def with_cleared_reachable_flag(self) -> Unstacker:
         new = copy.copy(self)
         new.reachable = True
         return new
 
-    def with_struct_init(self, taip: InferenceHole, arguments: List[Source | None]) -> 'Unstacker':
+    def with_struct_init(self, taip: InferenceHole, arguments: list[Source | None]) -> Unstacker:
         new = copy.copy(self)
         new.struct_init_type = taip
         new.struct_field_init_arguments = arguments
         return new
 
-    def with_break_stacks(self, break_stacks: List[BreakStack], block_returns: Tuple[InferenceHole, ...] | None) -> 'Unstacker':
+    def with_break_stacks(self, break_stacks: list[BreakStack], block_returns: tuple[InferenceHole, ...] | None) -> Unstacker:
         new = copy.copy(self)
         new.break_stacks = break_stacks
         new.block_returns = block_returns
@@ -365,16 +392,16 @@ class Unstacker:
         words = self.unstack_words(stack, body.words)
         return Scope(body.id, words)
 
-    def unstack_words(self, stack: Stack, remaining: List[ResolvedWord] | Iterable[ResolvedWord]) -> Tuple[Word, ...]:
-        if not isinstance(remaining, List):
+    def unstack_words(self, stack: Stack, remaining: list[ResolvedWord] | Iterable[ResolvedWord]) -> tuple[Word, ...]:
+        if not isinstance(remaining, list):
             remaining = list(remaining)
-        unstacked: List[Word] = []
+        unstacked: list[Word] = []
         while len(remaining) != 0:
             word = remaining.pop(0)
             unstacked.extend(self.unstack_word(stack, word, remaining))
         return tuple(unstacked)
 
-    def unstack_word(self, stack: Stack, word: ResolvedWord, remaining: List[ResolvedWord]) -> Tuple[Word, ...]:
+    def unstack_word(self, stack: Stack, word: ResolvedWord, remaining: list[ResolvedWord]) -> tuple[Word, ...]:
         match word:
             case resolved_words.GetLocal():
                 return self.unstack_get_local(stack, word),
@@ -449,7 +476,7 @@ class Unstacker:
         signature = self.lookup_signature(word.call.function)
         generic_arguments = self.fresh_holes(word.call.name, len(signature.generic_parameters))
         if word.call.generic_arguments is not None:
-            for generic_argument, hole in zip(word.call.generic_arguments, generic_arguments):
+            for generic_argument, hole in zip(word.call.generic_arguments, generic_arguments, strict=True):
                 generic_argument_without_hole = without_holes.without_holes(generic_argument)
                 if isinstance(generic_argument_without_hole, Token):
                     continue
@@ -478,7 +505,7 @@ class Unstacker:
         arguments = stack.pop_n(len(struct.fields))
         generic_arguments = self.fresh_holes(word.token, len(struct.generic_parameters))
         taip = self.fresh_hole(word.token)
-        for generic_argument, hole in zip(word.taip.generic_arguments, generic_arguments):
+        for generic_argument, hole in zip(word.taip.generic_arguments, generic_arguments, strict=True):
             generic_argument_without_hole = without_holes.without_holes(generic_argument)
             if isinstance(generic_argument_without_hole, Token):
                 continue
@@ -510,7 +537,7 @@ class Unstacker:
             stack.push(source.FromNode(word.token, node, i))
 
         if len(word.returns) == 0:
-            for argument, hole, parameter in zip(arguments, parameters, word.parameters):
+            for argument, hole, parameter in zip(arguments, parameters, word.parameters, strict=True):
                 parameter_without_holes = without_holes.without_holes(parameter)
                 if isinstance(parameter_without_holes, Token):
                     known = None
@@ -530,7 +557,7 @@ class Unstacker:
         return words.IndirectCall(word.token, parameters, return_types)
 
     def unstack_loop(self, stack: Stack, word: resolved_words.LoopWord) -> Word:
-        loop_break_stacks: List[BreakStack] = []
+        loop_break_stacks: list[BreakStack] = []
         return_types_annotation = None if word.annotation is None else self.fresh_holes(word.token, len(word.annotation.returns))
         loop_unstacker = self.with_break_stacks(loop_break_stacks, return_types_annotation)
         entry_node = loop_unstacker.pre_add_node()
@@ -581,7 +608,7 @@ class Unstacker:
         return loop
 
     def unstack_block(self, stack: Stack, word: resolved_words.BlockWord) -> Word:
-        block_break_stacks: List[BreakStack] = []
+        block_break_stacks: list[BreakStack] = []
         return_types_annotation = None if word.annotation is None else self.fresh_holes(word.token, len(word.annotation.returns))
 
         block_unstacker = self.with_break_stacks(block_break_stacks, return_types_annotation)
@@ -650,10 +677,7 @@ class Unstacker:
         variant = self.lookup_type_definition(word.variant.type_definition)
         assert(not isinstance(variant, Struct))
         cays = variant.cases[word.tag]
-        if cays.taip is None:
-            src = None
-        else:
-            src = stack.pop()
+        src = None if cays.taip is None else stack.pop()
 
         taip = self.fresh_hole(word.token)
         generic_arguments = self.fresh_holes(word.token, len(variant.generic_parameters))
@@ -665,7 +689,7 @@ class Unstacker:
             source=src,
             tag=word.tag))
 
-        for generic_argument, hole in zip(word.variant.generic_arguments, generic_arguments):
+        for generic_argument, hole in zip(word.variant.generic_arguments, generic_arguments, strict=True):
             generic_argument_without_holes = without_holes.without_holes(generic_argument)
             if isinstance(generic_argument_without_holes, Token):
                 continue
@@ -685,20 +709,20 @@ class Unstacker:
         assert(not isinstance(struct, Variant))
         generic_arguments = self.fresh_holes(word.token, len(struct.generic_parameters))
         taip = self.fresh_hole(word.token)
-        for generic_argument, hole in zip(word.taip.generic_arguments, generic_arguments):
+        for generic_argument, hole in zip(word.taip.generic_arguments, generic_arguments, strict=True):
             generic_argument_without_holes = without_holes.without_holes(generic_argument)
             if isinstance(generic_argument_without_holes, Token):
                 continue
             self.holes.fill(hole, generic_argument_without_holes)
 
-        argument_slots: List[Source | None] = list(None for _ in struct.fields)
+        argument_slots: list[Source | None] = [None for _ in struct.fields]
         unstacker = self.with_struct_init(taip, argument_slots)
         body = unstacker.unstack_scope(stack, word.body)
 
         def assert_some(src: Source | None) -> Source:
             assert(src is not None)
             return src
-        arguments: Tuple[Source, ...] = tuple(assert_some(arg) for arg in argument_slots)
+        arguments: tuple[Source, ...] = tuple(assert_some(arg) for arg in argument_slots)
         stack.push(source.FromMakeStruct(
             token=word.token,
             name=word.name,
@@ -725,7 +749,7 @@ class Unstacker:
                           stack: Stack,
                           token: Token,
                           function: resolved.FunctionHandle | IntrinsicType,
-                          generic_arguments: Tuple[with_holes.Type, ...] | None) -> Tuple[InferenceHole, ...]:
+                          generic_arguments: tuple[with_holes.Type, ...] | None) -> tuple[InferenceHole, ...]:
         signature = self.lookup_signature(function)
         arguments = stack.pop_n(len(signature.parameters))
         generic_argument_holes = self.fresh_holes(token, len(signature.generic_parameters))
@@ -836,7 +860,7 @@ class Unstacker:
         assert(isinstance(varint, Variant))
         generic_arguments = self.fresh_holes(word.token, len(varint.generic_parameters))
 
-        unstacked_cases: List[Unstacker.MatchCaseUnstacked] = []
+        unstacked_cases: list[Unstacker.MatchCaseUnstacked] = []
         for match_case in word.cases:
             case_stack = stack.clone().child(entry_node, word.token)
             case_unstacker = self.with_cleared_reachable_flag()
@@ -882,7 +906,7 @@ class Unstacker:
                 None,
                 scrutinee_type))
 
-        return_types: Tuple[InferenceHole, ...] | None
+        return_types: tuple[InferenceHole, ...] | None
         if n_returns is None:
             self.reachable = False
             return_types = None
@@ -902,7 +926,7 @@ class Unstacker:
         default = next((x for case in unstacked_cases for x in (case.to_default_case(),) if x is not None), None)
         return words.Match(word.token, scrutinee_type, parameters, return_types, cases, default)
 
-    def unstack_if(self, stack: Stack, word: ResolvedIfWord, remaining: List[ResolvedWord]) -> Word:
+    def unstack_if(self, stack: Stack, word: ResolvedIfWord, remaining: list[ResolvedWord]) -> Word:
         entry_node = self.pre_add_node()
         condition = stack.pop()
         true_stack = stack.clone().child(entry_node, word.token)
@@ -995,8 +1019,8 @@ class Unstacker:
         generic_arguments = self.unstack_call(stack, word.token, word.ty, word.generic_arguments)
         return intrinsic_signatures[word.ty].construct(word.token, generic_arguments)
 
-    def unstack_generic_arguments(self, token: Token, generic_arguments: Tuple[with_holes.Type, ...], expected_arguments: int) -> Tuple[InferenceHole, ...]:
-        holes: List[InferenceHole] = []
+    def unstack_generic_arguments(self, token: Token, generic_arguments: tuple[with_holes.Type, ...], expected_arguments: int) -> tuple[InferenceHole, ...]:
+        holes: list[InferenceHole] = []
         for i in range(expected_arguments):
             if i >= len(generic_arguments):
                 holes.append(self.fresh_hole(token))
@@ -1045,14 +1069,14 @@ class Unstacker:
         self.next_inference_hole_index.value += 1
         return InferenceHole(token, self.next_inference_hole_index.value - 1)
 
-    def fresh_holes(self, token: Token, n: int) -> Tuple[InferenceHole, ...]:
+    def fresh_holes(self, token: Token, n: int) -> tuple[InferenceHole, ...]:
         return tuple(self.fresh_hole(token) for _ in range(n))
 
     def fresh_field_hole(self) -> InferenceFieldHole:
         self.next_inference_field_hole_index.value += 1
         return InferenceFieldHole(self.next_inference_field_hole_index.value - 1)
 
-    def unstack_field_accesses(self, fields: Tuple[Token, ...]) -> Tuple[FieldAccess, ...]:
+    def unstack_field_accesses(self, fields: tuple[Token, ...]) -> tuple[FieldAccess, ...]:
         return tuple(self.unstack_field_access(field) for field in fields)
 
     def unstack_field_access(self, access: Token) -> FieldAccess:

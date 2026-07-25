@@ -1,13 +1,24 @@
-from typing import Tuple
+from __future__ import annotations
+
 from dataclasses import dataclass
 
-from resolving.words import ScopeId, LocalId, GlobalId, NumberWord, InitLocal, StringWord, SizeofWord, BreakWord, MatchVoidWord as MatchVoid
-from resolving import FunctionHandle, CustomTypeHandle
-import resolving.types as with_holes
-
 import format
+import resolving.types as with_holes
 from format import Formattable, Formatter
 from lexer import Token
+from resolving import CustomTypeHandle, FunctionHandle
+from resolving.words import (
+    BreakWord,
+    GlobalId,
+    InitLocal,
+    LocalId,
+    MatchVoidWord as MatchVoid,
+    NumberWord,
+    ScopeId,
+    SizeofWord,
+    StringWord,
+)
+
 
 @dataclass(frozen=True)
 class InferenceHole(Formattable):
@@ -34,7 +45,7 @@ class FieldAccess(Formattable):
 @dataclass(frozen=True)
 class Scope(Formattable):
     id: ScopeId
-    words: Tuple['Word', ...]
+    words: tuple[Word, ...]
 
     def format(self, fmt: Formatter):
         fmt.unnamed_record("Scope", [self.id, format.Seq(self.words, multi_line=True)])
@@ -47,7 +58,7 @@ class GetLocal(Formattable):
     var: LocalId | GlobalId
     var_type: InferenceHole
     result_type: InferenceHole
-    fields: Tuple[FieldAccess, ...]
+    fields: tuple[FieldAccess, ...]
     def format(self, fmt: Formatter):
         fmt.unnamed_record("GetLocal", [self.name, self.var, self.var_type, self.result_type, format.Seq(self.fields, multi_line=True)])
 
@@ -57,7 +68,7 @@ class RefLocal(Formattable):
     var: LocalId | GlobalId
     var_type: InferenceHole
     result_type: InferenceHole
-    fields: Tuple[FieldAccess, ...]
+    fields: tuple[FieldAccess, ...]
     def format(self, fmt: Formatter):
         fmt.unnamed_record("RefLocal", [self.name, self.var, self.var_type, self.result_type, format.Seq(self.fields, multi_line=True)])
 
@@ -65,7 +76,7 @@ class RefLocal(Formattable):
 class SetLocal(Formattable):
     name: Token
     local: LocalId
-    fields: Tuple[FieldAccess, ...]
+    fields: tuple[FieldAccess, ...]
     field_type: InferenceHole
     def format(self, fmt: Formatter):
         fmt.unnamed_record("SetLocal", [self.name, self.local, format.Seq(self.fields, multi_line=True), self.field_type])
@@ -74,7 +85,7 @@ class SetLocal(Formattable):
 class SetGlobal(Formattable):
     name: Token
     globl: GlobalId
-    fields: Tuple[FieldAccess, ...]
+    fields: tuple[FieldAccess, ...]
     field_type: InferenceHole
     def format(self, fmt: Formatter):
         fmt.unnamed_record("SetGlobal", [self.name, self.globl, format.Seq(self.fields, multi_line=True), self.field_type])
@@ -83,7 +94,7 @@ class SetGlobal(Formattable):
 class StoreLocal(Formattable):
     name: Token
     var: LocalId
-    fields: Tuple[FieldAccess, ...]
+    fields: tuple[FieldAccess, ...]
     field_type: InferenceHole
     def format(self, fmt: Formatter):
         fmt.unnamed_record("StoreLocal", [self.name, self.var, format.Seq(self.fields, multi_line=True), self.field_type])
@@ -91,8 +102,8 @@ class StoreLocal(Formattable):
 @dataclass(frozen=True)
 class If(Formattable):
     token: Token
-    parameters: Tuple[InferenceHole, ...]
-    returns: Tuple[InferenceHole, ...] | None
+    parameters: tuple[InferenceHole, ...]
+    returns: tuple[InferenceHole, ...] | None
     true_branch: Scope
     false_branch: Scope
     def format(self, fmt: Formatter):
@@ -127,9 +138,9 @@ class DefaultCase(Formattable):
 class Match(Formattable):
     token: Token
     type: InferenceHole
-    parameters: Tuple[InferenceHole, ...]
-    returns: Tuple[InferenceHole, ...] | None
-    cases: Tuple[MatchCase, ...]
+    parameters: tuple[InferenceHole, ...]
+    returns: tuple[InferenceHole, ...] | None
+    cases: tuple[MatchCase, ...]
     default: DefaultCase | None
     def format(self, fmt: Formatter):
         fmt.named_record("Match", [
@@ -152,7 +163,7 @@ class Cast(Formattable):
 class Call(Formattable):
     name: Token
     function: FunctionHandle
-    generic_arguments: Tuple[InferenceHole, ...]
+    generic_arguments: tuple[InferenceHole, ...]
     def format(self, fmt: Formatter):
         fmt.unnamed_record("Call", [self.name, self.function, format.Seq(self.generic_arguments, multi_line=True)])
 
@@ -160,7 +171,7 @@ class Call(Formattable):
 class GetField(Formattable):
     token: Token
     base_type: InferenceHole
-    fields: Tuple[FieldAccess, ...]
+    fields: tuple[FieldAccess, ...]
     def format(self, fmt: Formatter):
         fmt.unnamed_record("GetField", [self.token, self.base_type, format.Seq(self.fields, multi_line=True)])
 
@@ -222,8 +233,8 @@ class MakeVariant(Formattable):
 @dataclass(frozen=True)
 class Block(Formattable):
     token: Token
-    parameters: Tuple[InferenceHole, ...]
-    returns: Tuple[InferenceHole, ...] | None
+    parameters: tuple[InferenceHole, ...]
+    returns: tuple[InferenceHole, ...] | None
     body: Scope
     def format(self, fmt: Formatter):
         fmt.named_record("Block", [
@@ -235,8 +246,8 @@ class Block(Formattable):
 @dataclass(frozen=True)
 class Loop(Formattable):
     token: Token
-    parameters: Tuple[InferenceHole, ...]
-    returns: Tuple[InferenceHole, ...] | None
+    parameters: tuple[InferenceHole, ...]
+    returns: tuple[InferenceHole, ...] | None
     body: Scope
     def format(self, fmt: Formatter):
         fmt.named_record("Loop", [
@@ -248,8 +259,8 @@ class Loop(Formattable):
 @dataclass(frozen=True)
 class IndirectCall(Formattable):
     token: Token
-    parameters: Tuple[InferenceHole, ...]
-    return_types: Tuple[InferenceHole, ...]
+    parameters: tuple[InferenceHole, ...]
+    return_types: tuple[InferenceHole, ...]
     def format(self, fmt: Formatter):
         fmt.named_record("IndirectCall", [
             ("token", self.token),
@@ -260,7 +271,7 @@ class IndirectCall(Formattable):
 class FunRef(Formattable):
     token: Token
     function: FunctionHandle
-    generic_arguments: Tuple[InferenceHole, ...]
+    generic_arguments: tuple[InferenceHole, ...]
     def format(self, fmt: Formatter):
         fmt.named_record("FunRef", [
             ("token", self.token),

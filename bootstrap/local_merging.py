@@ -1,10 +1,22 @@
-from typing import List, Dict, Sequence
+from __future__ import annotations
+
+from collections.abc import Sequence
 from dataclasses import dataclass
 
-from indexed_dict import IndexedDict
-
-from monomorphization import Monomized, Extern, Function, LocalId, ScopeId, Scope, Local, GlobalId, Word
 import monomorphization as mono
+from indexed_dict import IndexedDict
+from monomorphization import (
+    Extern,
+    Function,
+    GlobalId,
+    Local,
+    LocalId,
+    Monomized,
+    Scope,
+    ScopeId,
+    Word,
+)
+
 
 def merge_locals(monomized: Monomized):
     for module in monomized.modules.values():
@@ -16,9 +28,9 @@ def merge_locals(monomized: Monomized):
 
 @dataclass
 class Disjoint:
-    scopes: List[ScopeId]
-    reused: List[LocalId]
-    substitutions: Dict[LocalId, LocalId]
+    scopes: list[ScopeId]
+    reused: list[LocalId]
+    substitutions: dict[LocalId, LocalId]
 
 
 def merge_locals_function(sizes: Sequence[int], function: Function):
@@ -94,8 +106,7 @@ def find_disjoint_local(sizes: Sequence[int], locals: IndexedDict[LocalId, Local
     if len(disjoint.scopes) == 0:
         return None
     for local_id, local in locals.items():
-        if local_size == mono.type_size(sizes, local.type) and mono.local_lives_in_memory(sizes, to_be_replaced) == mono.local_lives_in_memory(sizes, local):
-            if local_id.scope in disjoint.scopes and local_id not in disjoint.reused:
-                disjoint.reused.append(local_id)
-                return local_id
+        if local_size == mono.type_size(sizes, local.type) and mono.local_lives_in_memory(sizes, to_be_replaced) == mono.local_lives_in_memory(sizes, local) and local_id.scope in disjoint.scopes and local_id not in disjoint.reused:
+            disjoint.reused.append(local_id)
+            return local_id
     return None

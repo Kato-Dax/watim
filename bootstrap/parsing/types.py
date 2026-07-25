@@ -1,9 +1,11 @@
-from typing import Tuple
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 import format
 from format import Formattable, Formatter
 from lexer import Token
+
 
 @dataclass(frozen=True, eq=True)
 class I8(Formattable):
@@ -58,7 +60,7 @@ class PtrType(Formattable):
 class ForeignType(Formattable):
     module: Token
     name: Token
-    generic_arguments: Tuple[Type, ...] | None
+    generic_arguments: tuple[Type, ...] | None
     def format(self, fmt: Formatter):
         return fmt.unnamed_record("ForeignCustomType", [
             self.module,
@@ -68,7 +70,7 @@ class ForeignType(Formattable):
 @dataclass(frozen=True, eq=True)
 class CustomTypeType(Formattable):
     name: Token
-    generic_arguments: Tuple[Type, ...] | None
+    generic_arguments: tuple[Type, ...] | None
     def format(self, fmt: Formatter):
         return fmt.unnamed_record("LocalCustomType", [
             self.name,
@@ -77,8 +79,8 @@ class CustomTypeType(Formattable):
 @dataclass(frozen=True, eq=True)
 class FunctionType(Formattable):
     token: Token
-    parameters: Tuple[Type, ...]
-    returns: Tuple[Type, ...]
+    parameters: tuple[Type, ...]
+    returns: tuple[Type, ...]
     def format(self, fmt: Formatter):
         return fmt.unnamed_record("FunType", [
             self.token,

@@ -1,10 +1,13 @@
-from typing import List, Tuple
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 import format
 from format import Formattable, Formatter
 from lexer import Token
-from parsing.types import Type, CustomTypeType, ForeignType
+
+from parsing.types import CustomTypeType, ForeignType, Type
+
 
 @dataclass
 class NumberWord(Formattable):
@@ -18,7 +21,7 @@ class BreakWord(Formattable):
     def format(self, fmt: Formatter):
         fmt.unnamed_record("Break", [self.token])
 
-type Word = 'NumberWord | StringWord | CallWord | GetWord | RefWord | SetWord | StoreWord | InitWord | CallWord | ForeignCallWord | FunRefWord | IfWord | LoadWord | LoopWord | BlockWord | BreakWord | CastWord | SizeofWord | GetFieldWord | IndirectCallWord | StructWord | StructWordNamed | MatchWord | VariantWord | StackAnnotation | InlineRefWord'
+type Word = 'NumberWord | StringWord | CallWord | GetWord | RefWord | SetWord | StoreWord | InitWord | ForeignCallWord | FunRefWord | IfWord | LoadWord | LoopWord | BlockWord | BreakWord | CastWord | SizeofWord | GetFieldWord | IndirectCallWord | StructWord | StructWordNamed | MatchWord | VariantWord | StackAnnotation | InlineRefWord'
 @dataclass
 class StringWord(Formattable):
     token: Token
@@ -30,7 +33,7 @@ class StringWord(Formattable):
 class GetWord(Formattable):
     token: Token
     ident: Token
-    fields: Tuple[Token, ...]
+    fields: tuple[Token, ...]
     def format(self, fmt: Formatter):
         fmt.unnamed_record("GetLocal", [self.token, self.ident, format.Seq(self.fields)])
 
@@ -38,7 +41,7 @@ class GetWord(Formattable):
 class RefWord(Formattable):
     token: Token
     ident: Token
-    fields: Tuple[Token, ...]
+    fields: tuple[Token, ...]
     def format(self, fmt: Formatter):
         fmt.unnamed_record("RefLocal", [self.token, self.ident, format.Seq(self.fields)])
 
@@ -46,7 +49,7 @@ class RefWord(Formattable):
 class SetWord(Formattable):
     token: Token
     ident: Token
-    fields: Tuple[Token, ...]
+    fields: tuple[Token, ...]
     def format(self, fmt: Formatter):
         fmt.unnamed_record("SetLocal", [self.token, self.ident, format.Seq(self.fields)])
 
@@ -58,7 +61,7 @@ class InlineRefWord(Formattable):
 class StoreWord(Formattable):
     token: Token
     ident: Token
-    fields: Tuple[Token, ...]
+    fields: tuple[Token, ...]
     def format(self, fmt: Formatter):
         fmt.unnamed_record("StoreLocal", [self.token, self.ident, format.Seq(self.fields)])
 
@@ -73,12 +76,12 @@ class InitWord(Formattable):
 class ForeignCallWord(Formattable):
     module: Token
     ident: Token
-    generic_arguments: Tuple[Type, ...] | None
+    generic_arguments: tuple[Type, ...] | None
 
 @dataclass
 class CallWord(Formattable):
     ident: Token
-    generic_arguments: Tuple[Type, ...] | None
+    generic_arguments: tuple[Type, ...] | None
     def format(self, fmt: Formatter):
         fmt.unnamed_record("LocalCall", [
             self.ident,
@@ -94,8 +97,8 @@ class FunRefWord(Formattable):
 @dataclass
 class IfWord(Formattable):
     token: Token
-    true_words: 'Words'
-    false_words: 'Words | None'
+    true_words: Words
+    false_words: Words | None
     def format(self, fmt: Formatter):
         fmt.unnamed_record("If", [
             self.token,
@@ -110,8 +113,8 @@ class LoadWord(Formattable):
 
 @dataclass
 class BlockAnnotation(Formattable):
-    parameters: List[Type]
-    returns: List[Type]
+    parameters: list[Type]
+    returns: list[Type]
     def format(self, fmt: Formatter):
         fmt.unnamed_record("BlockAnnotation", [
             format.Seq(self.parameters),
@@ -119,7 +122,7 @@ class BlockAnnotation(Formattable):
 
 @dataclass
 class Words(Formattable):
-    words: Tuple[Word, ...]
+    words: tuple[Word, ...]
     end: Token
     def format(self, fmt: Formatter):
         fmt.unnamed_record("Words", [
@@ -164,15 +167,15 @@ class SizeofWord(Formattable):
 @dataclass
 class GetFieldWord(Formattable):
     token: Token
-    fields: Tuple[Token, ...]
+    fields: tuple[Token, ...]
     def format(self, fmt: Formatter):
         fmt.unnamed_record("GetField", [self.token, format.Seq(self.fields)])
 
 @dataclass
 class IndirectCallWord(Formattable):
     token: Token
-    parameters: Tuple[Type, ...]
-    returns: Tuple[Type, ...]
+    parameters: tuple[Type, ...]
+    returns: tuple[Type, ...]
     def format(self, fmt: Formatter):
         fmt.named_record("IndirectCall", [
             ("token", self.token),
@@ -184,7 +187,7 @@ class StructWordNamed(Formattable):
     token: Token
     name: Token
     taip: CustomTypeType | ForeignType
-    words: Tuple[Word, ...]
+    words: tuple[Word, ...]
 
 @dataclass
 class StructWord(Formattable):
@@ -206,7 +209,7 @@ class MatchCase(Formattable):
     module: Token | None
     variant: Token | None
     name: Token
-    words: Tuple[Word, ...]
+    words: tuple[Word, ...]
     def format(self, fmt: Formatter):
         fmt.unnamed_record("MatchCase", [
             self.case,
@@ -218,7 +221,7 @@ class MatchCase(Formattable):
 @dataclass
 class MatchWord(Formattable):
     token: Token
-    cases: Tuple[MatchCase, ...]
+    cases: tuple[MatchCase, ...]
     default: MatchCase | None
     def format(self, fmt: Formatter):
         fmt.named_record("Match", [
@@ -229,7 +232,7 @@ class MatchWord(Formattable):
 @dataclass
 class StackAnnotation(Formattable):
     token: Token
-    types: Tuple[Type, ...]
+    types: tuple[Type, ...]
     def format(self, fmt: Formatter):
         fmt.unnamed_record("StackAnnotation", [
             self.token,

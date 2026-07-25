@@ -1,11 +1,12 @@
-from typing import List, Tuple, Iterable
+from __future__ import annotations
+
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 
 import format
 from format import Formattable, Formatter
-
 from lexer import Token
-from parsing.types import PrimitiveType, GenericType, Bool, I8, I32, I64
+from parsing.types import I8, I32, I64, Bool, GenericType, PrimitiveType
 
 import resolving.types as wh
 from resolving.types import CustomTypeHandle
@@ -31,13 +32,13 @@ def with_holes(taip: Type) -> wh.Type:
         case GenericType():
             return taip
 
-def types_with_holes(taips: Iterable[Type]) -> Tuple[wh.Type, ...]:
+def types_with_holes(taips: Iterable[Type]) -> tuple[wh.Type, ...]:
     return tuple(with_holes(t) for t in taips)
 
-def named_type_with_holes(taip: 'NamedType') -> wh.NamedType:
+def named_type_with_holes(taip: NamedType) -> wh.NamedType:
     return wh.NamedType(taip.name, with_holes(taip.taip))
 
-def named_types_with_holes(taips: Iterable['NamedType']) -> Tuple[wh.NamedType, ...]:
+def named_types_with_holes(taips: Iterable[NamedType]) -> tuple[wh.NamedType, ...]:
     return tuple(named_type_with_holes(t) for t in taips)
 
 def without_holes(taip: wh.Type) -> Type | Token:
@@ -73,8 +74,8 @@ def without_holes(taip: wh.Type) -> Type | Token:
         case wh.HoleType():
             return taip.token
 
-def types_without_holes(types: Tuple[wh.Type, ...]) -> Tuple[Type, ...] | Token:
-    result: List[Type] = []
+def types_without_holes(types: tuple[wh.Type, ...]) -> tuple[Type, ...] | Token:
+    result: list[Type] = []
     for taip in types:
         without = without_holes(taip)
         if isinstance(without, Token):
@@ -82,7 +83,7 @@ def types_without_holes(types: Tuple[wh.Type, ...]) -> Tuple[Type, ...] | Token:
         result.append(without)
     return tuple(result)
 
-def with_generics(taip: Type, generics: Tuple[Type, ...]) -> Type:
+def with_generics(taip: Type, generics: tuple[Type, ...]) -> Type:
     match taip:
         case PtrType(child):
             return PtrType(with_generics(child, generics))
@@ -109,7 +110,7 @@ class PtrType(Formattable):
 @dataclass(eq=True, frozen=True)
 class CustomTypeType(Formattable):
     type_definition: CustomTypeHandle
-    generic_arguments: Tuple[Type, ...]
+    generic_arguments: tuple[Type, ...]
     def format(self, fmt: Formatter):
         fmt.unnamed_record("CustomType", [
             self.type_definition.module,
@@ -119,8 +120,8 @@ class CustomTypeType(Formattable):
 @dataclass(frozen=True, eq=True)
 class FunctionType(Formattable):
     token: Token = field(compare=False)
-    parameters: Tuple[Type, ...]
-    returns: Tuple[Type, ...]
+    parameters: tuple[Type, ...]
+    returns: tuple[Type, ...]
     def format(self, fmt: Formatter):
         fmt.unnamed_record("FunType", [self.token, format.Seq(self.parameters), format.Seq(self.returns)])
 
