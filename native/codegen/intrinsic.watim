@@ -30,8 +30,8 @@ fn generate-intrinsic(ctx: .Ctx, intrinsic: .Intrinsic) { block (->) {
         } }
         case Intrinsic.Eq -> {
             ~ @type
-            &ctx.program.sizes $type type-size 4 gt if {
-                0 &ctx.program.sizes $type can-live-in-reg !i32 / drop // assert
+            &ctx.program.type-infos $type type-size 4 gt if {
+                0 &ctx.program.type-infos $type can-live-in-reg !i32 / drop // assert
                 "i64.eq"
             } else {
                 "i32.eq"
@@ -39,8 +39,8 @@ fn generate-intrinsic(ctx: .Ctx, intrinsic: .Intrinsic) { block (->) {
         }
         case Intrinsic.NotEq -> {
             ~ @type
-            &ctx.program.sizes $type type-size 4 gt if {
-                0 &ctx.program.sizes $type can-live-in-reg !i32 / drop // assert
+            &ctx.program.type-infos $type type-size 4 gt if {
+                0 &ctx.program.type-infos $type can-live-in-reg !i32 / drop // assert
                 "i64.ne"
             } else {
                 "i32.ne"
@@ -137,14 +137,14 @@ fn generate-intrinsic(ctx: .Ctx, intrinsic: .Intrinsic) { block (->) {
                 case Bool -> { "i32.load" }
                 case _ -> {
                     drop drop
-                    &ctx.program.sizes $word.type can-live-in-reg if {
+                    &ctx.program.type-infos $word.type can-live-in-reg if {
                         $ctx $word.type generate-type
                         $ctx.fmt ".load" Fmt:write
                     } else {
                         $ctx.fmt "local.get $locl-copy-spac:e i32.const " Fmt:write
                         $ctx.fmt $word.copy-space-offset i32-format
                         $ctx.fmt " i32.add call $intrinsic:dupi32 call $intrinsic:rotate-left i32.const " Fmt:write
-                        $ctx.fmt &ctx.program.sizes $word.type type-size i32-format
+                        $ctx.fmt &ctx.program.type-infos $word.type type-size i32-format
                         $ctx.fmt " memory.copy" Fmt:write
                     }
                     break

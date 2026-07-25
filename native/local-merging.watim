@@ -8,7 +8,7 @@ import "./resolving/words.watim" as Resolved (ScopeId, LocalId, LocalId-eq, root
 import "./monomorphization/monomizer.watim" as Monomizer (
     Monomized, Module, ExternOrInstances(Extern, Instances),
     Function, Local, Scope, Word, If, MatchCase,
-    local-lives-in-memory, type-size,
+    local-lives-in-memory, type-size, TypeInfo,
 )
 import "./monomorphization/type.watim" as Type (TypeId)
 
@@ -19,7 +19,7 @@ fn merge-locals(monomized: .Monomized) {
         0 !.Arena Arena:temp @temp @temp-save
 
         $temp
-        &monomized.sizes
+        &monomized.type-infos
         &monomized.modules $i Map:get-value<ByteSlice, Module>
         merge-locals-module
 
@@ -28,7 +28,7 @@ fn merge-locals(monomized: .Monomized) {
     }
 }
 
-fn merge-locals-module(arena: .Arena, sizes: .Array<i32>, module: .Module) {
+fn merge-locals-module(arena: .Arena, type-infos: .Array<TypeInfo>, module: .Module) {
     0 @i
     loop {
         $module.functions.len $i = if { break }
@@ -38,7 +38,7 @@ fn merge-locals-module(arena: .Arena, sizes: .Array<i32>, module: .Module) {
                 0 @j
                 loop {
                     $instances.len $j = if { break }
-                    $arena $sizes $instances $j Array:get<.Function> ~ merge-locals-function
+                    $arena $type-infos $instances $j Array:get<.Function> ~ merge-locals-function
                     $j 1 + #j
                 }
             }
@@ -48,24 +48,24 @@ fn merge-locals-module(arena: .Arena, sizes: .Array<i32>, module: .Module) {
     }
 }
 
-fn merge-locals-function(arena: .Arena, sizes: .Array<i32>, function: .Function) {
+fn merge-locals-function(arena: .Arena, type-infos: .Array<TypeInfo>, function: .Function) {
     Array:new<ScopeId> Array:new<LocalId>
     \LocalId-eq Map:new<LocalId, LocalId> make Disjoint @disjoint
-    $arena $sizes &function.body &function.locals &disjoint merge-locals-scope
+    $arena $type-infos &function.body &function.locals &disjoint merge-locals-scope
 }
 
-fn merge-locals-scope(arena: .Arena, sizes: .Array<i32>, scope: .Scope, locals: .Map<LocalId, Local>, disjoint: .Disjoint) {
+fn merge-locals-scope(arena: .Arena, type-infos: .Array<TypeInfo>, scope: .Scope, locals: .Map<LocalId, Local>, disjoint: .Disjoint) {
     0 @i
     loop {
         $scope.words.len $i = if { break }
-        $arena $sizes &scope.words $i Array:get<Word> $locals $disjoint $scope.id merge-locals-word
+        $arena $type-infos &scope.words $i Array:get<Word> $locals $disjoint $scope.id merge-locals-word
         $i 1 + #i
     }
 }
 
 fn merge-locals-word(
     arena: .Arena,
-    sizes: .Array<i32>,
+    type-infos: .Array<TypeInfo>,
     word: .Word,
     locals: .Map<LocalId, Local>,
     disjoint: .Disjoint,
@@ -75,7 +75,7 @@ fn merge-locals-word(
         case Word.InitLocal -> {
             @word
             $locals &word.local Map:get<LocalId, Local> assert-some<.Local> @local
-            $arena $sizes $locals $disjoint $local find-disjoint-local match {
+            $arena $type-infos $locals $disjoint $local find-disjoint-local match {
                 case None -> {}
                 case Some -> {
                     @reused-local
@@ -92,12 +92,12 @@ fn merge-locals-word(
         case Word.If -> {
             @word
             $disjoint.reused.len @outer-reused
-            $arena $sizes &word.true-branch $locals $disjoint merge-locals-scope
+            $arena $type-infos &word.true-branch $locals $disjoint merge-locals-scope
             &disjoint.reused $outer-reused Array:truncate<LocalId>
 
             $arena &disjoint.scopes $word.true-branch.id Array:push<ScopeId>
             $disjoint.reused.len @outer-reused
-            $arena $sizes &word.false-branch $locals $disjoint merge-locals-scope
+            $arena $type-infos &word.false-branch $locals $disjoint merge-locals-scope
             &disjoint.reused $outer-reused Array:truncate<LocalId>
             &disjoint.scopes Array:pop<ScopeId> drop
 
@@ -108,7 +108,7 @@ fn merge-locals-word(
             @word
 
             $disjoint.reused.len @outer-reused
-            $arena $sizes &word.body $locals $disjoint merge-locals-scope
+            $arena $type-infos &word.body $locals $disjoint merge-locals-scope
             &disjoint.reused $outer-reused Array:truncate<LocalId>
             $arena &disjoint.scopes $word.body.id Array:push<ScopeId>
         }
@@ -116,7 +116,7 @@ fn merge-locals-word(
             @word
 
             $disjoint.reused.len @outer-reused
-            $arena $sizes &word.body $locals $disjoint merge-locals-scope
+            $arena $type-infos &word.body $locals $disjoint merge-locals-scope
             &disjoint.reused $outer-reused Array:truncate<LocalId>
             $arena &disjoint.scopes $word.body.id Array:push<ScopeId>
         }
@@ -124,7 +124,7 @@ fn merge-locals-word(
             @word
 
             $disjoint.reused.len @outer-reused
-            $arena $sizes &word.body $locals $disjoint merge-locals-scope
+            $arena $type-infos &word.body $locals $disjoint merge-locals-scope
             &disjoint.reused $outer-reused Array:truncate<LocalId>
             $arena &disjoint.scopes $word.body.id Array:push<ScopeId>
         }
@@ -135,7 +135,7 @@ fn merge-locals-word(
                 $word.cases.len $i = if { break }
                 &word.cases $i Array:get<MatchCase> @cays
                 $disjoint.reused.len @outer-reused
-                $arena $sizes &cays.body $locals $disjoint merge-locals-scope
+                $arena $type-infos &cays.body $locals $disjoint merge-locals-scope
                 &disjoint.reused $outer-reused Array:truncate<LocalId>
                 $arena &disjoint.scopes $cays.body.id Array:push<ScopeId>
 
@@ -147,7 +147,7 @@ fn merge-locals-word(
                 case Some -> {
                     @default
                     $disjoint.reused.len @outer-reused
-                    $arena $sizes $default $locals $disjoint merge-locals-scope
+                    $arena $type-infos $default $locals $disjoint merge-locals-scope
                     &disjoint.reused $outer-reused Array:truncate<LocalId>
                     $arena &disjoint.scopes $default.id Array:push<ScopeId>
                 }
@@ -177,21 +177,21 @@ struct Disjoint {
 
 fn find-disjoint-local(
     arena: .Arena,
-    sizes: .Array<i32>,
+    type-infos: .Array<TypeInfo>,
     locals: .Map<LocalId, Local>,
     disjoint: .Disjoint,
     to-be-replaced: .Local
 ) -> Maybe<LocalId> { block {
-    $sizes $to-be-replaced.type type-size @local-size
+    $type-infos $to-be-replaced.type type-size @local-size
     $disjoint.scopes.len 0 = if { make Maybe<LocalId>.None break }
     0 @i
     loop {
         $locals Map:size<LocalId, Local> $i = if { make Maybe<LocalId>.None break }
         $locals $i Map:get-key<LocalId, Local> ~ @local-id
         $locals $i Map:get-value<LocalId, Local> @local
-        $sizes $local.type type-size $local-size =
-        $sizes $to-be-replaced local-lives-in-memory
-        $sizes $local local-lives-in-memory =
+        $type-infos $local.type type-size $local-size =
+        $type-infos $to-be-replaced local-lives-in-memory
+        $type-infos $local local-lives-in-memory =
         and if {
             0 @j
             loop {

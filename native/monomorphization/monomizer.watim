@@ -109,6 +109,7 @@ struct Function {
     locals: Map<LocalId, Local>
     local-copy-space: i32
     max-stack-returns: i32
+    max-alignment: i32 // The maximum alignment of any type that's placed onto the stack in this function.
     body: Scope
     generic-arguments: Array<TypeId> // just for debug annotations
 }
@@ -142,6 +143,10 @@ fn Function-format(fmt: .Formatter, self: .Function) {
     $fmt Fmt:write-indent
     $fmt "max-stack-returns=" Fmt:write
     $fmt $self.max-stack-returns i32-format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "max-alignment=" Fmt:write
+    $fmt $self.max-alignment i32-format
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "body=" Fmt:write
@@ -204,7 +209,7 @@ fn FunctionHandle-eq(self: .FunctionHandle, other: .FunctionHandle) -> bool {
 struct Monomized {
     types: Array<Maybe<Key>>
     modules: Map<ByteSlice, Module>
-    sizes: Array<i32>
+    type-infos: Array<TypeInfo>
     function-table: Array<FunctionHandle>
 }
 fn Monomized-format(fmt: .Formatter, self: .Monomized) {
@@ -215,8 +220,8 @@ fn Monomized-format(fmt: .Formatter, self: .Monomized) {
     $fmt \MaybeKey-format &self.types Array:format-multi-line<Maybe<Key>>
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
-    $fmt "sizes=" Fmt:write
-    $fmt \i32-format-ref &self.sizes Array:format<i32>
+    $fmt "type-infos=" Fmt:write
+    $fmt \TypeInfo-format &self.type-infos Array:format-multi-line
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "modules=" Fmt:write
@@ -226,6 +231,18 @@ fn Monomized-format(fmt: .Formatter, self: .Monomized) {
     $fmt "function-table=" Fmt:write
     $fmt \FunctionHandle-format &self.function-table Array:format<FunctionHandle>
     $fmt Fmt:dedent
+    $fmt ")" Fmt:write
+}
+
+struct TypeInfo {
+    size: i32
+    alignment: i32
+}
+fn TypeInfo-format(fmt: .Formatter, self: .TypeInfo) {
+    $fmt "(TypeInfo " Fmt:write
+    $fmt $self.size i32-format
+    $fmt " " Fmt:write
+    $fmt $self.alignment i32-format
     $fmt ")" Fmt:write
 }
 
@@ -379,12 +396,12 @@ fn I8-id () -> TypeId { 1 make TypeId }
 fn I32-id () -> TypeId { 2 make TypeId }
 fn I64-id () -> TypeId { 3 make TypeId }
 
-fn local-lives-in-memory(sizes: .Array<i32>, local: .Local) -> bool {
-    $sizes $local.type can-live-in-reg not
+fn local-lives-in-memory(type-infos: .Array<TypeInfo>, local: .Local) -> bool {
+    $type-infos $local.type can-live-in-reg not
     $local.reffed or
 }
-fn globl-lives-in-memory(sizes: .Array<i32>, globl: .Global) -> bool {
-    $sizes $globl.type can-live-in-reg not
+fn globl-lives-in-memory(type-infos: .Array<TypeInfo>, globl: .Global) -> bool {
+    $type-infos $globl.type can-live-in-reg not
     $globl.reffed or
 }
 
@@ -691,9 +708,9 @@ fn monomize(arena: .Arena, modules: .Map<ByteSlice, Checked:Module>) -> Monomize
     Logging:enabled if {
         2 "Calculating type sizes\n" IO:write-all IO:check
     }
-    $arena &monomized-modules &types compute-sizes @sizes
-    &monomized-modules &sizes &types measure-copy-space
-    $sizes $function-table make Monomized
+    $arena &monomized-modules &types compute-sizes @type-infos
+    &monomized-modules &type-infos &types measure-copy-space
+    $type-infos $function-table make Monomized
 }
 
 fn monomize-globals(ctx: .Ctx, globals: .Array<Resolved:Global>) -> Array<Global> {
@@ -736,6 +753,7 @@ fn monomize-function(ctx: .Ctx, function: .Checked:Function, generic-arguments: 
     $function.name $function.export
     $ctx.ctx &function.signature $generic-arguments monomize-signature
     $locals
+    0 not
     0 not
     0 not
     &ctx &function.body $generic-arguments monomize-scope
@@ -835,92 +853,98 @@ fn monomize-parameters(ctx: .Ctx, parameters: .Array<Resolved:Parameter>, generi
 //  Compute size of all types after monomorphization.
 // =============================================================================
 
-fn compute-sizes(arena: .Arena, modules: .Map<ByteSlice, Module>, types: .Array<Maybe<Key>>) -> Array<i32> {
-    $arena $types.len Arena:alloc-many<i32> $types.len Array:init-no-copy<i32> @sizes
-    $sizes.ptr !.i8 255 !i8 $types.len sizeof(i32) * mem-fill
+fn compute-sizes(arena: .Arena, modules: .Map<ByteSlice, Module>, types: .Array<Maybe<Key>>) -> Array<TypeInfo> {
+    $arena $types.len Arena:alloc-many $types.len Array:init-no-copy @type-infos
+    $type-infos.ptr !.i8 255 !i8 $types.len sizeof(TypeInfo) * mem-fill
     0 @i
     loop {
-        $i $types.len = if { $sizes break }
-        $modules &sizes $types $i compute-size
+        $i $types.len = if { $type-infos break }
+        $modules &type-infos $types $i compute-size
         $i 1 + #i
     }
 }
 
-fn compute-size(modules: .Map<ByteSlice, Module>, sizes: .Array<i32>, types: .Array<Maybe<Key>>, index: i32) {
-    $sizes $index Array:get<i32> ~ 0 not = if {
+fn compute-size(modules: .Map<ByteSlice, Module>, type-infos: .Array<TypeInfo>, types: .Array<Maybe<Key>>, index: i32) {
+    $type-infos $index Array:get .size ~ 0 not = if {
         $types $index Array:get<Maybe<Key>> match {
-            case None -> { 0 not 1 - }
+            case None -> { 0 not 1 - 0 }
             case Some -> {
                 Key-type match {
-                    case Ptr -> { drop 4 }
-                    case Bool -> { 4 }
-                    case I8 -> { 1 }
-                    case I32 -> { 4 }
-                    case I64 -> { 8 }
+                    case Ptr -> { drop 4 4 }
+                    case Bool -> { 4 1 }
+                    case I8 -> { 1 1 }
+                    case I32 -> { 4 4 }
+                    case I64 -> { 8 8 }
                     case Custom -> {
                         @handle
-                        $modules $sizes $types
+                        $modules $type-infos $types
                         &modules.values $handle.module.index Array:get<Module> .custom-types
                         $handle.index Array:get<CustomType> compute-custom-type-size
                     }
-                    case Fun -> { drop 4 }
-                    case Type.Closure -> { drop 8 }
+                    case Fun -> { drop 4 4 }
+                    case Type.Closure -> { drop 8 4 }
                 }
             }
-        } @size
-        $sizes $index $size Array:set<i32> drop
+        } make TypeInfo $type-infos flip $index flip Array:set drop
     }
 }
 
-fn compute-typeid-size(modules: .Map<ByteSlice, Module>, sizes: .Array<i32>, types: .Array<Maybe<Key>>, type: TypeId) -> i32 {
-    $sizes $type.index Array:get<i32> ~ @size
+fn compute-typeid-size(modules: .Map<ByteSlice, Module>, type-infos: .Array<TypeInfo>, types: .Array<Maybe<Key>>, type: TypeId) -> i32, i32 {
+    $type-infos $type.index Array:get .size ~ @size
     $size 0 not = if {
-        $modules $sizes $types $type.index compute-size
-        $modules $sizes $types $type compute-typeid-size
+        $modules $type-infos $types $type.index compute-size
+        $modules $type-infos $types $type compute-typeid-size
     } else {
-        $size
+        $size $type-infos $type.index Array:get .alignment ~
     }
 }
 
-fn compute-custom-type-size(modules: .Map<ByteSlice, Module>, sizes: .Array<i32>, types: .Array<Maybe<Key>>, type: .CustomType) -> i32 {
-    $modules $sizes $types $type match {
+fn compute-custom-type-size(modules: .Map<ByteSlice, Module>, type-infos: .Array<TypeInfo>, types: .Array<Maybe<Key>>, type: .CustomType) -> i32, i32 {
+    $modules $type-infos $types $type match {
         case CustomType.Struct -> { compute-struc-size }
         case CustomType.Variant -> { compute-varint-size }
     }
 }
 
-fn compute-struc-size(modules: .Map<ByteSlice, Module>, sizes: .Array<i32>, types: .Array<Maybe<Key>>, struc: .Struct) -> i32 {
+fn compute-struc-size(modules: .Map<ByteSlice, Module>, type-infos: .Array<TypeInfo>, types: .Array<Maybe<Key>>, struc: .Struct) -> i32, i32 {
     0 @size
+    0 @alignment
     0 @i
     0 @largest-field
     loop {
         $i $struc.fields.len = if {
-            // TODO: this is wrong
-            $size $largest-field Core:align-to break
+            $size $alignment Core:align-to $alignment break
         }
-        $modules $sizes $types
-        &struc.fields $i Array:get<NamedTypeId> .type ~ compute-typeid-size @field-size
+        $modules $type-infos $types
+        &struc.fields $i Array:get<NamedTypeId> .type ~ compute-typeid-size @field-alignment @field-size
         $largest-field $field-size Core:max #largest-field
+        $alignment $field-alignment Core:max #alignment
         $size $field-size + #size
 
         $i 1 + $struc.fields.len lt if {
-            $modules $sizes $types &struc.fields $i 1 + Array:get<NamedTypeId>.type ~ compute-typeid-size @next-field-size
+            $modules $type-infos $types &struc.fields $i 1 + Array:get<NamedTypeId>.type ~ compute-typeid-size @next-field-alignment @next-field-size
 
-            $size $next-field-size 4 Core:min Core:align-to #size
+            $size $next-field-alignment Core:align-to #size
         }
         $i 1 + #i
     }
 }
 
-fn compute-varint-size(modules: .Map<ByteSlice, Module>, sizes: .Array<i32>, types: .Array<Maybe<Key>>, varint: .Variant) -> i32 {
+fn compute-varint-size(modules: .Map<ByteSlice, Module>, type-infos: .Array<TypeInfo>, types: .Array<Maybe<Key>>, varint: .Variant) -> i32, i32 {
+    // TODO: the current layout of variants in memory does not account for payloads with an alignment >4
+    // Either the discriminator always needs to be after the payload, or there sometimes needs to be
+    // some padding between the discriminator and the actual value.
     0 @size
+    4 @alignment
     0 @i
     loop {
-        $i $varint.cases.len = if { $size 4 + break }
+        $i $varint.cases.len = if { $size 4 + $alignment break }
         &varint.cases $i Array:get<VariantCase> .type match {
-            case None -> { 0 }
-            case Some -> { ~ $modules flip $sizes flip $types flip compute-typeid-size }
-        } $size Core:max #size
+            case None -> { 0 1 }
+            case Some -> { ~ $modules flip $type-infos flip $types flip compute-typeid-size }
+        }
+        $alignment Core:max #alignment
+        $size Core:max #size
         $i 1 + #i
     }
 }
@@ -1983,16 +2007,23 @@ fn monomize-words(ctx: .WordCtx, words: .Array<Checked:Word>, generic-arguments:
 //  Local copy space measuring
 // =============================================================================
 
-fn measure-copy-space(modules: .Map<ByteSlice, Module>, sizes: .Array<i32>, types: .Array<Maybe<Key>>) {
+fn type-measure-copy-space(type: TypeId, ctx: .CopySpaceCtx, offset: .i32) -> i32 {
+    $ctx.type-infos $type type-alignment @alignment
+    $ctx.max-alignment $alignment Core:max #ctx.max-alignment
+    $offset ~ $alignment Core:align-to
+    Core:dup $ctx.type-infos $type type-size + =>offset
+}
+
+fn measure-copy-space(modules: .Map<ByteSlice, Module>, type-infos: .Array<TypeInfo>, types: .Array<Maybe<Key>>) {
     0 @module-id
     loop {
         $module-id $modules.values.len = if { break }
-        &modules.values &modules.values $module-id Array:get<Module> $sizes $types module-measure-copy-space
+        &modules.values &modules.values $module-id Array:get<Module> $type-infos $types module-measure-copy-space
         $module-id 1 + #module-id
     }
 }
 
-fn module-measure-copy-space(modules: .Array<Module>, module: .Module, sizes: .Array<i32>, types: .Array<Maybe<Key>>) {
+fn module-measure-copy-space(modules: .Array<Module>, module: .Module, type-infos: .Array<TypeInfo>, types: .Array<Maybe<Key>>) {
     0 @function-id
     loop {
         $function-id $module.functions.len = if { break }
@@ -2003,7 +2034,7 @@ fn module-measure-copy-space(modules: .Array<Module>, module: .Module, sizes: .A
                 loop {
                     $instance-id $instances.len = if { break }
                     $instances $instance-id Array:get<.Function> ~ @function
-                    $modules $function $sizes $types function-measure-copy-space
+                    $modules $function $type-infos $types function-measure-copy-space
                     $instance-id 1 + #instance-id
                 }
             }
@@ -2013,11 +2044,12 @@ fn module-measure-copy-space(modules: .Array<Module>, module: .Module, sizes: .A
     }
 }
 
-fn function-measure-copy-space(modules: .Array<Module>, function: .Function, sizes: .Array<i32>, types: .Array<Maybe<Key>>) {
-    $modules $sizes $types 0 not 0 make CopySpaceCtx @ctx
+fn function-measure-copy-space(modules: .Array<Module>, function: .Function, type-infos: .Array<TypeInfo>, types: .Array<Maybe<Key>>) {
+    $modules $type-infos $types 0 not 0 1 make CopySpaceCtx @ctx
     0 #function.local-copy-space
     &function.body.words &ctx &function.local-copy-space words-measure-copy-space
     $ctx.max-stack-returns #function.max-stack-returns
+    $ctx.max-alignment #function.max-alignment
 }
 
 fn words-measure-copy-space(words: .Array<Word>, ctx: .CopySpaceCtx, offset: .i32) {
@@ -2029,52 +2061,55 @@ fn words-measure-copy-space(words: .Array<Word>, ctx: .CopySpaceCtx, offset: .i3
     }
 }
 
-fn type-size(sizes: .Array<i32>, type: TypeId) -> i32 {
-    $sizes $type.index Array:get<i32> ~
+fn type-size(type-infos: .Array<TypeInfo>, type: TypeId) -> i32 {
+    $type-infos $type.index Array:get .size ~
+}
+fn type-alignment(type-infos: .Array<TypeInfo>, type: TypeId) -> i32 {
+    $type-infos $type.index Array:get .alignment ~
 }
 
-fn field-offset(sizes: .Array<i32>, struc: .Struct, field-index: i32) -> i32 {
-    $sizes !.Core:Unit $struc.sizes-used-for-offset-cache = if {
+fn field-offset(type-infos: .Array<TypeInfo>, struc: .Struct, field-index: i32) -> i32 {
+    $type-infos !.Core:Unit $struc.sizes-used-for-offset-cache = if {
         &struc.field-offsets $field-index Array:get<i32> ~
     } else {
-        $sizes !.Core:Unit #struc.sizes-used-for-offset-cache
+        $type-infos !.Core:Unit #struc.sizes-used-for-offset-cache
         &struc.field-offsets 0 Array:truncate<i32>
         0 @i
         0 @offset
         loop {
             $i $struc.fields.len = if { break }
-
             &struc.field-offsets $offset Array:push-assert-no-alloc<i32>
 
             &struc.fields $i Array:get<NamedTypeId> @field
-            $sizes $field.type type-size @field-size
+            $type-infos $field.type type-size @field-size
             $offset $field-size + #offset
 
             $i 1 + $struc.fields.len lt if {
-                $sizes &struc.fields $i 1 + Array:get<NamedTypeId> .type ~ type-size @next-field-size
+                $type-infos &struc.fields $i 1 + Array:get<NamedTypeId> .type ~ type-size @next-field-size
                 $offset $next-field-size 4 Core:min Core:align-to #offset
             }
 
             $i 1 + #i
         }
-        $sizes $struc $field-index field-offset
+        $type-infos $struc $field-index field-offset
     }
 }
 
-fn can-live-in-reg(sizes: .Array<i32>, type: TypeId) -> bool {
-    $sizes $type.index Array:get<i32> ~ 8 le
+fn can-live-in-reg(type-infos: .Array<TypeInfo>, type: TypeId) -> bool {
+    $type-infos $type.index Array:get .size ~ 8 le
 }
 
 struct CopySpaceCtx {
     modules: .Array<Module>
-    sizes: .Array<i32>
+    type-infos: .Array<TypeInfo>
     types: .Array<Maybe<Key>>
     struc-offset: i32
     max-stack-returns: i32
+    max-alignment: i32
 }
 
 fn call-measure-copy-space(returns: .Array<TypeId>, ctx: .CopySpaceCtx, offset: .i32) -> i32 {
-    $returns $ctx.types $ctx.sizes $offset returns-measure-copy-space
+    $returns $ctx.types $ctx.type-infos $offset returns-measure-copy-space
     Core:dup $offset ~ /= if {
         // this call does use some copy-space
         $returns.len $ctx.max-stack-returns Core:max #ctx.max-stack-returns
@@ -2105,8 +2140,7 @@ fn word-measure-copy-space(word: .Word, ctx: .CopySpaceCtx, offset: .i32) { bloc
         case Word.MakeStruct -> { @word $word.type &word.copy-space-offset }
         case Word.MakeStructNamed -> {
             @word
-            $offset ~ #word.copy-space-offset
-            $offset ~ $ctx.sizes $word.type type-size + =>offset
+            $word.type $ctx $offset type-measure-copy-space #word.copy-space-offset
             $ctx.struc-offset
             $word.copy-space-offset #ctx.struc-offset
             &word.body.words $ctx $offset words-measure-copy-space
@@ -2121,7 +2155,7 @@ fn word-measure-copy-space(word: .Word, ctx: .CopySpaceCtx, offset: .i32) { bloc
                 case CustomType.Struct -> {}
                 case CustomType.Variant -> { !.Struct 0 0 / drop }
             } @struc
-            $ctx.sizes $struc $word.field-index field-offset @field-offset
+            $ctx.type-infos $struc $word.field-index field-offset @field-offset
             $ctx.struc-offset $field-offset + #word.copy-space-offset break
         }
         case If -> {
@@ -2156,26 +2190,25 @@ fn word-measure-copy-space(word: .Word, ctx: .CopySpaceCtx, offset: .i32) { bloc
         }
         case Closure -> {
             @word
-            $offset ~ #word.copy-space-offset
-            $offset ~ $ctx.sizes $word.environment type-size + =>offset
+            // $offset ~ #word.copy-space-offset
+            $word.environment $ctx $offset type-measure-copy-space #word.copy-space-offset
             break
         }
         case _ -> { drop break }
     } @offset-slot @type
-    $ctx.sizes $type can-live-in-reg not if {
-        $offset ~ =>offset-slot
-        $offset ~ $ctx.sizes $type type-size + =>offset
+    $ctx.type-infos $type can-live-in-reg not if {
+        $type $ctx $offset type-measure-copy-space =>offset-slot
     }
 } }
 
-fn returns-measure-copy-space(returns: .Array<TypeId>, types: .Array<Maybe<Key>>, sizes: .Array<i32>, offset: .i32) -> i32 {
+fn returns-measure-copy-space(returns: .Array<TypeId>, types: .Array<Maybe<Key>>, type-infos: .Array<TypeInfo>, offset: .i32) -> i32 {
     $offset ~
     0 @i
     loop {
         $i $returns.len = if { break }
         $returns $i Array:get<TypeId> ~ @type
-        $sizes $type can-live-in-reg not if {
-            $offset ~ $sizes $type type-size + =>offset
+        $type-infos $type can-live-in-reg not if {
+            $offset ~ $type-infos $type type-size + =>offset
         }
         $i 1 + #i
     }

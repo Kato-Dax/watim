@@ -53,7 +53,7 @@ fn generate(fmt: .Formatter, program: .Monomized, guard-stack: bool) {
         $i 1 + #i
     }
 
-    $fmt $program $static-data-offsets $guard-stack 0 1 = 0 1 = 0 1 = 0 1 = 0 1 = 0 1 = 0 1 = make Ctx @ctx
+    $fmt $program $static-data-offsets $guard-stack 0 1 = 0 1 = 0 1 = 0 1 = 0 1 = 0 1 = 0 1 = 0 1 = make Ctx @ctx
 
     0 @i
     loop {
@@ -130,8 +130,8 @@ fn generate-globals(ctx: .Ctx, static-data-len: i32) -> i32 {
             $j $module.globals.len = if { break }
             &module.globals $j Array:get<Global> @globl
             $j 1 + #j
-            &ctx.program.sizes $globl.type type-size @size
-            $globl.reffed &ctx.program.sizes $globl.type can-live-in-reg not or @lives-in-memory
+            &ctx.program.type-infos $globl.type type-size @size
+            $globl.reffed &ctx.program.type-infos $globl.type can-live-in-reg not or @lives-in-memory
 
             $ctx.fmt Fmt:write-indent
             $ctx.fmt "(global $" Fmt:write
@@ -235,6 +235,12 @@ fn generate-intrinsic-functions(ctx: .Ctx) {
         $ctx.fmt "local.get $a i32.wrap_i64 local.get $a i64.const 32 i64.shr_u i32.wrap_i64" Fmt:write
         $ctx.fmt ")\n" Fmt:write
     }
+    $ctx.align-to-used if {
+        $ctx.fmt Fmt:write-indent
+        $ctx.fmt "(func $intrinsic:align-to (param i32) (param i32) (result i32) " Fmt:write
+        $ctx.fmt "local.get 0 local.get 1 local.get 0 local.get 1 i32.rem_u i32.sub local.get 0 local.get 1 i32.rem_u i32.const 0 i32.gt_u i32.mul i32.add" Fmt:write
+        $ctx.fmt ")\n" Fmt:write
+    }
     $ctx.guard-stack if {
         $ctx.fmt Fmt:write-indent
         $ctx.fmt "(func $stack-overflow-guar:d " Fmt:write
@@ -333,6 +339,8 @@ fn generate-function(
         $i 1 +
     }
 
+    $function.max-alignment @necessary-stack-alignment
+
     $function.local-copy-space 0 /=
     $ctx &function.locals any-local-lives-in-memory or @uses-stack
     $uses-stack if {
@@ -340,10 +348,11 @@ fn generate-function(
         $ctx.fmt "(local $stac:k i32)\n" Fmt:write
         $ctx.fmt Fmt:write-indent
         $ctx.fmt "global.get $stac:k local.set $stac:k\n" Fmt:write
+        $ctx $necessary-stack-alignment align-stack
     }
 
     $function.local-copy-space 0 /= if {
-        $ctx "locl-copy-spac:e" $function.local-copy-space 0 make ScopeId 0 generate-memory-slot
+        $ctx "locl-copy-spac:e" $function.local-copy-space $necessary-stack-alignment Core:align-to 0 make ScopeId 0 generate-memory-slot
     }
 
     $ctx &function.locals generate-memory-slots-for-locals
@@ -365,11 +374,21 @@ fn generate-function(
     $ctx.fmt ")\n" Fmt:write
 }
 
+fn align-stack(ctx: .Ctx, necessary-stack-alignment: i32) {
+    $necessary-stack-alignment 4 /= $necessary-stack-alignment 1 /= and $necessary-stack-alignment 2 /= and if {
+        1 1 = #ctx.align-to-used
+        $ctx.fmt Fmt:write-indent
+        $ctx.fmt "global.get $stac:k i32.const " Fmt:write
+        $ctx.fmt $necessary-stack-alignment i32-format
+        $ctx.fmt " call $intrinsic:align-to global.set $stac:k\n" Fmt:write
+    }
+}
+
 fn any-local-lives-in-memory(ctx: .Ctx, locals: .Map<LocalId, Local>) -> bool {
     0 @i
     loop {
         $i $locals.values.len = if { 0 1 = break }
-        &ctx.program.sizes &locals.values $i Array:get<Local> local-lives-in-memory if {
+        &ctx.program.type-infos &locals.values $i Array:get<Local> local-lives-in-memory if {
             1 1 = break
         }
         $i 1 + #i
@@ -382,8 +401,8 @@ fn generate-memory-slots-for-locals(ctx: .Ctx, locals: .Map<LocalId, Local>) {
         $i $locals.values.len = if { break }
         &locals.values $i Array:get<Local> @local
 
-        &ctx.program.sizes $local local-lives-in-memory @lives-in-memory
-        &ctx.program.sizes $local.type can-live-in-reg @can-live-in-reg
+        &ctx.program.type-infos $local local-lives-in-memory @lives-in-memory
+        &ctx.program.type-infos $local.type can-live-in-reg @can-live-in-reg
 
         $local.parameter-index match {
             case Some -> {
@@ -406,7 +425,7 @@ fn generate-memory-slots-for-locals(ctx: .Ctx, locals: .Map<LocalId, Local>) {
                         make Maybe.None #local.parameter-index
                     }
                     $ctx.fmt " i32.const " Fmt:write
-                    $ctx.fmt &ctx.program.sizes $local.type type-size i32-format
+                    $ctx.fmt &ctx.program.type-infos $local.type type-size i32-format
                     $ctx.fmt " i32.add global.set $stac:k\n" Fmt:write
                 }
             }
@@ -416,7 +435,7 @@ fn generate-memory-slots-for-locals(ctx: .Ctx, locals: .Map<LocalId, Local>) {
 
                     $ctx
                     &local.name Name-unpack
-                    &ctx.program.sizes $local.type type-size
+                    &ctx.program.type-infos $local.type type-size
                     $local-id.scope
                     $local-id.shadow
                     generate-memory-slot
@@ -445,11 +464,11 @@ fn generate-memory-slot(ctx: .Ctx, name-ptr: .i8, name-len: i32, size: i32, scop
 
 fn parameter-needs-moved-into-memory(ctx: .Ctx, local: .Local) -> bool {
     &local.parameter-index Maybe:is-none if { 0 0 / drop }
-    $local.reffed &ctx.program.sizes $local.type can-live-in-reg and
+    $local.reffed &ctx.program.type-infos $local.type can-live-in-reg and
 }
 
 fn parameter-can-be-abused-ref(ctx: .Ctx, local: .Local) -> bool {
-    &ctx.program.sizes $local.type type-size @size
+    &ctx.program.type-infos $local.type type-size @size
     $size 4 le $size 8 gt or
 }
 
@@ -479,7 +498,7 @@ fn generate-locals(ctx: .Ctx, locals: .Map<LocalId, Local>) {
                 $ctx.fmt $local-id.shadow i32-format
             }
             $ctx.fmt " " Fmt:write
-            &ctx.program.sizes $local local-lives-in-memory if {
+            &ctx.program.type-infos $local local-lives-in-memory if {
                 $ctx.fmt "i32" Fmt:write
             } else {
                 $ctx $local.type generate-type

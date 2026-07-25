@@ -54,6 +54,8 @@ fn generate-words(ctx: .Ctx, module: i32, locals: .Map<LocalId, Local>, words: .
     }
 }
 
+import "../../std/fmt-utils.watim" as Fmt
+
 fn generate-word(ctx: .Ctx, module: i32, locals: .Map<LocalId, Local>, word: .Word) {
     $ctx.fmt Fmt:write-indent
     $word match {
@@ -75,7 +77,7 @@ fn generate-word(ctx: .Ctx, module: i32, locals: .Map<LocalId, Local>, word: .Wo
         }
         case Word.GetLocal -> {
             @word
-            &ctx.program.sizes $word.result-type can-live-in-reg @result-can-live-in-reg
+            &ctx.program.type-infos $word.result-type can-live-in-reg @result-can-live-in-reg
 
             $result-can-live-in-reg not if {
                 // set up the address to store the result in
@@ -91,14 +93,14 @@ fn generate-word(ctx: .Ctx, module: i32, locals: .Map<LocalId, Local>, word: .Wo
                     $ctx.fmt &globl.name Token-lexeme Fmt:write
                     $ctx.fmt ":" Fmt:write
                     $ctx.fmt $global-id.module.index i32-format
-                    &ctx.program.sizes $globl globl-lives-in-memory
+                    &ctx.program.type-infos $globl globl-lives-in-memory
                 }
                 case Local -> {
                     @local-id
                     $ctx.fmt "local.get " Fmt:write
                     $locals $local-id Map:get<LocalId, Local> Maybe:assert-some<.Local> @local
                     $ctx.fmt $local $local-id generate-local-ident
-                    &ctx.program.sizes $local local-lives-in-memory
+                    &ctx.program.type-infos $local local-lives-in-memory
                 }
             } @var-lives-in-memory
             // at this point, either the value itself or a pointer to it is on the stack
@@ -107,7 +109,7 @@ fn generate-word(ctx: .Ctx, module: i32, locals: .Map<LocalId, Local>, word: .Wo
             0 1 = @just-ref
             $temp $ctx &word.fields $just-ref $var-lives-in-memory determine-loads @loads
 
-            &ctx.program.sizes $word.result-type type-size @result-size
+            &ctx.program.type-infos $word.result-type type-size @result-size
             $ctx &loads generate-loads
             &loads List:is-empty<Load> if {
                 $result-can-live-in-reg if {
@@ -128,7 +130,7 @@ fn generate-word(ctx: .Ctx, module: i32, locals: .Map<LocalId, Local>, word: .Wo
             @word
             List:empty<Load> @loads
 
-            &ctx.program.sizes
+            &ctx.program.type-infos
             $locals &word.local Map:get<LocalId, Local> Maybe:assert-some<.Local>
             local-lives-in-memory @var-lives-in-memory
 
@@ -273,7 +275,7 @@ fn generate-word(ctx: .Ctx, module: i32, locals: .Map<LocalId, Local>, word: .Wo
                 case Variant -> { drop Core:unreachable<.Struct> }
                 case Struct -> {}
             } @struc
-            &ctx.program.sizes $word.type type-size @type-size
+            &ctx.program.type-infos $word.type type-size @type-size
             $type-size 0 = if {
                 0 @i
                 loop {
@@ -312,7 +314,7 @@ fn generate-word(ctx: .Ctx, module: i32, locals: .Map<LocalId, Local>, word: .Wo
             $ctx.fmt "local.get $locl-copy-spac:e i32.const " Fmt:write
             $ctx.fmt $word.copy-space-offset i32-format
             $ctx.fmt " i32.add " Fmt:write
-            &ctx.program.sizes $word.type type-size @type-size
+            &ctx.program.type-infos $word.type type-size @type-size
             $type-size 4 le $type-size 8 gt or if {
                 $ctx generate-flip-i32-i32
             } else {
@@ -332,7 +334,7 @@ fn generate-word(ctx: .Ctx, module: i32, locals: .Map<LocalId, Local>, word: .Wo
                 case Struct -> { drop Core:unreachable<.Variant> }
             } @varint
             &varint.cases $word.tag Array:get<VariantCase> @cays
-            &ctx.program.sizes $word.type type-size @varint-size
+            &ctx.program.type-infos $word.type type-size @varint-size
 
             $varint-size 4 le if {
                 $varint-size 4 /= if {
@@ -385,7 +387,7 @@ fn generate-word(ctx: .Ctx, module: i32, locals: .Map<LocalId, Local>, word: .Wo
             $cays.type match {
                 case Some -> {
                     @case-type
-                    &ctx.program.sizes $case-type type-size @case-type-size
+                    &ctx.program.type-infos $case-type type-size @case-type-size
 
                     $ctx.fmt Fmt:write-indent
                     $ctx.fmt "local.get $locl-copy-spac:e i32.const " Fmt:write
@@ -426,13 +428,13 @@ fn generate-word(ctx: .Ctx, module: i32, locals: .Map<LocalId, Local>, word: .Wo
                 case Variant -> {}
                 case Struct -> { drop Core:unreachable<.Variant> }
             } @varint
-            &ctx.program.sizes $word.type type-size @variant-size
+            &ctx.program.type-infos $word.type type-size @variant-size
             $ctx.fmt ";; match on " Fmt:write
             $ctx.fmt &varint.name Token-lexeme Fmt:write
             $ctx.fmt "\n" Fmt:write
             $ctx.fmt Fmt:write-indent
             0 @i
-            &ctx.program.sizes $word.type can-live-in-reg @variant-can-live-in-reg
+            &ctx.program.type-infos $word.type can-live-in-reg @variant-can-live-in-reg
             loop {
                 $i $word.cases.len = if {
                     &word.default match {
@@ -487,7 +489,7 @@ fn generate-word(ctx: .Ctx, module: i32, locals: .Map<LocalId, Local>, word: .Wo
                     }
                     case Some -> {
                         @case-type
-                        &ctx.program.sizes $case-type type-size @case-type-size
+                        &ctx.program.type-infos $case-type type-size @case-type-size
                         $case-type-size 0 /= if {
                             $ctx.fmt Fmt:write-indent
                             $word.by-ref $variant-size 8 gt or if {
@@ -544,8 +546,8 @@ fn generate-word(ctx: .Ctx, module: i32, locals: .Map<LocalId, Local>, word: .Wo
         }
         case Word.Flip -> {
             @flip
-            &ctx.program.sizes $flip.lower type-size @lower-size
-            &ctx.program.sizes $flip.upper type-size @upper-size
+            &ctx.program.type-infos $flip.lower type-size @lower-size
+            &ctx.program.type-infos $flip.upper type-size @upper-size
             $lower-size 4 le $lower-size 8 gt or @lower-is-i32
             $upper-size 4 le $upper-size 8 gt or @upper-is-i32
             block {
@@ -559,8 +561,8 @@ fn generate-word(ctx: .Ctx, module: i32, locals: .Map<LocalId, Local>, word: .Wo
         case Word.Cast -> {
             @word
             block {
-                &ctx.program.sizes $word.src type-size @src-size
-                &ctx.program.sizes $word.dst type-size @dst-size
+                &ctx.program.type-infos $word.src type-size @src-size
+                &ctx.program.type-infos $word.dst type-size @dst-size
                 $src-size $dst-size = if {
                     $ctx.fmt ";; cast to " Fmt:write
                     $ctx $word.dst generate-type-pretty
@@ -589,7 +591,7 @@ fn generate-word(ctx: .Ctx, module: i32, locals: .Map<LocalId, Local>, word: .Wo
 
                 $ctx.program $word.dst lookup-type match {
                     case I64 -> {
-                        &ctx.program.sizes $word.src can-live-in-reg if {
+                        &ctx.program.type-infos $word.src can-live-in-reg if {
                             $ctx.fmt "i64.extend_i32_s" Fmt:write
                             break
                         }
@@ -604,7 +606,7 @@ fn generate-word(ctx: .Ctx, module: i32, locals: .Map<LocalId, Local>, word: .Wo
             }
         }
         case Word.Sizeof -> {
-            &ctx.program.sizes flip ~ type-size
+            &ctx.program.type-infos flip ~ type-size
             $ctx.fmt "i32.const " Fmt:write
             $ctx.fmt flip i32-format
         }
@@ -641,7 +643,7 @@ fn generate-word(ctx: .Ctx, module: i32, locals: .Map<LocalId, Local>, word: .Wo
             &loads List:is-empty<Load> if {
                 $ctx.fmt ";; GetField was no-op" Fmt:write
             } else {
-                &ctx.program.sizes $word.type can-live-in-reg @target-type-can-live-in-reg
+                &ctx.program.type-infos $word.type can-live-in-reg @target-type-can-live-in-reg
                 $word.on-ptr not $target-type-can-live-in-reg not and if {
                     $ctx.fmt "local.get $locl-copy-spac:e i32.const " Fmt:write
                     $ctx.fmt $word.copy-space-offset i32-format
@@ -653,7 +655,7 @@ fn generate-word(ctx: .Ctx, module: i32, locals: .Map<LocalId, Local>, word: .Wo
         }
         case Word.Uninit -> { block {
             @word
-            &ctx.program.sizes $word.type type-size @type-size
+            &ctx.program.type-infos $word.type type-size @type-size
             $type-size 4 le if {
                 $ctx.fmt "i32.const 0" Fmt:write
                 break
@@ -722,7 +724,7 @@ fn generate-make-struct(ctx: .Ctx, word: .MakeStruct, always-in-memory: bool) { 
         case Struct -> {}
     } @struc
 
-    &ctx.program.sizes $word.type type-size @type-size
+    &ctx.program.type-infos $word.type type-size @type-size
 
     $type-size 0 = if {
         0 @i
@@ -745,8 +747,8 @@ fn generate-make-struct(ctx: .Ctx, word: .MakeStruct, always-in-memory: bool) { 
         $struc.fields.len @i
         loop {
             $i 0 = if { break }
-            &ctx.program.sizes &struc.fields $i 1 - Array:get<NamedTypeId> .type ~ type-size @field-size
-            &ctx.program.sizes $struc $i 1 - field-offset @offset
+            &ctx.program.type-infos &struc.fields $i 1 - Array:get<NamedTypeId> .type ~ type-size @field-size
+            &ctx.program.type-infos $struc $i 1 - field-offset @offset
 
             $i $struc.fields.len /=
             $offset 0 /= $type-size 4 gt or
@@ -796,8 +798,8 @@ fn generate-make-struct(ctx: .Ctx, word: .MakeStruct, always-in-memory: bool) { 
         $i 0 = if { break }
         $i 1 - @field-index
         &struc.fields $field-index Array:get<NamedTypeId> @field
-        &ctx.program.sizes $field.type type-size @field-size
-        &ctx.program.sizes $struc $field-index field-offset @field-offset
+        &ctx.program.type-infos $field.type type-size @field-size
+        &ctx.program.type-infos $struc $field-index field-offset @field-offset
         $ctx.fmt Fmt:write-indent
         $ctx.fmt "local.get $locl-copy-spac:e " Fmt:write
         $word.copy-space-offset $field-offset + @copy-space-offset
@@ -836,7 +838,7 @@ fn generate-return-receivers(ctx: .Ctx, offset: i32, returns: .Array<TypeId>) {
             // all returns can live in reg
             0 1 = break
         }
-        &ctx.program.sizes $returns $i Array:get<TypeId> ~ can-live-in-reg not if {
+        &ctx.program.type-infos $returns $i Array:get<TypeId> ~ can-live-in-reg not if {
             1 1 = break
         }
         $i 1 + #i
@@ -846,7 +848,7 @@ fn generate-return-receivers(ctx: .Ctx, offset: i32, returns: .Array<TypeId>) {
         $returns.len @i
         loop {
             $i 0 = if { break }
-            &ctx.program.sizes $returns $i 1 - Array:get<TypeId> ~ type-size @size
+            &ctx.program.type-infos $returns $i 1 - Array:get<TypeId> ~ type-size @size
             $ctx.fmt Fmt:write-indent
             $ctx.fmt "local.set $s" Fmt:write
             $ctx.fmt $i 1 - i32-format
@@ -858,7 +860,7 @@ fn generate-return-receivers(ctx: .Ctx, offset: i32, returns: .Array<TypeId>) {
             $i $returns.len = if { break }
             $returns $i Array:get<TypeId> ~ @ret
             $ctx.fmt Fmt:write-indent
-            &ctx.program.sizes $ret type-size @size
+            &ctx.program.type-infos $ret type-size @size
             $size 4 le if {
                 $ctx.fmt "local.get $s" Fmt:write
                 $ctx.fmt $i i32-format
@@ -1045,13 +1047,13 @@ fn determine-loads(arena: .Arena, ctx: .Ctx, fields: .FieldAccesses, just-ref: b
     &first.access @field
     $first.next @tail
 
-    &ctx.program.sizes $field.source-type type-size @source-type-size
+    &ctx.program.type-infos $field.source-type type-size @source-type-size
     $ctx.program $field.source-type lookup-type match {
         case Custom -> {
             $ctx.program flip lookup-custom-type match {
                 case Struct -> {
                     @struc
-                    &ctx.program.sizes $struc $field.field-index field-offset @offset
+                    &ctx.program.type-infos $struc $field.field-index field-offset @offset
 
                     block {
                         $base-in-mem $source-type-size 8 gt or if {
@@ -1067,7 +1069,10 @@ fn determine-loads(arena: .Arena, ctx: .Ctx, fields: .FieldAccesses, just-ref: b
                             $arena $ctx &tail $just-ref $base-in-mem determine-loads @rest
                             $arena $load &rest List:cons<Load> merge-loads break
                         }
-                        &ctx.program.sizes $field.target-type type-size @target-type-size
+                        &ctx.program.type-infos $field.target-type type-size @target-type-size
+                        $target-type-size 8 = if {
+                            $arena $ctx &tail $just-ref $base-in-mem determine-loads break
+                        }
                         $source-type-size 4 gt if {
                             block {
                                 $target-type-size 1 = if {
@@ -1124,9 +1129,9 @@ fn determine-loads(arena: .Arena, ctx: .Ctx, fields: .FieldAccesses, just-ref: b
                     drop Core:unreachable<.Struct>
                 }
             } @struc
-            &ctx.program.sizes $struc $field.field-index field-offset @offset
+            &ctx.program.type-infos $struc $field.field-index field-offset @offset
 
-            &ctx.program.sizes $field.target-type type-size @target-type-size
+            &ctx.program.type-infos $field.target-type type-size @target-type-size
 
             $base-in-mem if {
                 // $field.source-type is a ptr and it is already in mem, effectively ..T
@@ -1181,12 +1186,12 @@ fn generate-set(
     &var-id match {
         case Local -> {
             $locals flip Map:get<LocalId, Local> Maybe:assert-some<.Local> @local
-            &ctx.program.sizes $local local-lives-in-memory
+            &ctx.program.type-infos $local local-lives-in-memory
             $local.type
         }
         case Global -> {
             $ctx.program flip lookup-globl @globl
-            &ctx.program.sizes $globl globl-lives-in-memory
+            &ctx.program.type-infos $globl globl-lives-in-memory
             $globl.type
         }
     } @var-type @var-lives-in-memory
@@ -1206,7 +1211,7 @@ fn generate-set(
     } Fmt:write
     $ctx $locals &var-id generate-var-ident
 
-    &ctx.program.sizes $target-type type-size @target-type-size
+    &ctx.program.type-infos $target-type type-size @target-type-size
 
     $loads List:is-empty<Load> if {
         $ctx.fmt " " Fmt:write
@@ -1380,7 +1385,7 @@ fn generate-load(ctx: .Ctx, load: .Load) {
         }
         case OffsetLoad -> {
             @load
-            &ctx.program.sizes $load.type type-size @size
+            &ctx.program.type-infos $load.type type-size @size
             block {
                 $size 8 le if {
                     $ctx.fmt block {

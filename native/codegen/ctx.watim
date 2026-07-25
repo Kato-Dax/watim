@@ -27,6 +27,7 @@ struct Ctx {
     pack-i32s-used: bool
     unpack-i32s-used: bool
     dup-i64-used: bool
+    align-to-used: bool
 }
 
 variant FunctionOrExtern {
@@ -59,7 +60,7 @@ fn lookup-globl(program: .Monomized, id: .GlobalId) -> .Global {
 }
 
 fn var-lives-in-memory(ctx: .Ctx, locals: .Map<LocalId, Local>, var: .VarId) -> bool {
-    &ctx.program.sizes $var match {
+    &ctx.program.type-infos $var match {
         case Local -> {
             $locals flip Map:get<LocalId, Local> Maybe:assert-some<.Local> local-lives-in-memory
         }

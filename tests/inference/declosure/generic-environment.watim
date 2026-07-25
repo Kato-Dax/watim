@@ -4,68 +4,112 @@ fn main "_start" () {
 }
 
 fn generic-function<T>(t: T) -> T {
-    { $t } \(-> T)
+    $t { use<T> } \(T -> T)
+}
+
+fn use<T>(a: T) -> T {
+    $a
 }
 [== Args Compiler ==]
-check
+monomize
 -
 --quiet
 [== Status Compiler ==]
 0
 [== Stdout Compiler ==]
-(Map
-  "-"=(Module
-    imports=(Map),
-    type-definitions=[
-      (Struct
-        name=(LEFT_BRACE { 6 5),
-        generic-parameters=[(IDENT T 5 21)],
-        fields=[
-          (NamedType (User (IDENT t 5 24)) (Ptr (GenericType (IDENT T 5 27) 0)))])],
-    globals=[],
-    functions=[
-      (Function
-        name=(User (IDENT main 1 4)),
-        export=(Some (STRING "_start" 1 9)),
-        signature=(Signature
-          generic-parameters=[],
-          parameters=[],
-          returns=[]),
-        locals=(Map),
-        body=(Scope 0 [
-          (Number (NUMBER 0 2 5)),
-          (Call (IDENT generic-function 2 7) (FunctionHandle 0 1) [I32]),
-          (Intrinsic (IDENT drop 2 24) (Drop I32))])),
-      (Function
-        name=(User (IDENT generic-function 5 4)),
-        export=None,
-        signature=(Signature
-          generic-parameters=[(IDENT T 5 21)],
-          parameters=[
-            (Parameter (User (IDENT t 5 24)) 0 (GenericType (IDENT T 5 27) 0))],
-          returns=[(GenericType (IDENT T 5 33) 0)]),
-        locals=(Map
-          (LocalId "t" 0 0)=(Local (User (IDENT t 5 24)) (GenericType (IDENT T 5 27) 0) (Some 0))),
-        body=(Scope 0 [
-          (Closure
-            token=(LEFT_BRACE { 6 5),
-            parameters=[],
-            returns=[(GenericType (IDENT T 6 17) 0)],
-            function=(FunctionHandle 0 2),
-            environment=(CustomType 0 0 [(GenericType (IDENT T 5 21) 0)]),
-            captured=[(LocalId "t" 0 0)]),
-          (ClosureCall (BACKSLASH \ 6 12) (FunType (BACKSLASH \ 6 12) [] [(GenericType (IDENT T 6 17) 0)]) [(GenericType (BACKSLASH \ 6 12) 0)])])),
-      (Function
-        name=(AnonymousFunctionName 0 (IDENT generic-function 5 4) (LEFT_BRACE { 6 5)),
-        export=None,
-        signature=(Signature
-          generic-parameters=[(IDENT T 5 21)],
-          parameters=[
-            (Parameter (AnonymousFunctionName 0 (IDENT generic-function 5 4) (LEFT_BRACE { 6 5)) 0 (Ptr (CustomType 0 0 [(GenericType (IDENT T 5 21) 0)])))],
-          returns=[(GenericType (IDENT T 6 17) 0)]),
-        locals=(Map
-          (LocalId "c;losure" 1 0)=(Local (ClosureParam (LEFT_BRACE { 6 5)) (Ptr (CustomType 0 0 [(GenericType (IDENT T 5 21) 0)])) (Some 0))),
-        body=(Scope 2 [
-          (GetLocal (IDENT t 6 8) (LocalId "c;losure" 1 0) (GenericType (IDENT T 5 27) 0) (GenericType (IDENT T 5 27) 0) [
-            (FieldAccess (IDENT t 6 8) (Ptr (CustomType 0 0 [(GenericType (IDENT T 5 21) 0)])) (Ptr (GenericType (IDENT T 5 27) 0)) 0),
-            (Load (GenericType (IDENT T 5 27) 0))])]))]))
+(Monomized
+  types=[
+    (Some Bool),
+    (Some I8),
+    (Some I32),
+    (Some I64),
+    (Some (Ptr (TypeId 5))),
+    (Some (CustomType 0 0)),
+    (Some (ClosureType [(TypeId 2)] [(TypeId 2)]))],
+  type-infos=[
+    (TypeInfo 4 1),
+    (TypeInfo 1 1),
+    (TypeInfo 4 4),
+    (TypeInfo 8 8),
+    (TypeInfo 4 4),
+    (TypeInfo 0 0),
+    (TypeInfo 8 4)],
+  modules=(Map
+    "-"=(Module
+      custom-types=[
+        (Struct
+          name=(LEFT_BRACE { 6 8),
+          fields=[])],
+      globals=[],
+      functions=[
+        [
+          (Function
+            name=(User (IDENT main 1 4)),
+            export=(Some (STRING "_start" 1 9)),
+            signature=(Signature [] []),
+            generic-arguments=[],
+            locals=(Map),
+            local-copy-space=0,
+            max-stack-returns=0,
+            max-alignment=1,
+            body=(Scope 0 [
+              (Number (NUMBER 0 2 5)),
+              (Call (IDENT generic-function 2 7) (FunctionHandle 0 1 0) 0),
+              (Intrinsic (IDENT drop 2 24) (Drop (TypeId 2)))]))],
+        [
+          (Function
+            name=(User (IDENT generic-function 5 4)),
+            export=None,
+            signature=(Signature [
+              (Parameter (User (IDENT t 5 24)) (TypeId 2))] [
+              (TypeId 2)]),
+            generic-arguments=[(TypeId 2)],
+            locals=(Map
+              (LocalId "t" 0 0)=(Local (User (IDENT t 5 24)) (TypeId 2) False (Some 0))),
+            local-copy-space=0,
+            max-stack-returns=0,
+            max-alignment=1,
+            body=(Scope 0 [
+              (GetLocal (IDENT t 6 6) (LocalId "t" 0 0) (TypeId 2) [] 4294967295),
+              (Closure
+                token=(LEFT_BRACE { 6 8),
+                environment=(TypeId 5),
+                captured=[],
+                parameters=[(TypeId 2)],
+                returns=[(TypeId 2)],
+                function=(FunctionHandle 0 2 0),
+                table-index=0,
+                copy-space-offset=0),
+              (ClosureCall (TypeId 6) 4294967295)]))],
+        [
+          (Function
+            name=(AnonymousFunctionName 0 (IDENT generic-function 5 4) (LEFT_BRACE { 6 8)),
+            export=None,
+            signature=(Signature [
+              (Parameter (ClosureParam (LEFT_BRACE { 6 8)) (TypeId 2)),
+              (Parameter (AnonymousFunctionName 0 (IDENT generic-function 5 4) (LEFT_BRACE { 6 8)) (TypeId 4))] [
+              (TypeId 2)]),
+            generic-arguments=[(TypeId 2)],
+            locals=(Map
+              (LocalId "c;losure" 1 0)=(Local (ClosureParam (LEFT_BRACE { 6 8)) (TypeId 4) False (Some 1))),
+            local-copy-space=0,
+            max-stack-returns=0,
+            max-alignment=1,
+            body=(Scope 2 [
+              (Call (IDENT use 6 10) (FunctionHandle 0 3 0) 0)]))],
+        [
+          (Function
+            name=(User (IDENT use 9 4)),
+            export=None,
+            signature=(Signature [
+              (Parameter (User (IDENT a 9 11)) (TypeId 2))] [
+              (TypeId 2)]),
+            generic-arguments=[(TypeId 2)],
+            locals=(Map
+              (LocalId "a" 0 0)=(Local (User (IDENT a 9 11)) (TypeId 2) False (Some 0))),
+            local-copy-space=0,
+            max-stack-returns=0,
+            max-alignment=1,
+            body=(Scope 0 [
+              (GetLocal (IDENT a 10 6) (LocalId "a" 0 0) (TypeId 2) [] 4294967295)]))]])),
+  function-table=[(FunctionHandle 0 2 0)])

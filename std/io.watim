@@ -127,6 +127,11 @@ struct Just32Bytes {
     d: i64
 }
 
+struct Just64Bytes {
+    a: Just32Bytes
+    b: Just32Bytes
+}
+
 fn print(fd: i32, n: i32) -> i32 {
     uninit<Just32Bytes> @buf-reversed &buf-reversed !.i8 @buf-reversed
     $fd $buf-reversed $n $buf-reversed print-i32-into write-all
@@ -145,6 +150,38 @@ fn print-i32-into(n: i32, buf-reversed: .i8) -> i32 {
             48 + !i8 // + ascii 'a'
             store
             $n 10 / #n // shift right in decimal
+            $l 1 + #l
+        }
+    }
+    0 @i
+    loop {
+        $buf-reversed $i +
+        $buf $l 1 - $i - + ~
+        store
+        $i 1 + #i
+        $i $l = if { break }
+    }
+    $l
+}
+
+fn print-i64(fd: i32, n: i64) -> i32 {
+    uninit<Just64Bytes> @buf-reversed &buf-reversed !.i8 @buf-reversed
+    $fd $buf-reversed $n $buf-reversed print-i64-into write-all
+}
+fn print-i64-into(n: i64, buf-reversed: .i8) -> i32 {
+    uninit<Just64Bytes> @buf &buf !.i8 @buf
+    0 @l
+    $n 0 !i64 = if {
+        1 #l // length = 1
+        "0" drop ~ =>buf // put '0' in buf
+    } else {
+        loop {
+            $n 0 !i64 = if { break }
+            $buf $l +
+            $n 10 !i64 % // rightmost digit
+            48 !i64 + !i8 // + ascii 'a'
+            store
+            $n 10 !i64 / #n // shift right in decimal
             $l 1 + #l
         }
     }

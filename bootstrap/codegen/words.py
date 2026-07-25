@@ -639,6 +639,8 @@ def determine_loads(ctx: Ctx, fields: Tuple[mono.FieldAccess, ...], just_ref: bo
                     load = OffsetLoad(field.target_type, offset)
                 rest = determine_loads(ctx, tail, just_ref, True)
                 return merge_loads((load,) + rest)
+            if target_type_size == 8:
+               return determine_loads(ctx, tail, just_ref, base_in_mem)
             if source_type_size > 4:
                 if target_type_size == 1:
                     load = BitShift("I8InI64", offset)

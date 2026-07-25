@@ -1,5 +1,5 @@
 import "./core.watim" as CORE
-import "./io.watim" as IO
+import "./io.watim" as IO (Just32Bytes, Just64Bytes)
 import "./fmt.watim" as FMT (Formatter)
 import "./byte-slice.watim" as ByteSlice (ByteSlice)
 import "./array.watim" as Array
@@ -27,16 +27,14 @@ fn parse(pt: .i8, len: i32) -> i32 {
     }
 }
 
-struct Just32Bytes {
-    a: i64
-    b: i64
-    c: i64
-    d: i64
-}
-
 fn i32-format(formatter: .Formatter, self: i32) {
     uninit<Just32Bytes> @buf &buf !.i8 @buf
     $formatter $buf $self $buf IO:print-i32-into FMT:write
+}
+
+fn i64-format(formatter: .Formatter, self: i64) {
+    uninit<Just64Bytes> @buf &buf !.i8 @buf
+    $formatter $buf $self $buf IO:print-i64-into FMT:write
 }
 
 fn i32-format-ref(formatter: .Formatter, self: .i32) {

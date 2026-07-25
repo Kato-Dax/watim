@@ -32,7 +32,8 @@ fn main "_start" () {
 		(local $locl-copy-spac:e i32)
 		(local $stac:k i32)
 		global.get $stac:k local.set $stac:k
-		global.get $stac:k global.get $stac:k i32.const 12 i32.add global.set $stac:k local.set $locl-copy-spac:e
+		global.get $stac:k i32.const 8 call $intrinsic:align-to global.set $stac:k
+		global.get $stac:k global.get $stac:k i32.const 16 i32.add global.set $stac:k local.set $locl-copy-spac:e
 		i32.const 0
 		i32.const 1
 		i32.eq
@@ -74,6 +75,7 @@ fn main "_start" () {
 	(func $intrinsic:flip (param $a i32) (param $b i32) (result i32 i32) local.get $b local.get $a)
 	(func $intrinsic:dupi32 (param $a i32) (result i32 i32) local.get $a local.get $a)
 	(func $intrinsic:rotate-left (param $a i32) (param $b i32) (param $c i32) (result i32 i32 i32) local.get $b local.get $c local.get $a)
+	(func $intrinsic:align-to (param i32) (param i32) (result i32) local.get 0 local.get 1 local.get 0 local.get 1 i32.rem_u i32.sub local.get 0 local.get 1 i32.rem_u i32.const 0 i32.gt_u i32.mul i32.add)
 )
 [== Status ==]
 3

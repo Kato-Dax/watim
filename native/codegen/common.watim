@@ -19,7 +19,7 @@ import "../monomorphization/type.watim" as Type (
 import "./ctx.watim" as Ctx (Ctx, lookup-type, lookup-globl, lookup-custom-type, FunctionOrExtern)
 
 fn generate-store(ctx: .Ctx, type: TypeId) { block {
-    &ctx.program.sizes $type type-size @type-size
+    &ctx.program.type-infos $type type-size @type-size
     $type-size 8 gt if {
         $ctx.fmt "i32.const " Fmt:write
         $ctx.fmt $type-size i32-format
@@ -76,7 +76,7 @@ fn generate-local-ident(fmt: .Formatter, local: .Local, local-id: .LocalId) {
 }
 
 fn generate-type(ctx: .Ctx, type: TypeId) { block {
-    &ctx.program.sizes $type type-size @size
+    &ctx.program.type-infos $type type-size @size
     $ctx.fmt $size 4 gt $size 8 le and if {
         "i64"
     } else {

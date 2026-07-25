@@ -224,7 +224,7 @@ fn infer-function(
 
         0 loop (i32 ->) {
             @i $i $function.voids.len = if { break }
-            $ctx.arena &ctx.deferred &function.voids $i Array:get<_> make DeferredInfer.StackVoid $ctx.progress make DeferredInferAtProgress make DeferredItem.DeferredInfer Array:push<_>
+            $ctx.temp &ctx.deferred &function.voids $i Array:get<_> make DeferredInfer.StackVoid $ctx.progress make DeferredInferAtProgress make DeferredItem.DeferredInfer Array:push<_>
             $i 1 +
         }
 
@@ -232,8 +232,7 @@ fn infer-function(
 
         loop (-> Maybe<Error>) {
             $ctx.deferred.len 0 = if { make Maybe<Error>.None break }
-            &ctx.deferred Array:pop @deferred
-
+            &ctx.deferred Array:pop-front @deferred
             $deferred match {
                 case DeferredCheck -> {
                     @deferred
@@ -241,7 +240,7 @@ fn infer-function(
                         $ctx.fmt $deferred.source Source-format
                         $ctx.arena $deferred.source Source-token $deferred.origin "failed to check item" error-with-origin make Maybe<Error>.Some break
                     }
-                    &ctx $deferred.source $deferred.known $deferred.origin check match {
+                    &ctx $deferred.source &deferred.known $deferred.origin check match {
                         case None -> {}
                         case _ -> { break }
                     }
@@ -719,7 +718,7 @@ fn infer-stack-void(ctx: .Ctx, void: .StackVoid) -> Maybe<Error> {
                 0 1 =
             }
         } if {
-            $ctx.arena &ctx.deferred $void make DeferredInfer.StackVoid $ctx.progress make DeferredInferAtProgress make DeferredItem.DeferredInfer Array:push-front
+            $ctx.temp &ctx.deferred $void make DeferredInfer.StackVoid $ctx.progress make DeferredInferAtProgress make DeferredItem.DeferredInfer Array:push-front
         }
         $ctx logging if { $ctx.fmt Fmt:dedent }
         make Maybe.None
@@ -816,7 +815,7 @@ struct DeferredInferAtProgress {
 
 struct DeferredCheck {
     source: .Source
-    known: .Type
+    known: Type
     origin: .List<Origin>
     progress: i32
 }
@@ -859,6 +858,21 @@ fn full-sources(self: .Ctx) -> bool {
 
 fn lookup-hole(ctx: .Ctx, hole: InferenceHole) -> Maybe<.Type> {
     &ctx.holes &hole Holes-lookup
+}
+fn defer-check(ctx: .Ctx, source: .Source, known: .Type, origin: .List<Origin>) {
+    $ctx logging if {
+        $ctx.fmt "defering check: " Fmt:write
+        $ctx.fmt $known Type:format
+        $ctx.fmt "=" Fmt:write
+        $ctx.fmt $source Source-format
+        $ctx.fmt "\n" Fmt:write
+    }
+    $ctx.temp &ctx.deferred make DeferredCheck {
+        $source @source
+        $ctx.temp $known Type:clone @known
+        $ctx.progress @progress
+        $ctx.temp $origin copy-origin-list @origin
+    } make DeferredItem.DeferredCheck Array:push
 }
 
 fn fix-function-handle(ctx: .Ctx, function-handle: FunctionHandle) -> FunctionHandle {
@@ -1118,6 +1132,7 @@ fn check(ctx: .Ctx, source: .Source, known: .Type, origin: .List<Origin>) -> May
             }
         }
     }
+    0 1 = @dont-mark-known
     $ctx.arena &ctx.states $source make InferenceState.BeingChecked Map:insert<_, _> drop
     block (-> Maybe<Error>) {
         $source @whole-source
@@ -1191,7 +1206,10 @@ fn check(ctx: .Ctx, source: .Source, known: .Type, origin: .List<Origin>) -> May
                                 case Error -> { make Maybe<Error>.Some break }
                                 case Success -> {}
                             } match {
-                                case None -> { &source.token "check FromLocal: cannot infer the type of local" error make Maybe<Error>.Some break }
+                                case None -> {
+                                    1 1 = #dont-mark-known
+                                    $ctx $whole-source $known $origin defer-check make Maybe.None break
+                                }
                                 case Some -> {}
                             } @type
                             &type $known Type:eq not if {
@@ -1501,9 +1519,11 @@ fn check(ctx: .Ctx, source: .Source, known: .Type, origin: .List<Origin>) -> May
         }
         make Maybe<Error>.None
     }
-    $ctx.arena &ctx.states $source
-    $ctx.arena $known Type:clone
-    make InferenceState.Known Map:insert<_, _> drop
+    $dont-mark-known not if {
+        $ctx.arena &ctx.states $source
+        $ctx.arena $known Type:clone
+        make InferenceState.Known Map:insert<_, _> drop
+    }
     $ctx logging if { $ctx.fmt Fmt:dedent }
 } }
 
@@ -1632,12 +1652,7 @@ fn check-from-node(ctx: .Ctx, source: .Source:FromNode, known: .Type, origin: .L
                                 case Success -> {}
                             } match {
                                 case None -> {
-                                    $ctx.temp &ctx.deferred make DeferredCheck {
-                                        $ctx.temp $entire-source ~ make Source.FromNode Arena:push @source
-                                        $known @known
-                                        $ctx.progress @progress
-                                        $ctx.temp $origin copy-origin-list @origin
-                                    } make DeferredItem.DeferredCheck Array:push
+                                    $ctx $ctx.temp $entire-source ~ make Source.FromNode Arena:push $known $origin defer-check
                                     make Maybe.None break
                                 }
                                 case Some -> {}
