@@ -564,7 +564,6 @@ struct GetField {
     token: Token
     fields: FieldAccesses
     on-ptr: bool
-    // type: Type
 }
 fn GetField-format(fmt: .Formatter, self: .GetField) {
     $fmt "(GetField " Fmt:write
@@ -573,45 +572,22 @@ fn GetField-format(fmt: .Formatter, self: .GetField) {
     $fmt &self.fields FieldAccesses-format
     $fmt " " Fmt:write
     $fmt $self.on-ptr bool-format
-    // $fmt " " Fmt:write
-    // $fmt &self.type Type:format
     $fmt ")" Fmt:write
 }
 fn GetField-type(self: .GetField) -> Type {
-    // TODO: the following causes a stack-overflow during inference:
-        // block {
-        //     &self.fields match {
-        //         case FieldAccesses.End -> { 0 0 / drop Core:unreachable }
-        //         case FieldAccesses.Load -> { break }
-        //         case FieldAccesses.FieldAccess -> { break }
-        //     } @step
-        //     $step.type $step.next loop {
-        //         match {
-        //             case FieldAccesses.End -> { break }
-        //             case FieldAccesses.Load -> { flip drop break }
-        //             case FieldAccesses.FieldAccess -> {
-        //                 @step
-        //                 drop $step.type $step.next
-        //             }
-        //         }
-        //     }
-        // } $self.on-ptr if { make Type.Ptr } else { ~ }
-
     block (-> .Type) {
         &self.fields match {
             case FieldAccesses.End -> { 0 0 / drop Core:unreachable }
             case FieldAccesses.Load -> { break }
             case FieldAccesses.FieldAccess -> {}
         } ~ @step
-        &step.access.target-type $step.next loop (.Type, .FieldAccesses -> .Type) {
-            flip @x // TODO: not doing this `flip @x` but instead passing the x through, doesn't typecheck
-                    // even though i really think it should!
+        &step.access.target-type &step.next loop (.Type, .FieldAccesses -> .Type) {
             match {
-                case FieldAccesses.End -> { $x break }
-                case FieldAccesses.Load -> { $x break }
+                case FieldAccesses.End -> { break }
+                case FieldAccesses.Load -> { break }
                 case FieldAccesses.FieldAccess -> {
-                    ~ @step
-                    &step.access.target-type $step.next
+                    ~ @step drop
+                    &step.access.target-type &step.next
                 }
             }
         }
