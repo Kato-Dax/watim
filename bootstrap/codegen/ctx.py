@@ -20,6 +20,7 @@ class Ctx:
     unpack_i32s_used: bool
     dup_i32_used: bool
     dup_i64_used: bool
+    align_to_used: bool
 
     def write_line(self, line: str):
         self.fmt.write_indent()

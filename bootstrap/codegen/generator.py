@@ -32,7 +32,7 @@ def generate(fmt: Formatter, program: Monomized, guard_stack: bool):
         static_data_offsets.append(len(all_static_data))
         all_static_data.extend(module.static_data)
 
-    ctx = Ctx(fmt, program, tuple(static_data_offsets), guard_stack, False, False, False, False, False, False, False, False)
+    ctx = Ctx(fmt, program, tuple(static_data_offsets), guard_stack, False, False, False, False, False, False, False, False, False)
 
     for module_id, module in enumerate(program.modules.values()):
         for function in module.functions:
@@ -189,15 +189,18 @@ def generate_function(ctx: Ctx, function: Function, module: int, instance_id: in
         ctx.fmt.write_indent()
         ctx.fmt.write("(local $locl-copy-spac:e i32)\n")
 
+    necessary_stack_alignment = 8
+
     uses_stack = function.local_copy_space != 0 or any_local_lives_in_memory(ctx, function.locals)
     if uses_stack:
         ctx.fmt.write_indent()
         ctx.fmt.write("(local $stac:k i32)\n")
         ctx.fmt.write_indent()
         ctx.fmt.write("global.get $stac:k local.set $stac:k\n")
+        align_stack(ctx, necessary_stack_alignment)
 
     if function.local_copy_space != 0:
-        generate_memory_slot(ctx, "locl-copy-spac:e", function.local_copy_space, ROOT_SCOPE, 0)
+        generate_memory_slot(ctx, "locl-copy-spac:e", align_to(function.local_copy_space, necessary_stack_alignment), ROOT_SCOPE, 0)
     generate_memory_slots_for_locals(ctx, function.locals)
     if uses_stack and ctx.guard_stack:
         ctx.write_line("call $stack-overflow-guar:d")
@@ -206,6 +209,12 @@ def generate_function(ctx: Ctx, function: Function, module: int, instance_id: in
         ctx.write_line("local.get $stac:k global.set $stac:k")
     ctx.fmt.dedent()
     ctx.write_line(")")
+
+def align_stack(ctx: Ctx, necessary_stack_alignment: int):
+    if necessary_stack_alignment not in (1, 2, 4):
+        ctx.align_to_used = True
+        ctx.fmt.write_indent()
+        ctx.fmt.write(f"global.get $stac:k i32.const {necessary_stack_alignment} call $intrinsic:align-to global.set $stac:k\n")
 
 def any_local_lives_in_memory(ctx: Ctx, locals: IndexedDict[LocalId, Local]) -> bool:
     return any(local_lives_in_memory(ctx.program.sizes, local) for local in locals.values())
@@ -282,4 +291,6 @@ def generate_intrinsic_functions(ctx: Ctx):
         ctx.write_line("(func $intrinsic:unpack-i32s (param $a i64) (result i32) (result i32) local.get $a i32.wrap_i64 local.get $a i64.const 32 i64.shr_u i32.wrap_i64)")
     if ctx.guard_stack:
         ctx.write_line("(func $stack-overflow-guar:d i32.const 1 global.get $stac:k global.get $stack-siz:e i32.lt_u i32.div_u drop)")
+    if ctx.align_to_used:
+        ctx.write_line("(func $intrinsic:align-to (param i32) (param i32) (result i32) local.get 0 local.get 1 local.get 0 local.get 1 i32.rem_u i32.sub local.get 0 local.get 1 i32.rem_u i32.const 0 i32.gt_u i32.mul i32.add)")
 
