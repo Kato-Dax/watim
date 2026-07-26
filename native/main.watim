@@ -14,6 +14,7 @@ import "../std/fmt.watim" as Fmt
 import "../std/fmt-utils.watim" as Fmt (ByteSlice-format)
 import "../std/map.watim" as Map (Map)
 import "../std/util.watim" as Util (i32-format)
+import "../std/time.watim" as Time
 
 import "./active-memory.watim" as ActiveMemory
 import "./logging.watim" as Logging
@@ -382,11 +383,30 @@ fn run-project-wide-command(fs: .FileSystem, command: ProjectWideCommand) { bloc
     "Main" Arena:new @arena
     &command ProjectWideCommand-path ~ @file-path
 
+    &arena Arena:usage @start-usage
+    Time:realtime IO:unwrap @loading-start
     \ByteSlice:eq-by-ref Map:new<ByteSlice, Parser:Module> @modules
     &arena $fs $file-path 0 !.TokenLocation &modules load-modules-recursively
+    Time:realtime IO:unwrap @loading-end
+
+    Logging:enabled if {
+        $loading-end.nanoseconds $loading-start.nanoseconds - @loading-time
+        &arena Arena:usage @end-usage
+        $end-usage $start-usage - @usage
+        2 "loading used: " IO:write-all IO:check
+        2 $usage IO:print IO:check
+        2 " bytes (" IO:write-all IO:check
+        2 $usage print-byte-count IO:check
+        2 ") and took " IO:write-all IO:check
+        2 $loading-time 1000 !i64 / 1000 !i64 / IO:print-i64 IO:check
+        2 "ms \n" IO:write-all IO:check
+    }
+
     &arena &modules determine-compilation-order @modules
     "Resolving" Arena:new @resolving-arena
     &resolving-arena Arena:usage @start-usage
+
+    Time:realtime IO:unwrap @resolving-start
     &resolving-arena &modules Resolved:resolve-modules match {
         case Error -> {
             2 flip &modules Resolved:ResolveError-print drop
@@ -396,19 +416,23 @@ fn run-project-wide-command(fs: .FileSystem, command: ProjectWideCommand) { bloc
         }
         case Success -> {}
     } @resolved-modules
+    Time:realtime IO:unwrap .nanoseconds $resolving-start.nanoseconds - @resolving-time
+
+    Logging:enabled if {
+        &resolving-arena Arena:usage @end-usage
+        $end-usage $start-usage - @usage
+        2 "resolving used: " IO:write-all IO:check
+        2 $usage IO:print IO:check
+        2 " bytes (" IO:write-all IO:check
+        2 $usage print-byte-count IO:check
+        2 ") and took " IO:write-all IO:check
+        2 $resolving-time 1000 !i64 / 1000 !i64 / IO:print-i64 IO:check
+        2 "ms \n" IO:write-all IO:check
+    }
 
     $command match {
         case Resolve -> {
             drop
-            Logging:enabled if {
-                &resolving-arena Arena:usage @end-usage
-                $end-usage $start-usage - @usage
-                2 "resolving used: " IO:write-all IO:check
-                2 $usage IO:print IO:check
-                2 " bytes (" IO:write-all IO:check
-                2 $usage print-byte-count IO:check
-                2 ")\n" IO:write-all IO:check
-            }
             1 Fmt:to-fd @fmt
             &arena &fmt 1024 Fmt:buffered @buf @fmt
             &fmt \ByteSlice-format \Resolved:Module-format &resolved-modules Map:format-multi-line<ByteSlice, Resolved:Module>
@@ -525,6 +549,7 @@ fn run-project-wide-command(fs: .FileSystem, command: ProjectWideCommand) { bloc
         case _ -> { drop }
     }
 
+    Time:realtime IO:unwrap @inference-start
     &inference-arena &resolved-modules infer-modules match {
         case Success -> {}
         case Error -> {
@@ -534,6 +559,20 @@ fn run-project-wide-command(fs: .FileSystem, command: ProjectWideCommand) { bloc
             Core:unreachable<Map<ByteSlice, Checked:Module>>
         }
     } @inferred
+    Time:realtime IO:unwrap @inference-end
+    $inference-end.nanoseconds $inference-start.nanoseconds - @inference-time
+
+    Logging:enabled if {
+        &inference-arena Arena:usage @end-usage
+        $end-usage $start-usage - @usage
+        2 "unstacking and inference used: " IO:write-all IO:check
+        2 $usage IO:print IO:check
+        2 " bytes (" IO:write-all IO:check
+        2 $usage print-byte-count IO:check
+        2 ") and took " IO:write-all IO:check
+        2 $inference-time 1000 !i64 / 1000 !i64 / IO:print-i64 IO:check
+        2 "ms \n" IO:write-all IO:check
+    }
 
     $command match {
         case Check -> {
@@ -554,11 +593,26 @@ fn run-project-wide-command(fs: .FileSystem, command: ProjectWideCommand) { bloc
         case _ -> { drop }
     }
 
+    Time:realtime IO:unwrap @monomizing-start
     "Monomizing" Arena:new @monomizing-arena
     &monomizing-arena &inferred monomize @monomized
     Unstacking:uninit-intrinsic-signatures
     &resolving-arena Arena:shred
     &inference-arena Arena:shred
+    Time:realtime IO:unwrap @monomizing-end
+    Logging:enabled if {
+        $monomizing-end.nanoseconds $monomizing-start.nanoseconds - @monomizing-time
+        &monomizing-arena Arena:usage @end-usage
+        $end-usage $start-usage - @usage
+        2 "monomorphization used: " IO:write-all IO:check
+        2 $usage IO:print IO:check
+        2 " bytes (" IO:write-all IO:check
+        2 $usage print-byte-count IO:check
+        2 ") and took " IO:write-all IO:check
+        2 $monomizing-time 1000 !i64 / 1000 !i64 / IO:print-i64 IO:check
+        2 "ms \n" IO:write-all IO:check
+    }
+
     $command match {
         case Monomize -> {
             drop
@@ -575,7 +629,16 @@ fn run-project-wide-command(fs: .FileSystem, command: ProjectWideCommand) { bloc
         case _ -> { drop }
     }
 
+    Time:realtime IO:unwrap @local-merging-start
     &monomized merge-locals
+    Time:realtime IO:unwrap @local-merging-end
+    Logging:enabled if {
+        $local-merging-end.nanoseconds $local-merging-start.nanoseconds - @local-merging-time
+        2 "local merging took " IO:write-all IO:check
+        2 $local-merging-time 1000 !i64 / 1000 !i64 / IO:print-i64 IO:check
+        2 "ms \n" IO:write-all IO:check
+    }
+
     $command match {
         case Optimize -> {
             drop
@@ -592,11 +655,21 @@ fn run-project-wide-command(fs: .FileSystem, command: ProjectWideCommand) { bloc
         case _ -> { drop break }
     }
     @compilation-args
+
+    Time:realtime IO:unwrap @generation-start
     1 Fmt:to-fd "\t" Fmt:use-indentation @fmt
     &arena &fmt 1024 Fmt:buffered @buf @fmt
     &fmt &monomized $compilation-args.guard-stack Generator:generate
     &fmt "\n" Fmt:write
     $buf Fmt:flush
+    Time:realtime IO:unwrap @generation-end
+    Logging:enabled if {
+        $generation-end.nanoseconds $generation-start.nanoseconds - @generation-time
+        2 "code generation took " IO:write-all IO:check
+        2 $generation-time 1000 !i64 / 1000 !i64 / IO:print-i64 IO:check
+        2 "ms \n" IO:write-all IO:check
+    }
+
     &monomizing-arena Arena:shred
     &arena Arena:shred
 } }
@@ -653,9 +726,9 @@ fn infer-modules(arena: .Arena, resolved: .Map<ByteSlice, Resolved:Module>) -> R
         Logging:enabled if {
             2 "infer-module: " IO:write-all IO:check
             2 $file-path ByteSlice:unpack IO:write-all IO:check
-            2 "\n" IO:write-all IO:check
         }
 
+        Time:realtime IO:unwrap @start
         &inferred
         $file-path
         $arena &resolved.values &resolved.values $i Array:get<_> $i make ModuleId infer-module match {
@@ -666,6 +739,15 @@ fn infer-modules(arena: .Arena, resolved: .Map<ByteSlice, Resolved:Module>) -> R
             case Success -> {}
         }
         Map:insert-assert-no-alloc<_, _> drop
+        Time:realtime IO:unwrap @end
+
+        $end.nanoseconds $start.nanoseconds - @duration
+
+        Logging:enabled if {
+            2 " took " IO:write-all IO:check
+            2 $duration 1000 !i64 / 1000 !i64 / IO:print-i64 IO:check
+            2 "ms\n" IO:write-all IO:check
+        }
         $i 1 +
     }
 }
