@@ -1367,11 +1367,13 @@ fn unstack-loop(unstacker: .Unstacker, stack: .Stack, word: .Resolved:Loop) -> W
     Array:new<BreakStack> @loop-break-stacks
 
     &word.annotation match {
-        case None -> { make Maybe<Array<InferenceHole>>.None }
+        case None -> { make Maybe.None make Maybe.None }
         case Some -> {
-            .returns.len ~ $unstacker flip $word.token flip fresh-holes make Maybe<Array<InferenceHole>>.Some
+            @annotation
+            $unstacker &annotation.returns    fresh-holes-for-holey-types make Maybe.Some
+            $unstacker &annotation.parameters fresh-holes-for-holey-types make Maybe.Some
         }
-    } @return-types-annotation
+    } @parameter-types-annotation @return-types-annotation
 
     $unstacker &loop-break-stacks &return-types-annotation Maybe:ref<_> with-break-stacks & @loop-unstacker
 
@@ -1381,8 +1383,12 @@ fn unstack-loop(unstacker: .Unstacker, stack: .Stack, word: .Resolved:Loop) -> W
 
     $loop-unstacker &loop-stack &word.body unstack-scope @body
 
+    $parameter-types-annotation match {
+        case None -> { $loop-unstacker $word.token $loop-stack.negative.len fresh-holes }
+        case Some -> {}
+    } @parameters
+    $loop-unstacker &loop-stack $parameters.len Stack:ensure-negatives
     $loop-stack.negative @arguments
-    $loop-unstacker $word.token $arguments.len fresh-holes @parameters
 
     $loop-unstacker $entry-node make Source:FromLoopEntry {
         $word.token @token
@@ -1451,7 +1457,7 @@ fn unstack-loop(unstacker: .Unstacker, stack: .Stack, word: .Resolved:Loop) -> W
     } else {
         $word.token $parameters make Maybe<Array<InferenceHole>>.None $body make Word:Loop
         0 1 = #unstacker.reachable
-        0 1 =
+        1 1 =
     } if {
         0 loop (i32 ->) {
             @i $i $arguments.len = if { break }

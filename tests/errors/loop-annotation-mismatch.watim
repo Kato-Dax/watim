@@ -1,0 +1,15 @@
+[== Stdin Compiler ==]
+fn main "_start" () {
+	0 0 !bool loop (bool, i32 ->) {}
+}
+[== Status Compiler ==]
+1
+[== Stderr Compiler ==]
+-:2:2: expected this word to return a value of type:
+    bool
+  but it returns:
+    i32
+
+  The expected type originated from:
+    -:2:18: this annotation: bool
+

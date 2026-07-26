@@ -3167,6 +3167,24 @@ fn infer-loop-entry(ctx: .Ctx, source: .Source:FromLoopEntry, return-depth: i32)
                 &source.token "source.arguments.len != source.next-arguments.len" error make Result.Error break
             } } }
     $source.parameters.len $return-depth - 1 - @return-index
+
+    &source.parameters $return-index Array:get ~ @parameter-hole
+    $ctx $parameter-hole lookup-hole match {
+        case None -> {}
+        case Some -> {
+            @parameter
+            $parameter-hole.token $parameter ~ make Origin:FromAnnotation make Origin.FromAnnotation List:empty & List:cons @origin
+            $ctx &source.arguments $return-depth Array:get $parameter &origin check match {
+                case None -> {}
+                case Some -> { make Result.Error break }
+            }
+            $ctx $source $return-depth $parameter loop-entry-check-next-argument match {
+                case None -> {}
+                case Some -> { make Result.Error break }
+            }
+            $parameter ~ make Maybe.Some make Result.Success break
+        }
+    }
     $ctx &source.arguments $return-depth Array:get<_> infer match {
         case Success -> {}
         case _ -> { break }
@@ -3188,21 +3206,25 @@ fn infer-loop-entry(ctx: .Ctx, source: .Source:FromLoopEntry, return-depth: i32)
                 case None -> {}
                 case Some -> { make Result<Maybe<Type>, Error>.Error break }
             }
-            &source.next-arguments match {
+            $ctx $source $return-depth &inferred loop-entry-check-next-argument match {
                 case None -> {}
-                case Some -> {
-                    make Origin.TODO List:empty & List:cons & @origin
-                    $ctx flip $return-index Array:get<_> &inferred $origin check match {
-                        case None -> {}
-                        case Some -> { make Result<Maybe<Type>, Error>.Error break }
-                    }
-                }
+                case Some -> { make Result.Error break }
             }
             $ctx &source.parameters $return-index Array:get<_> ~ &inferred fill-hole
             $inferred make Maybe<Type>.Some
         }
     } make Result<Maybe<Type>, Error>.Success
 } }
+fn loop-entry-check-next-argument(ctx: .Ctx, source: .Source:FromLoopEntry, return-depth: i32, known: .Type) -> Maybe<Error> {
+    $source.parameters.len $return-depth - 1 - @return-index
+    &source.next-arguments match {
+        case None -> { make Maybe.None }
+        case Some -> {
+            make Origin.TODO List:empty & List:cons & @origin
+            $ctx flip $return-index Array:get<_> $known $origin check
+        }
+    }
+}
 
 fn infer-block-exit(ctx: .Ctx, source: .Source:FromBlockExit, return-depth: i32) -> Result<Maybe<Type>, Error> { block {
     $source.return-types.len $return-depth - 1 - @return-index

@@ -30,11 +30,17 @@ struct FromLocal {
     expected: Type
 }
 
+struct FromAnnotation {
+    token: Token
+    type: Type
+}
+
 variant Origin {
     case FromReturn -> FromReturn
     case FromCall -> FromCall
     case FromStackVoid -> .StackVoid
     case FromLocal -> FromLocal
+    case FromAnnotation -> FromAnnotation
     case TODO
 }
 
@@ -62,6 +68,12 @@ fn display(fmt: .Formatter, modules: .Array<Module>, self: .Origin, file-path: B
             $fmt $file-path &origin.token Token-location make TokenLocation & format-location
             $fmt ": This variable lookup: " Fmt:write
             $fmt &lookup &origin.expected Type:pretty
+        }
+        case FromAnnotation -> {
+            @origin
+            $fmt $file-path &origin.token Token-location make TokenLocation & format-location
+            $fmt ": this annotation: " Fmt:write
+            $fmt &lookup &origin.type Type:pretty
         }
         case _ -> {
             drop
