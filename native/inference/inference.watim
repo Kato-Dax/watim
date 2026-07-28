@@ -1868,8 +1868,16 @@ fn check-from-node(ctx: .Ctx, source: .Source:FromNode, known: .Type, origin: .L
         case MatchEntry -> {
             @source
             $source.parameters.len $return-depth - 1 - @return-index
-            $ctx &source.parameters $return-index Array:get<_> ~ $known fill-hole
-            $ctx &source.arguments $return-index Array:get<_> $known $origin check break
+            $ctx &source.parameters $return-index Array:get ~ lookup-hole match {
+                case None -> {
+                    $ctx &source.parameters $return-index Array:get ~ $known fill-hole
+                    $ctx &source.arguments $return-index Array:get $known $origin check break
+                }
+                case Some -> {}
+            } @previously-inferred
+            $previously-inferred $known Type:eq not if {
+                &source.token "match arms parameter mismatch" error make Maybe.Some break
+            }
         }
         case MatchExit -> {
             @source
@@ -2341,16 +2349,16 @@ fn infer-over-array(ctx: .Ctx, sources: .Array<Source>) -> Result<Array<Maybe<Ty
     }
 }
 
-fn infer-all-case-returns(ctx: .Ctx, token: .Token, returns: .Array<Source:ReturnsOfCase>, return-index: i32) -> Result<Array<Maybe<Type>>, Error> {
-    $ctx.arena $returns.len Array:new-with-capacity<Maybe<Type>> @types
+fn infer-all-case-returns(ctx: .Ctx, source: .Source:FromMatchExit, return-index: i32) -> Result<Array<Maybe<Type>>, Error> {
+    $ctx.arena $source.returns.len Array:new-with-capacity<Maybe<Type>> @types
     0 loop {
-        @i $i $returns.len = if { $types make Result<Array<Maybe<Type>>, Error>.Success break }
-        $returns $i Array:get .returns @returns
+        @i $i $source.returns.len = if { $types make Result.Success break }
+        &source.returns $i Array:get .returns @returns
         $returns.len $return-index le if {
-            $token "infer-all-case-returns TODO" error make Result.Error break
+            $ctx $source arms-type-mismatch-error make Result.Error break
         }
         $ctx $returns $return-index Array:get<_> infer match {
-            case Error -> { make Result<Array<Maybe<Type>>, Error>.Error break }
+            case Error -> { make Result.Error break }
             case Success -> {}
         }
         &types flip Array:push-assert-no-alloc<_>
@@ -2703,7 +2711,7 @@ fn infer(ctx: .Ctx, source: .Source) -> Result<Maybe<Type>, Error> {
                         case MatchExit -> {
                             @source
                             $source.return-types.len $return-depth - 1 - @return-index
-                            $ctx &source.token &source.returns $return-index infer-all-case-returns match {
+                            $ctx $source $return-index infer-all-case-returns match {
                                 case Success -> {}
                                 case Error -> { make Result<Maybe<Type>, Error>.Error break }
                             } @inferred-arms
@@ -3430,9 +3438,28 @@ fn arms-type-mismatch-error(ctx: .Ctx, source: .Source:FromMatchExit) -> Error {
         @i $i $source.returns.len = if { make Maybe<Error>.None break }
         &source.returns $i Array:get<_> @returns
         $returns.tag @tag &returns.returns @returns
-        // TODO: fill in the parameters to the match cases here, instead of using a dummy `[]`
-        &fmt "\n\t[] -> " Fmt:write
-        &fmt "[" Fmt:write
+        &fmt "\n\t[" Fmt:write
+        $ctx.nodes $source.entry-node Array:get match {
+            case MatchEntry -> {}
+            case _ -> { drop Core:unreachable }
+        } @entry-node
+        0 loop (i32 -> Maybe<Error>) {
+            @j $j $entry-node.parameters.len = if { make Maybe<Error>.None break }
+            $ctx &entry-node.arguments $j Array:get infer match {
+                case Error -> { make Maybe.Some break }
+                case Success -> {}
+            } match {
+                case None -> { &fmt "_" Fmt:write }
+                case Some -> { &fmt flip &ctx.type-lookup flip & Type:pretty }
+            }
+            $j 1 + $entry-node.parameters.len /= if { &fmt ", " Fmt:write }
+            $j 1 +
+        } match {
+            case None -> {}
+            case _ -> { break }
+        }
+
+        &fmt "] -> [" Fmt:write
         0 loop {
             @j $j $returns.len = if { make Maybe<Error>.None break }
             $ctx $returns $j Array:get<_> infer match {

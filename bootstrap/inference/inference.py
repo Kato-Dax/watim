@@ -739,7 +739,7 @@ class Ctx:
         inferred_break_types: list[Type | None] = []
         for source in returns_of_breaks.sources:
             if source.source is None:
-                self.abort(source.token, "TODO: implement function break-types-mismatch-error")
+                self.break_types_mismatch_error(node)
             inferred_break_types.append(self.infer(source.source))
         inferred = next((t for t in inferred_break_types if t is not None), None)
         if inferred is None:
@@ -748,17 +748,19 @@ class Ctx:
 
         for taip in inferred_break_types:
             if taip is not None and taip != inferred:
-                self.abort(node.token, "TODO: implement function break-types-mismatch-error")
+                self.break_types_mismatch_error(node)
 
         for inferred_break_type, source in zip(inferred_break_types, returns_of_breaks.sources, strict=True):
             if inferred_break_type is not None:
                 continue
             if source.source is None:
-                self.abort(node.token, "TODO: implement function break-types-mismatch-error")
+                self.break_types_mismatch_error(node)
             self.check(source.source, inferred)
 
         return inferred
 
+    def break_types_mismatch_error(self, node: FromBlockExit) -> Never:
+        self.abort(node.token, "TODO: implement break_types_mismatch_error")
 
     def check(self, source: Source, known: Type):
         if source in self.states:
@@ -1222,6 +1224,7 @@ class Ctx:
         else:
             self.states[source] = "BeingInferred"
 
+        # print(("infer", source), file=sys.stderr)
         taip = self.infer_inner(source)
         if taip is not None:
             self.states[source] = Known(taip)

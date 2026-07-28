@@ -723,11 +723,6 @@ fn infer-modules(arena: .Arena, resolved: .Map<ByteSlice, Resolved:Module>) -> R
 
         &resolved.keys $i Array:get<_> ~ @file-path
 
-        Logging:enabled if {
-            2 "infer-module: " IO:write-all IO:check
-            2 $file-path ByteSlice:unpack IO:write-all IO:check
-        }
-
         Time:realtime IO:unwrap @start
         &inferred
         $file-path
@@ -744,6 +739,8 @@ fn infer-modules(arena: .Arena, resolved: .Map<ByteSlice, Resolved:Module>) -> R
         $end.nanoseconds $start.nanoseconds - @duration
 
         Logging:enabled if {
+            2 "infer-module: " IO:write-all IO:check
+            2 $file-path ByteSlice:unpack IO:write-all IO:check
             2 " took " IO:write-all IO:check
             2 $duration 1000 !i64 / 1000 !i64 / IO:print-i64 IO:check
             2 "ms\n" IO:write-all IO:check

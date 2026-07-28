@@ -485,6 +485,7 @@ struct FromMatchExit {
     scrutinee-type: InferenceHole
     scrutinee: Maybe<Source>
     returns: Array<ReturnsOfCase>
+    entry-node: i32 // only for error reporting
 }
 fn FromMatchExit-format(fmt: .Formatter, self: .FromMatchExit) {
     $fmt "(FromMatchExit\n" Fmt:write
@@ -512,6 +513,10 @@ fn FromMatchExit-format(fmt: .Formatter, self: .FromMatchExit) {
     $fmt Fmt:write-indent
     $fmt "returns=" Fmt:write
     $fmt \ReturnsOfCase-format &self.returns Array:format-multi-line<_>
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "entry-node=" Fmt:write
+    $fmt $self.entry-node i32-format
     $fmt Fmt:dedent
     $fmt ")" Fmt:write
 }

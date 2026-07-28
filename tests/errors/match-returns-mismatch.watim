@@ -14,4 +14,6 @@ main
 [== Status Compiler ==]
 1
 [== Stderr Compiler ==]
--:3:21: infer-all-case-returns TODO
+-:3:21: arms of match case have different types:
+	[] -> [i32] in case Some
+	[] -> [] in case None

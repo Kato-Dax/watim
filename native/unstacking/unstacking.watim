@@ -1341,6 +1341,7 @@ fn unstack-match(unstacker: .Unstacker, stack: .Stack, word: .Resolved:Match) ->
                 $returns-per-case @returns
                 $scrutinee ~ @scrutinee
                 $scrutinee-type @scrutinee-type
+                $entry-node @entry-node // only for error reporting
             } make Source:MultiReturnNode.MatchExit add-node @exit-node
 
             0 loop {

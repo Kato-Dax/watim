@@ -1,0 +1,19 @@
+[== Stdin Compiler ==]
+variant Maybe { case None case Some -> i32 }
+fn main() {
+    8 make Maybe.None match {
+        case Some -> { drop drop }
+        case None -> { if {} }
+    }
+}
+[== Args Compiler ==]
+infer
+-
+main
+--quiet
+[== Status Compiler ==]
+1
+[== Stderr Compiler ==]
+-:3:23: arms of match case have different types:
+	[i32] -> [i32] in case Some
+	[i32] -> [] in case None
