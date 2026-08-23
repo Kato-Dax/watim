@@ -3,6 +3,7 @@ import "../../std/maybe.watim" as Maybe (Maybe(Some, None), assert-none, assert-
 import "../../std/result.watim" as Result (Result(Success, Error))
 import "../../std/arena.watim" as Arena (Arena)
 import "../../std/array.watim" as Array (Array)
+import "../../std/list.watim" as List (List)
 import "../../std/map.watim" as Map (Map)
 import "../../std/byte-slice.watim" as ByteSlice (ByteSlice)
 import "../../std/fmt.watim" as Fmt (Formatter)
@@ -43,6 +44,7 @@ import "./unstacker.watim" as Unstacker (
     lookup-type-definition, lookup-signature, lookup-global,
     UnClosure, UnClosure-format,
 )
+import "../inference/origin.watim" as Origin (Origin, TypeWithOrigin)
 
 struct IntrinsicDescription {
     signature: IntrinsicSignature
@@ -667,12 +669,8 @@ fn unstack-function(arena: .Arena, modules: .Array<Resolved:Module>, function: .
         } else {
             make Maybe<Array<Source>>.None
         } @returns
-        $unstacker.arena $unstacker.closures \assert-some-ref Array:map @closures
+        $unstacker.arena $unstacker.closures \Maybe:assert-some Array:map @closures
     }
-}
-
-fn assert-some-ref<T>(m: .Maybe<T>) -> T {
-    $m Maybe:ref Maybe:assert-some ~
 }
 
 fn unstack-scope(unstacker: .Unstacker, stack: .Stack, scope: .Resolved:Scope) -> Scope {
@@ -859,7 +857,7 @@ fn unstack-word(unstacker: .Unstacker, stack: .Stack, word: .Resolved:Word, rema
                 0 loop {
                     @i $i $word.returns.len = if { break }
                     $unstacker.arena $stack
-                    $word.token $node $i make Source:FromNode make Source.FromNode
+                    $word.token $node $i 0 make Source:FromNode make Source.FromNode
                     Stack:push
                     $i 1 +
                 }
@@ -876,8 +874,15 @@ fn unstack-word(unstacker: .Unstacker, stack: .Stack, word: .Resolved:Word, rema
                         $argument ~ make Maybe<Source>.Some @source
                         &word.parameters $i Array:get<_> @parameter
                         $unstacker.arena $parameter Type:without-holes match {
-                            case Error -> { drop make Maybe<Type:Type>.None }
-                            case Success -> { make Maybe<Type:Type>.Some }
+                            case Error -> { drop make Maybe.None }
+                            case Success -> {
+                                @type
+                                make TypeWithOrigin {
+                                    $type @type
+                                    $unstacker.arena
+                                    $word.token $type make Origin:FromAnnotation make Origin.FromAnnotation
+                                    $unstacker.arena List:empty Arena:push List:cons Arena:push @origin
+                                } make Maybe<TypeWithOrigin>.Some }
                         } @known
                         &parameters $i Array:get<_> ~ make Maybe<InferenceHole>.Some @type
                     } make StackVoid.NonSpecific
@@ -1040,7 +1045,7 @@ fn unstack-word(unstacker: .Unstacker, stack: .Stack, word: .Resolved:Word, rema
                 $word.types.len $i - 1 - @return-depth
 
                 $unstacker.arena $stack
-                $word.token $node-index $return-depth make Source:FromNode make Source.FromNode
+                $word.token $node-index $return-depth 0 make Source:FromNode make Source.FromNode
                 Stack:push
 
                 $i 1 +
@@ -1173,6 +1178,7 @@ fn Stack-format(fmt: .Formatter, self: .Stack) {
 
 fn unstack-match(unstacker: .Unstacker, stack: .Stack, word: .Resolved:Match) -> Word:Match {
     $unstacker pre-add-node @entry-node
+    $unstacker pre-add-node @exit-node
 
     $unstacker.arena $unstacker $stack Stack:pop Arena:push<_> @scrutinee
     $unstacker $word.token fresh-hole @scrutinee-type
@@ -1187,11 +1193,14 @@ fn unstack-match(unstacker: .Unstacker, stack: .Stack, word: .Resolved:Match) ->
 
     $unstacker $word.token $varint.generic-parameters.len fresh-holes @generic-arguments
 
+    $unstacker.arena $unstacked-cases.cap Array:new-with-capacity @case-tokens
+
     0 loop {
         @i $i $word.cases.len = if { break }
         &word.cases $i Array:get<_> @match-case
+        &case-tokens $match-case.name Array:push-assert-no-alloc
 
-        $unstacker.arena $unstacker.arena $stack Stack:clone Arena:push<_> $entry-node $word.token Stack:child @case-stack
+        $unstacker.arena $unstacker.arena $stack Stack:clone Arena:push<_> $entry-node $word.token $i Stack:child-with-extra-node-arg @case-stack
         $unstacker with-cleared-reachable-flag @case-unstacker
 
         &varint.cases $match-case.tag Array:get<_> @variant-case
@@ -1220,7 +1229,8 @@ fn unstack-match(unstacker: .Unstacker, stack: .Stack, word: .Resolved:Match) ->
         case None -> {}
         case Some -> {
             @default
-            $unstacker.arena $unstacker.arena $stack Stack:clone Arena:push<_> $entry-node $word.token Stack:child @case-stack
+            &case-tokens $default.underscore Array:push-assert-no-alloc
+            $unstacker.arena $unstacker.arena $stack Stack:clone Arena:push<_> $entry-node $word.token $word.cases.len Stack:child-with-extra-node-arg @case-stack
 
             $unstacker with-cleared-reachable-flag @case-unstacker
 
@@ -1247,7 +1257,7 @@ fn unstack-match(unstacker: .Unstacker, stack: .Stack, word: .Resolved:Match) ->
     $unstacker $stack $parameters.len Stack:pop-n @arguments
 
     $unstacker $entry-node
-    $word.token $scrutinee-type $parameters $scrutinee ~ $arguments make Source:FromMatchEntry
+    $word.token $case-tokens $scrutinee-type $parameters $scrutinee ~ $arguments $exit-node make Source:FromMatchEntry
     make Source:MultiReturnNode.MatchEntry
     fill-node
 
@@ -1300,7 +1310,7 @@ fn unstack-match(unstacker: .Unstacker, stack: .Stack, word: .Resolved:Match) ->
 
                 // TODO: if the variant being matched has no generic parameters,
                 // then the type actually is known.
-                make Maybe<Type:Type>.None @known
+                make Maybe.None @known
                 // For example the following should be inferrable:
                 //   variant Foo { case A }
                 //   fn foo() {
@@ -1334,7 +1344,7 @@ fn unstack-match(unstacker: .Unstacker, stack: .Stack, word: .Resolved:Match) ->
                 $i 1 +
             }
             $unstacker $word.token $n-returns fresh-holes @return-types
-            $unstacker make Source:FromMatchExit {
+            $unstacker $exit-node make Source:FromMatchExit {
                 $word.token @token
                 $word.varint @varint
                 $return-types @return-types
@@ -1342,13 +1352,13 @@ fn unstack-match(unstacker: .Unstacker, stack: .Stack, word: .Resolved:Match) ->
                 $scrutinee ~ @scrutinee
                 $scrutinee-type @scrutinee-type
                 $entry-node @entry-node // only for error reporting
-            } make Source:MultiReturnNode.MatchExit add-node @exit-node
+            } make Source:MultiReturnNode.MatchExit fill-node
 
             0 loop {
                 @i $i $return-types.len = if { break }
                 $unstacker.arena $stack
                 $return-types.len $i - 1 - @return-depth
-                $word.token $exit-node $return-depth make Source:FromNode make Source:Source.FromNode
+                $word.token $exit-node $return-depth 0 make Source:FromNode make Source:Source.FromNode
                 Stack:push
                 $i 1 +
             }
@@ -1447,7 +1457,7 @@ fn unstack-loop(unstacker: .Unstacker, stack: .Stack, word: .Resolved:Loop) -> W
             @i $i $break-returns.len = if { break }
             $loop-unstacker.arena $stack
             $break-returns.len 1 - $i - @return-depth
-            $word.token $exit-node $return-depth make Source:FromNode make Source.FromNode
+            $word.token $exit-node $return-depth 0 make Source:FromNode make Source.FromNode
             Stack:push
             $i 1 +
         }
@@ -1470,8 +1480,8 @@ fn unstack-loop(unstacker: .Unstacker, stack: .Stack, word: .Resolved:Loop) -> W
             $loop-unstacker.arena $loop-unstacker.voids
             make NonSpecificVoid {
                 $word.token @token
-                $word.token $entry-node $return-depth make Source:FromNode make Source.FromNode make Maybe<Source>.Some @source
-                make Maybe<Type:Type>.None @known
+                $word.token $entry-node $return-depth 0 make Source:FromNode make Source.FromNode make Maybe<Source>.Some @source
+                make Maybe.None @known
                 $parameter ~ make Maybe<InferenceHole>.Some @type
             } make StackVoid.NonSpecific
             Array:push<_>
@@ -1547,7 +1557,7 @@ fn unstack-if(unstacker: .Unstacker, stack: .Stack, remaining: .Array<Resolved:W
                         }
                         $remaining-stack.positive.len $i - 1 - @return-depth
                         $unstacker.arena $stack
-                        $word.token $exit-node $return-depth make Source:FromNode make Source:Source.FromNode
+                        $word.token $exit-node $return-depth 0 make Source:FromNode make Source:Source.FromNode
                         Stack:push
                         $i 1 +
                     }
@@ -1564,8 +1574,8 @@ fn unstack-if(unstacker: .Unstacker, stack: .Stack, remaining: .Array<Resolved:W
                 $unstacker.arena $unstacker.voids
                 make NonSpecificVoid {
                     $word.token @token
-                    $word.token $entry-node $return-depth make Source:FromNode make Source.FromNode make Maybe<Source>.Some @source
-                    make Maybe<Type:Type>.None @known
+                    $word.token $entry-node $return-depth 0 make Source:FromNode make Source.FromNode make Maybe<Source>.Some @source
+                    make Maybe.None @known
                     $parameter ~ make Maybe<InferenceHole>.Some @type
                 } make StackVoid.NonSpecific
                 Array:push<_>
@@ -1575,7 +1585,10 @@ fn unstack-if(unstacker: .Unstacker, stack: .Stack, remaining: .Array<Resolved:W
             make NonSpecificVoid {
                 $word.token @token
                 $condition @source
-                $word.token make Type:Type.Bool make Maybe<Type:Type>.Some @known
+                make TypeWithOrigin {
+                    $word.token make Type:Type.Bool @type
+                    $unstacker.arena $word.token make Origin.FromIf $unstacker.arena List:empty Arena:push List:cons Arena:push @origin
+                } make Maybe.Some @known
                 make Maybe<InferenceHole>.None @type
             } make StackVoid.NonSpecific Array:push<_>
         }
@@ -1599,12 +1612,15 @@ fn unstack-if(unstacker: .Unstacker, stack: .Stack, remaining: .Array<Resolved:W
         make Source:MultiReturnNode.IfEntry fill-node
 
         $arguments.len 0 = $return-types.len 0 = and if {
-            $unstacker.arena $unstacker.voids
-            $word.token
-            $condition
-            $word.token make Type:Type.Bool make Maybe<Type:Type>.Some
-            make Maybe<InferenceHole>.None
-            make NonSpecificVoid
+            $unstacker.arena $unstacker.voids make NonSpecificVoid {
+                $word.token @token
+                $condition @source
+                make TypeWithOrigin {
+                    $word.token make Type:Type.Bool @type
+                    $unstacker.arena $word.token make Origin.FromIf $unstacker.arena List:empty Arena:push List:cons Arena:push @origin
+                } make Maybe.Some @known
+                make Maybe<InferenceHole>.None @type
+            }
             make StackVoid.NonSpecific
             Array:push<_>
         } else {
@@ -1622,7 +1638,7 @@ fn unstack-if(unstacker: .Unstacker, stack: .Stack, remaining: .Array<Resolved:W
                 }
                 $return-types.len 1 - $i - @return-depth
                 $unstacker.arena $stack
-                $word.token $exit-node $return-depth make Source:FromNode make Source:Source.FromNode
+                $word.token $exit-node $return-depth 0 make Source:FromNode make Source:Source.FromNode
                 Stack:push
                 $i 1 +
             }
@@ -1688,7 +1704,7 @@ fn Signature-parameter(signature: Signature, param: i32) -> .Type {
 }
 fn Signature-parameters(arena: .Arena, signature: Signature) -> Array<Type> {
     $signature match {
-        case Signature.Function -> { $arena flip .parameters \Parameter-type Array:map }
+        case Signature.Function -> { $arena flip .parameters \Parameter-type Array:map-ref }
         case Signature.Intrinsic -> { .parameters ~ }
     }
 }
@@ -1736,7 +1752,7 @@ fn unstack-call(
     $signature Signature-returns .len ~ loop {
         @i $i 0 = if { break }
         $i 1 - @return-depth
-        $unstacker.arena $stack $token ~ $node-index $return-depth make Source:FromNode make Source.FromNode Stack:push
+        $unstacker.arena $stack $token ~ $node-index $return-depth 0 make Source:FromNode make Source.FromNode Stack:push
         $i 1 -
     }
 
@@ -2032,7 +2048,7 @@ fn unstack-block(unstacker: .Unstacker, stack: .Stack, word: .Resolved:Block) ->
                     @i $i $break-returns.len = if { break }
                     $block-unstacker.arena $stack
                     $break-returns.len 1 - $i - @return-depth
-                    $word.token $exit-node $return-depth make Source:FromNode make Source.FromNode
+                    $word.token $exit-node $return-depth 0 make Source:FromNode make Source.FromNode
                     Stack:push
                     $i 1 +
                 }
@@ -2053,11 +2069,12 @@ fn unstack-break(unstacker: .Unstacker, stack: .Stack, token: .Token) -> Token {
             $stack Stack:size loop (i32 ->) {
                 @size $size 0 = if { break }
 
-                $token ~
-                $stack $size 1 - Stack:index ~ make Maybe<Source>.Some
-                make Maybe<Type:Type>.None
-                make Maybe<InferenceHole>.None
-                make NonSpecificVoid make StackVoid.NonSpecific
+                make NonSpecificVoid {
+                    $token ~ @token
+                    $stack $size 1 - Stack:index ~ make Maybe<Source>.Some @source
+                    make Maybe.None @known
+                    make Maybe<InferenceHole>.None @type
+                } make StackVoid.NonSpecific
                 $unstacker.arena flip $unstacker.voids flip Array:push<_>
 
                 $size 1 -

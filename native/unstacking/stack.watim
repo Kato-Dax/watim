@@ -14,6 +14,7 @@ struct StackParent {
     stack: .Stack
     node: i32
     token: Token
+    node-extra-arg: i32
 }
 fn StackParent-format(fmt: .Formatter, self: .StackParent) {
     $fmt "(StackParent " Fmt:write
@@ -80,7 +81,10 @@ fn closure-root(arena: .Arena, token: Token) -> Stack, .Array<InferenceHole> {
     make Maybe.Some Array:new Array:new make Stack $parameters
 }
 fn child(self: .Stack, parent-node: i32, parent-token: Token) -> Stack {
-    $self $parent-node $parent-token make StackParent make Parent.Stack
+    $self $parent-node $parent-token 0 child-with-extra-node-arg
+}
+fn child-with-extra-node-arg(self: .Stack, parent-node: i32, parent-token: Token, node-extra-arg: i32) -> Stack {
+    $self $parent-node $parent-token $node-extra-arg make StackParent make Parent.Stack
     make Maybe<Parent>.Some Array:new<Source> Array:new<Source> make Stack
 }
 fn clone(arena: .Arena, self: .Stack) -> Stack {
@@ -91,7 +95,7 @@ fn clone(arena: .Arena, self: .Stack) -> Stack {
                 case Stack -> {
                     @parent
                     $arena $arena $parent.stack clone Arena:push
-                    $parent.node $parent.token make StackParent make Parent.Stack make Maybe.Some
+                    $parent.node $parent.token $parent.node-extra-arg make StackParent make Parent.Stack make Maybe.Some
                 }
                 case Closure -> { make Parent.Closure make Maybe.Some }
             }
@@ -124,7 +128,7 @@ fn pop(unstacker: .Unstacker, self: .Stack) -> Maybe<Source> {
                             case None -> { make Maybe<Source>.None }
                             case Some -> {
                                 @source
-                                $parent.token $parent.node $self.negative.len make Source:FromNode
+                                $parent.token $parent.node $self.negative.len $parent.node-extra-arg make Source:FromNode
                                 $unstacker.arena &self.negative $source Array:push<_>
                                 make Source.FromNode make Maybe.Some
                             }

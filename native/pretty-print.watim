@@ -95,10 +95,10 @@ fn Module-pretty(self: .Module, pp: .PrettyPrinter) -> i32 {
 
     List:empty<TopItem> @top-items
 
-    &top-items $arena $arena &self.type-definitions \TopItem-mk-type-definition Array:map<_, _> & Array:to-list<_> & List:append<_>
-    &top-items $arena $arena &self.imports \TopItem-mk-imp Array:map<_, _> & Array:to-list<_> & List:append<_>
-    &top-items $arena $arena &self.functions \TopItem-mk-function Array:map<_, _> & Array:to-list<_> & List:append<_>
-    &top-items $arena $arena &self.globals \TopItem-mk-globl Array:map<_, _> & Array:to-list<_> & List:append<_>
+    &top-items $arena $arena &self.type-definitions \TopItem-mk-type-definition Array:map-ref & Array:to-list<_> & List:append<_>
+    &top-items $arena $arena &self.imports \TopItem-mk-imp Array:map-ref & Array:to-list<_> & List:append<_>
+    &top-items $arena $arena &self.functions \TopItem-mk-function Array:map-ref & Array:to-list<_> & List:append<_>
+    &top-items $arena $arena &self.globals \TopItem-mk-globl Array:map-ref & Array:to-list<_> & List:append<_>
 
     \TopItem-cmp &top-items List:merge-sort<_>
     &top-items \TopItem-pretty $pp List-pretty<_>

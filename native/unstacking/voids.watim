@@ -1,6 +1,7 @@
 import "../../std/maybe.watim" as Maybe (Maybe(Some, None), assert-none, assert-some)
 import "../../std/arena.watim" as Arena (Arena)
 import "../../std/array.watim" as Array (Array)
+import "../../std/list.watim" as List (List)
 import "../../std/fmt.watim" as Fmt (Formatter)
 import "../../std/util.watim" as Util (bool-format, i32-format, i32-format-ref)
 
@@ -10,6 +11,7 @@ import "../resolving/type-without-holes.watim" as Type (Type)
 
 import "./word.watim" as Word (InferenceHole, InferenceHole-format)
 import "./source.watim" as Source (Source, SignatureHandle, SignatureHandle-format, Source-format, Source-format-shallow)
+import "../inference/origin.watim" as Origin (Origin, TypeWithOrigin, TypeWithOrigin-format)
 
 struct IndirectCallVoid {
     token: Token
@@ -278,7 +280,8 @@ fn StoreVoid-format-shallow(fmt: .Formatter, self: .StoreVoid) {
 struct NonSpecificVoid {
     token: Token
     source: Maybe<Source>
-    known: Maybe<Type:Type>
+
+    known: Maybe<TypeWithOrigin>
     type: Maybe<InferenceHole>
 }
 fn NonSpecificVoid-format(fmt: .Formatter, self: .NonSpecificVoid) {
@@ -298,7 +301,7 @@ fn NonSpecificVoid-format(fmt: .Formatter, self: .NonSpecificVoid) {
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "known=" Fmt:write
-    $fmt \Type:format &self.known Maybe:format<_>
+    $fmt \TypeWithOrigin-format &self.known Maybe:format<_>
     $fmt Fmt:dedent
     $fmt ")" Fmt:write
 }
@@ -315,7 +318,7 @@ fn NonSpecificVoid-format-shallow(fmt: .Formatter, self: .NonSpecificVoid) {
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "known=" Fmt:write
-    $fmt \Type:format &self.known Maybe:format<_>
+    $fmt \TypeWithOrigin-format &self.known Maybe:format<_>
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "type=" Fmt:write

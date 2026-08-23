@@ -272,10 +272,12 @@ fn FromLoad-format(fmt: .Formatter, self: .FromLoad) {
 
 struct FromMatchEntry {
     token: Token
+    case-tokens: Array<Token> // only for error reporting
     scrutinee-type: InferenceHole
     parameters: Array<InferenceHole>
     scrutinee: Maybe<Source>
     arguments: Array<Source>
+    exit-node: i32 // only for error reporting
 }
 fn FromMatchEntry-format(fmt: .Formatter, self: .FromMatchEntry) {
     $fmt "(FromMatchEntry\n" Fmt:write
@@ -283,6 +285,10 @@ fn FromMatchEntry-format(fmt: .Formatter, self: .FromMatchEntry) {
     $fmt Fmt:write-indent
     $fmt "token=" Fmt:write
     $fmt &self.token Token-format
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "case-tokens=" Fmt:write
+    $fmt \Token-format &self.case-tokens Array:format
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "scrutinee-type=" Fmt:write
@@ -299,6 +305,10 @@ fn FromMatchEntry-format(fmt: .Formatter, self: .FromMatchEntry) {
     $fmt Fmt:write-indent
     $fmt "arguments=" Fmt:write
     $fmt \Source-format &self.arguments Array:format-multi-line<_>
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "exit-node=" Fmt:write
+    $fmt $self.exit-node i32-format
     $fmt Fmt:dedent
     $fmt ")" Fmt:write
 }
@@ -620,6 +630,7 @@ struct FromNode {
     token: Token
     index: i32
     ret: i32
+    extra-arg: i32
 }
 fn FromNode-format(fmt: .Formatter, self: .FromNode) {
     $fmt "(FromNode " Fmt:write

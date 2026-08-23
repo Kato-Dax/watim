@@ -15,5 +15,14 @@ main
 1
 [== Stderr Compiler ==]
 -:3:23: arms of match case have different types:
-	[i32] -> [i32] in case Some
-	[i32] -> [] in case None
+  previously inferred:
+    [i32] -> []
+  expected:
+    [bool] -> []
+
+  The expected type originated from:
+    -:5:24: The condition of this if: bool
+
+  The previously inferred type originated from:
+    -:4:14: The parameter of this case
+    -:3:5: This number

@@ -1,3 +1,5 @@
+import "../../std/arena.watim" as Arena (Arena)
+import "../../std/maybe.watim" as Maybe (Maybe(Some, None))
 import "../../std/fmt.watim" as Fmt (Formatter)
 import "../../std/array.watim" as Array (Array)
 
@@ -39,19 +41,35 @@ fn ClosureType-pretty(fmt: .Formatter, types: .TypeLookup, self: .FunType) {
     $fmt ")" Fmt:write
 }
 
-fn Types-pretty(fmt: .Formatter, types: .TypeLookup, self: .Array<Type>) {
+fn Types-pretty-optional(fmt: .Formatter, types: .TypeLookup, self: .Array<Maybe<Type>>) {
     0 @i
     loop {
         $i $self.len = if { break }
-        $fmt $types $self $i Array:get<Type> pretty
+        $fmt $self $i Array:get match {
+            case None -> { "_" Fmt:write }
+            case Some -> { $types flip pretty }
+        }
         $i 1 + #i
         $i $self.len = if { break }
         $fmt ", " Fmt:write
     }
 }
+
+fn Types-pretty(fmt: .Formatter, types: .TypeLookup, self: .Array<Type>) {
+    0 !.Arena Arena:temp @temp @save
+    $fmt $types $temp $self \Maybe:some Array:map & Types-pretty-optional
+    $temp $save Arena:restore
+}
+
 fn Types-pretty-bracketed(fmt: .Formatter, types: .TypeLookup, self: .Array<Type>) {
     $fmt "[" Fmt:write
     $fmt $types $self Types-pretty
+    $fmt "]" Fmt:write
+}
+
+fn Types-pretty-bracketed-optional(fmt: .Formatter, types: .TypeLookup, self: .Array<Maybe<Type>>) {
+    $fmt "[" Fmt:write
+    $fmt $types $self Types-pretty-optional
     $fmt "]" Fmt:write
 }
 

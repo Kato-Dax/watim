@@ -2,6 +2,7 @@ import "../../std/fmt.watim" as Fmt (Formatter)
 import "../../std/util.watim" as Util (i32-format)
 import "../../std/byte-slice.watim" as ByteSlice (ByteSlice)
 import "../../std/array.watim" as Array (Array)
+import "../../std/list.watim" as List (List)
 
 import "../lexer.watim" as Token (Token, Token-location, TokenLocation, format-location)
 
@@ -10,12 +11,28 @@ import "../resolving/pretty-type-without-holes.watim" as Type
 import "../resolving/module.watim" as Resolved (Module)
 import "../resolving/type-lookup.watim" as TypeLookup
 
-import "../unstacking/unstacker.watim" as Unstacker
-import "../unstacking/voids.watim" as Voids (StackVoid)
-import "../unstacking/source.watim" as Source
+struct TypeWithOrigin {
+    type: Type
+    origin: .List<Origin>
+}
+fn TypeWithOrigin-format(fmt: .Formatter, self: .TypeWithOrigin) {
+    $fmt "(TypeWithOrigin " Fmt:write
+    $fmt &self.type Type:format
+    $fmt " " Fmt:write
+    $fmt \Origin-format $self.origin List:format
+    $fmt ")" Fmt:write
+}
+fn TypeWithOrigin-type(self: .TypeWithOrigin) -> Type {
+    $self.type
+}
 
 struct FromReturn {
     return-index: i32
+    type: Type
+}
+
+struct FromParameter {
+    parameter-index: i32
     type: Type
 }
 
@@ -37,11 +54,30 @@ struct FromAnnotation {
 
 variant Origin {
     case FromReturn -> FromReturn
+    case FromParameter -> FromParameter
     case FromCall -> FromCall
-    case FromStackVoid -> .StackVoid
     case FromLocal -> FromLocal
     case FromAnnotation -> FromAnnotation
+    case FromIf -> Token
+    case FromNumber -> Token
+    case FromString -> Token
+    case FromCaseParameter -> Token
     case TODO
+}
+
+fn Origin-format(fmt: .Formatter, self: .Origin) {
+    $self match {
+        case FromReturn -> { drop $fmt "FromReturn" Fmt:write }
+        case FromParameter -> { drop $fmt "FromParameter" Fmt:write }
+        case FromCall -> { drop $fmt "FromCall" Fmt:write }
+        case FromLocal -> { drop $fmt "FromLocal" Fmt:write }
+        case FromAnnotation -> { drop $fmt "FromAnnotation" Fmt:write }
+        case FromIf -> { drop $fmt "FromIf" Fmt:write }
+        case FromNumber -> { drop $fmt "FromNumber" Fmt:write }
+        case FromString -> { drop $fmt "FromString" Fmt:write }
+        case FromCaseParameter -> { drop $fmt "FromCaseParameter" Fmt:write }
+        case TODO -> { $fmt "TODO" Fmt:write }
+    }
 }
 
 fn display(fmt: .Formatter, modules: .Array<Module>, self: .Origin, file-path: ByteSlice) {
@@ -53,6 +89,14 @@ fn display(fmt: .Formatter, modules: .Array<Module>, self: .Origin, file-path: B
             $fmt ": The " Fmt:write
             $fmt $origin.return-index 1 + i32-format
             $fmt ". return type: " Fmt:write
+            $fmt &lookup &origin.type Type:pretty
+        }
+        case FromParameter -> {
+            @origin
+            $fmt $file-path &origin.type Type:token Token-location make TokenLocation & format-location
+            $fmt ": The " Fmt:write
+            $fmt $origin.parameter-index 1 + i32-format
+            $fmt ". parameter: " Fmt:write
             $fmt &lookup &origin.type Type:pretty
         }
         case FromCall -> {
@@ -75,9 +119,22 @@ fn display(fmt: .Formatter, modules: .Array<Module>, self: .Origin, file-path: B
             $fmt ": this annotation: " Fmt:write
             $fmt &lookup &origin.type Type:pretty
         }
+        case FromIf -> {
+            $fmt flip $file-path flip Token-location make TokenLocation & format-location
+            $fmt ": The condition of this if: bool" Fmt:write
+        }
+        case FromCaseParameter -> {
+            $fmt flip $file-path flip Token-location make TokenLocation & format-location
+            $fmt ": The parameter of this case" Fmt:write
+        }
+        case FromNumber -> {
+            $fmt flip $file-path flip Token-location make TokenLocation & format-location
+            $fmt ": This number" Fmt:write
+        }
         case _ -> {
             drop
-            $fmt "Origin-display: TODO" Fmt:write
+            $fmt "Origin-display: TODO: " Fmt:write
+            $fmt $self Origin-format
         }
     }
 }

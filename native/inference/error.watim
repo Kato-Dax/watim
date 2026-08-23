@@ -1,3 +1,4 @@
+import "../../std/maybe.watim" as Maybe (Maybe)
 import "../../std/list.watim" as List (List)
 import "../../std/arena.watim" as Arena (Arena)
 import "../../std/array.watim" as Array (Array)
@@ -16,13 +17,13 @@ import "./origin.watim" as Origin (Origin)
 
 struct StringError {
     token: Token
-    origin: Array<Origin>
+    origin: List<Origin>
     expected: Type
 }
 
 struct NumberError {
     token: Token
-    origin: Array<Origin>
+    origin: List<Origin>
     expected: Type
 }
 
@@ -31,7 +32,7 @@ struct CallError {
     return-index: i32
     expected: Type
     actual: Type
-    origin: Array<Origin>
+    origin: List<Origin>
 }
 
 struct GenericsContradict {
@@ -51,7 +52,17 @@ struct LocalError {
     token: Token
     actual: Type
     expected: Type
-    origin: Array<Origin>
+    origin: List<Origin>
+}
+
+struct MatchParametersMismatchError {
+    token: Token
+    expected: Type
+    parameter-index: i32
+    origin: List<Origin>
+    previously-inferred-parameters: Array<Maybe<Type>>
+    previously-inferred-returns: Array<Maybe<Type>>
+    origin-of-previously-inferred-parameters: Array<Maybe<List<Origin>>>
 }
 
 variant Error {
@@ -61,6 +72,7 @@ variant Error {
     case Call -> CallError
     case CallGenericsContradict -> CallGenericContradictionError
     case Local -> LocalError
+    case MatchParametersMismatch -> MatchParametersMismatchError
 }
 struct DeprecatedError {
     token: .Token
@@ -76,20 +88,31 @@ fn error-with-origin(arena: .Arena, token: .Token, origin: .List<Origin>, msg-pt
     error
 }
 
-fn display-origin(fmt: .Formatter, modules: .Array<Resolved:Module>, origin: .Array<Origin>, file-path: ByteSlice) {
-    $origin.len 0 /= if {
-        $fmt "\n\n" Fmt:write
-        $fmt Fmt:write-indent
-        $fmt "The expected type originated from:" Fmt:write
-        $fmt Fmt:indent
-        0 loop (i32 ->) {
-            @i $i $origin.len = if { break }
-            $fmt "\n" Fmt:write
+fn display-origin(fmt: .Formatter, modules: .Array<Resolved:Module>, origin: .List<Origin>, file-path: ByteSlice) {
+    $origin match {
+        case List.Empty -> {}
+        case List.Cons -> {
+            drop
+            $fmt "\n\n" Fmt:write
             $fmt Fmt:write-indent
-            $fmt $modules $origin $i Array:get $file-path Origin:display
-            $i 1 +
+            $fmt "The expected type originated from:" Fmt:write
+            $fmt Fmt:indent
+            $fmt $modules $origin $file-path display-origin-list
+            $fmt Fmt:dedent
         }
-        $fmt Fmt:dedent
+    }
+}
+
+fn display-origin-list(fmt: .Formatter, modules: .Array<Resolved:Module>, origin: .List<Origin>, file-path: ByteSlice) {
+    $origin loop (.List<Origin> ->) {
+        match {
+            case List.Empty -> { break }
+            case List.Cons -> {}
+        } @origin
+        $fmt "\n" Fmt:write
+        $fmt Fmt:write-indent
+        $fmt $modules &origin.elem $file-path Origin:display
+        $origin.next
     }
 }
 
@@ -193,6 +216,43 @@ fn display(fmt: .Formatter, error: .Error, file-path: ByteSlice, modules: .Array
             $fmt &lookup &error.actual Type:pretty
             $fmt Fmt:dedent
             $fmt $modules &error.origin $file-path display-origin
+            $fmt Fmt:dedent
+        }
+        case Error.MatchParametersMismatch -> {
+            @error
+            $fmt $file-path &error.token Lexer:Token-location make Lexer:TokenLocation & Lexer:format-location
+            $fmt ": arms of match case have different types:\n" Fmt:write
+            $fmt Fmt:indent
+            $fmt Fmt:write-indent $fmt "previously inferred:\n" Fmt:write
+            $fmt Fmt:indent
+            $fmt Fmt:write-indent $fmt &lookup &error.previously-inferred-parameters Type:Types-pretty-bracketed-optional
+            $fmt " -> " Fmt:write
+            $fmt &lookup &error.previously-inferred-returns Type:Types-pretty-bracketed-optional
+            $fmt "\n" Fmt:write
+            $fmt Fmt:dedent
+            $fmt Fmt:write-indent $fmt "expected:\n" Fmt:write
+            $fmt Fmt:indent
+
+            0 !.Arena Arena:temp @temp @save
+            $temp &error.previously-inferred-parameters Array:clone @inferred-parameters-now
+            &inferred-parameters-now $error.parameter-index $error.expected make Maybe.Some Array:set drop
+            $fmt Fmt:write-indent $fmt &lookup &inferred-parameters-now Type:Types-pretty-bracketed-optional
+            $fmt " -> " Fmt:write
+            $fmt &lookup &error.previously-inferred-returns Type:Types-pretty-bracketed-optional
+            $fmt Fmt:dedent
+            $fmt $modules &error.origin $file-path display-origin
+            &error.origin-of-previously-inferred-parameters $error.parameter-index Array:get match {
+                case Maybe.None -> {}
+                case Maybe.Some -> {
+                    @origin
+                    $fmt "\n\n" Fmt:write
+                    $fmt Fmt:write-indent
+                    $fmt "The previously inferred type originated from:" Fmt:write
+                    $fmt Fmt:indent
+                    $fmt $modules $origin $file-path display-origin-list
+                    $fmt Fmt:dedent
+                }
+            }
             $fmt Fmt:dedent
         }
     }

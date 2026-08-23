@@ -390,12 +390,22 @@ fn join-with(arena: .A:Arena, self: .Array<ByteSlice>, del-ptr: .i8, del-len: i3
     }
     $out
 }
-fn map<T, O>(arena: .A:Arena, self: .Array<T>, f: (.T -> O)) -> Array<O> {
+fn map-ref<T, O>(arena: .A:Arena, self: .Array<T>, f: (.T -> O)) -> Array<O> {
     $arena $self.len new-with-capacity<O> @new
     0 @i
     loop {
         $i $self.len = if { break }
         &new $self $i get<T> $f (.T -> O) push-assert-no-alloc<O>
+        $i 1 + #i
+    }
+    $new
+}
+fn map<T, O>(arena: .A:Arena, self: .Array<T>, f: (T -> O)) -> Array<O> {
+    $arena $self.len new-with-capacity<O> @new
+    0 @i
+    loop {
+        $i $self.len = if { break }
+        &new $self $i get<T> ~ $f (T -> O) push-assert-no-alloc<O>
         $i 1 + #i
     }
     $new
