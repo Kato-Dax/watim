@@ -44,7 +44,7 @@ import "./unstacker.watim" as Unstacker (
     lookup-type-definition, lookup-signature, lookup-global,
     UnClosure, UnClosure-format,
 )
-import "../inference/origin.watim" as Origin (Origin, TypeWithOrigin)
+import "../inference/origin.watim" as Origin (Origin, TypeWithOrigin, singleton-origin)
 
 struct IntrinsicDescription {
     signature: IntrinsicSignature
@@ -689,6 +689,18 @@ fn unstack-words(unstacker: .Unstacker, stack: .Stack, remaining: .Array<Resolve
     }
 }
 
+fn fill-hole-for-provided-generic-argument(unstacker: .Unstacker, hole: .InferenceHole, generic-argument: .Type) {
+    make TypeWithOrigin {
+        $generic-argument ~ @type
+        $unstacker.arena
+        make Origin:FromAnnotation {
+            $generic-argument Type:token ~ @token
+            $generic-argument ~ @type
+        } make Origin.FromAnnotation singleton-origin @origin
+    }
+    $unstacker.arena flip $unstacker.holes flip $hole flip Holes-fill
+}
+
 fn unstack-word(unstacker: .Unstacker, stack: .Stack, word: .Resolved:Word, remaining: .Array<Resolved:Word>) -> Maybe<Word> { block {
     $word match {
         case Resolved:Word.GetLocal -> { $unstacker flip $stack flip unstack-get-local }
@@ -718,10 +730,9 @@ fn unstack-word(unstacker: .Unstacker, stack: .Stack, word: .Resolved:Word, rema
                 $unstacker.arena flip Type:without-holes match {
                     case Error -> { drop }
                     case Success -> {
-                        $unstacker.arena flip
-                        $unstacker.holes flip
+                        $unstacker flip
                         &generic-arguments $i Array:get<_> flip
-                        Holes-fill
+                        & fill-hole-for-provided-generic-argument
                     }
                 }
                 $i 1 +
@@ -931,9 +942,9 @@ fn unstack-word(unstacker: .Unstacker, stack: .Stack, word: .Resolved:Word, rema
                         drop
                     }
                     case Success -> {
-                        $unstacker.arena flip $unstacker.holes flip
+                        $unstacker flip
                         &generic-arguments $i Array:get<_> flip
-                        Holes-fill
+                        & fill-hole-for-provided-generic-argument
                     }
                 }
 
@@ -997,8 +1008,9 @@ fn unstack-word(unstacker: .Unstacker, stack: .Stack, word: .Resolved:Word, rema
                         $unstacker.arena $generic-argument Type:without-holes match {
                             case Error -> { drop }
                             case Success -> {
-                                $unstacker.arena flip $unstacker.holes flip &generic-arguments $i Array:get<_> flip
-                                Holes-fill
+                                $unstacker flip
+                                &generic-arguments $i Array:get<_> flip
+                                & fill-hole-for-provided-generic-argument
                             }
                         }
                         $i 1 +
@@ -1138,10 +1150,9 @@ fn fresh-holes-for-holey-types(unstacker: .Unstacker, types: .Array<WithHoles:Ty
         $unstacker.arena $type Type:without-holes match {
             case Error -> { drop }
             case Success -> {
-                $unstacker.arena flip
-                $unstacker.holes flip
+                $unstacker flip
                 &hole flip
-                Holes-fill
+                & fill-hole-for-provided-generic-argument
             }
         }
     }
@@ -1734,10 +1745,9 @@ fn unstack-call(
                 $unstacker.arena $annotated-generic-arguments $i Array:get<_> Type:without-holes match {
                     case Error -> { drop }
                     case Success -> {
-                        $unstacker.arena flip
-                        $unstacker.holes flip
+                        $unstacker flip
                         &generic-arguments $i Array:get<_> flip
-                        Holes-fill
+                        & fill-hole-for-provided-generic-argument
                     }
                 }
                 $i 1 +
@@ -1876,7 +1886,11 @@ fn unstack-get-local(unstacker: .Unstacker, stack: .Stack, word: .Resolved:GetLo
             $unstacker $global-id lookup-global @globl
 
             $unstacker $word.name fresh-hole @var-type
-            $unstacker.arena $unstacker.holes &var-type $globl.type Holes-fill
+            $unstacker.arena $unstacker.holes &var-type make TypeWithOrigin {
+                $globl.type @type
+                // TODO: make Origin.FromGlobal
+                $unstacker.arena make Origin.TODO singleton-origin @origin
+            } Holes-fill
             $unstacker $word.name fresh-hole @result-type
             $unstacker &word.fields unstack-field-accesses @fields
 
@@ -1935,7 +1949,13 @@ fn unstack-ref-local(unstacker: .Unstacker, stack: .Stack, word: .Resolved:RefLo
             $unstacker $global-id lookup-global @globl
 
             $unstacker $word.name fresh-hole @var-type
-            $unstacker.arena $unstacker.holes &var-type $globl.type Holes-fill
+            $unstacker.arena $unstacker.holes &var-type make TypeWithOrigin {
+                $globl.type  @type
+                $unstacker.arena make Origin:FromGlobal {
+                    $word.name @token
+                    $globl.type @expected
+                } make Origin.FromGlobal singleton-origin @origin
+            } Holes-fill
             $unstacker $word.name fresh-hole @result-type
             $unstacker &word.fields unstack-field-accesses @fields
 

@@ -80,7 +80,7 @@ main
     4=None,
     5=None,
     6=None,
-    7=(Some I32)),
+    7=(Some (TypeWithOrigin I32 [(FromGlobal (IDENT A 5 6) I32)]))),
   nodes=[
     (FromCall
       token=(IDENT + 3 10),

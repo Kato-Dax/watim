@@ -1,10 +1,11 @@
+import "../../std/arena.watim" as Arena (Arena)
 import "../../std/fmt.watim" as Fmt (Formatter)
 import "../../std/util.watim" as Util (i32-format)
 import "../../std/byte-slice.watim" as ByteSlice (ByteSlice)
 import "../../std/array.watim" as Array (Array)
-import "../../std/list.watim" as List (List)
+import "../../std/list.watim" as List (List(Cons, Empty))
 
-import "../lexer.watim" as Token (Token, Token-location, TokenLocation, format-location)
+import "../lexer.watim" as Token (Token, Token-location, TokenLocation, format-location, Token-format)
 
 import "../resolving/type-without-holes.watim" as Type (Type)
 import "../resolving/pretty-type-without-holes.watim" as Type
@@ -24,6 +25,27 @@ fn TypeWithOrigin-format(fmt: .Formatter, self: .TypeWithOrigin) {
 }
 fn TypeWithOrigin-type(self: .TypeWithOrigin) -> Type {
     $self.type
+}
+
+global EMPTY_ORIGIN: List<Origin>
+fn empty-origin() -> .List<Origin> {
+    List:empty #EMPTY_ORIGIN &EMPTY_ORIGIN
+}
+
+fn singleton-origin(arena: .Arena, origin: Origin) -> .List<Origin> {
+    $arena $origin empty-origin List:cons Arena:push
+}
+
+fn clone-origin-list(arena: .Arena, origin: .List<Origin>) -> .List<Origin> {
+    $origin match {
+        case Cons -> {
+            @cons
+            $cons.elem
+            $arena $cons.next clone-origin-list
+            List:cons $arena flip Arena:push
+        }
+        case Empty -> { empty-origin }
+    }
 }
 
 struct FromReturn {
@@ -52,6 +74,18 @@ struct FromAnnotation {
     type: Type
 }
 
+struct FromGlobal {
+    token: Token
+    expected: Type
+}
+fn FromGlobal-format(fmt: .Formatter, self: .FromGlobal) {
+    $fmt "(FromGlobal " Fmt:write
+    $fmt &self.token Token-format
+    $fmt " " Fmt:write
+    $fmt &self.expected Type:format
+    $fmt ")" Fmt:write
+}
+
 variant Origin {
     case FromReturn -> FromReturn
     case FromParameter -> FromParameter
@@ -62,6 +96,7 @@ variant Origin {
     case FromNumber -> Token
     case FromString -> Token
     case FromCaseParameter -> Token
+    case FromGlobal -> FromGlobal
     case TODO
 }
 
@@ -76,6 +111,7 @@ fn Origin-format(fmt: .Formatter, self: .Origin) {
         case FromNumber -> { drop $fmt "FromNumber" Fmt:write }
         case FromString -> { drop $fmt "FromString" Fmt:write }
         case FromCaseParameter -> { drop $fmt "FromCaseParameter" Fmt:write }
+        case FromGlobal -> { $fmt flip FromGlobal-format }
         case TODO -> { $fmt "TODO" Fmt:write }
     }
 }
@@ -130,6 +166,12 @@ fn display(fmt: .Formatter, modules: .Array<Module>, self: .Origin, file-path: B
         case FromNumber -> {
             $fmt flip $file-path flip Token-location make TokenLocation & format-location
             $fmt ": This number" Fmt:write
+        }
+        case FromGlobal -> {
+            @origin
+            $fmt $file-path &origin.token Token-location make TokenLocation & format-location
+            $fmt ": This global: " Fmt:write
+            $fmt &lookup &origin.expected Type:pretty
         }
         case _ -> {
             drop

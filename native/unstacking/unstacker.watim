@@ -24,6 +24,7 @@ import "../resolving/top-items.watim" as Resolved (
     IntrinsicSignature, MustBeOneOf, ConstraintOnGeneric, TypeShape, MustSatisfyPredicate,
 )
 import "../resolving/module.watim" as Resolved
+import "../inference/origin.watim" as Origin (Origin, TypeWithOrigin, clone-origin-list, TypeWithOrigin-format)
 
 import "./source.watim" as Source (Source, Source-format, Source-format-shallow, MultiReturnNode, SignatureHandle, SignatureHandle-format)
 import "./word.watim" as Word (InferenceHole, InferenceHole-format, InferenceFieldHole, Word, Scope, Scope-format, Intrinsic, FieldAccess, InferenceFieldHole, ClosureFieldAccess, NextClosureFieldAccess)
@@ -238,37 +239,43 @@ fn fill-node(unstacker: .Unstacker, index: i32, node: Source:MultiReturnNode) {
 }
 
 struct Holes {
-    holes: Array<Maybe<Type:Type>>
+    holes: Array<Maybe<TypeWithOrigin>>
 }
 fn Holes-empty() -> Holes {
-    Array:new<Maybe<Type:Type>> make Holes
+    Array:new make Holes
 }
-fn MaybeType-clone(arena: .Arena, self: .Maybe<Type:Type>) -> Maybe<Type:Type> {
+fn MaybeTypeWithOrigin-clone(arena: .Arena, self: .Maybe<TypeWithOrigin>) -> Maybe<TypeWithOrigin> {
     $self match {
-        case Some -> { $arena flip Type:clone make Maybe<Type:Type>.Some }
-        case None -> { make Maybe<Type:Type>.None }
+        case Some -> {
+            @type-with-origin
+            make TypeWithOrigin {
+                $arena &type-with-origin.type Type:clone @type
+                $arena $type-with-origin.origin clone-origin-list @origin
+            } make Maybe.Some
+        }
+        case None -> { make Maybe.None }
     }
 }
 fn Holes-clone(arena: .Arena, self: .Holes) -> Holes {
-    $arena \MaybeType-clone &self.holes Array:clone-deep<_> make Holes
+    $arena \MaybeTypeWithOrigin-clone &self.holes Array:clone-deep<_> make Holes
 }
-fn Holes-fill(arena: .Arena, self: .Holes, hole: .InferenceHole, known: Type:Type) {
+fn Holes-fill(arena: .Arena, self: .Holes, hole: .InferenceHole, known: TypeWithOrigin) {
     loop {
         $self.holes.len $hole.index gt if { break }
-        $arena &self.holes make Maybe<Type:Type>.None Array:push<_>
+        $arena &self.holes make Maybe.None Array:push
     }
-    &self.holes $hole.index $known make Maybe<Type:Type>.Some Array:set<_> match {
+    &self.holes $hole.index $known make Maybe.Some Array:set match {
         case None -> {}
         case Some -> {
-            & &known Type:eq not if { 0 0 / drop }
+            .type & &known.type Type:eq not if { 0 0 / drop }
         }
     }
 }
-fn Holes-lookup(self: .Holes, hole: .InferenceHole) -> Maybe<.Type:Type> {
+fn Holes-lookup(self: .Holes, hole: .InferenceHole) -> Maybe<.TypeWithOrigin> {
     $self.holes.len $hole.index le if {
-        make Maybe<.Type:Type>.None
+        make Maybe.None
     } else {
-        &self.holes $hole.index Array:get<_> Maybe:ref<_>
+        &self.holes $hole.index Array:get Maybe:ref
     }
 }
 fn Holes-format(fmt: .Formatter, self: .Holes) {
@@ -282,7 +289,7 @@ fn Holes-format(fmt: .Formatter, self: .Holes) {
             $fmt Fmt:write-indent
             $fmt $i i32-format
             $fmt "=" Fmt:write
-            $fmt \Type:format &self.holes $i Array:get<_> Maybe:format<_>
+            $fmt \TypeWithOrigin-format &self.holes $i Array:get<_> Maybe:format<_>
             $i 1 +
             Core:dup<_> $self.holes.len /= if { $fmt ",\n" Fmt:write }
         }

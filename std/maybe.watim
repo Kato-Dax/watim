@@ -58,6 +58,13 @@ fn is-none<T>(o: .Maybe<T>) -> bool {
     } =
 }
 
+fn map<A, B>(self: Maybe<A>, f: (A -> B)) -> Maybe<B> {
+    $self match {
+        case None -> { make Maybe.None }
+        case Some -> { $f (_ -> _) make Maybe.Some }
+    }
+}
+
 fn format<T>(fmt: .Formatter, format-inner: (.Formatter, .T ->), self: .Maybe<T>) {
     $self match {
         case None -> { $fmt "None" Fmt:write }
