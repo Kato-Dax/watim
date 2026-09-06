@@ -13,7 +13,7 @@ import "../resolving/type-without-holes.watim" as Type (Type)
 import "../resolving/pretty-type-without-holes.watim" as Type
 import "../resolving/type-lookup.watim" as TypeLookup
 
-import "./origin.watim" as Origin (Origin)
+import "./origin.watim" as Origin (Origin, TypeWithOrigin)
 
 struct StringError {
     token: Token
@@ -55,6 +55,12 @@ struct LocalError {
     origin: List<Origin>
 }
 
+struct GlobalError {
+    token: Token
+    actual: Type
+    expected: TypeWithOrigin
+}
+
 struct MatchParametersMismatchError {
     token: Token
     expected: Type
@@ -72,6 +78,7 @@ variant Error {
     case Call -> CallError
     case CallGenericsContradict -> CallGenericContradictionError
     case Local -> LocalError
+    case Global -> GlobalError
     case MatchParametersMismatch -> MatchParametersMismatchError
 }
 struct DeprecatedError {
@@ -216,6 +223,22 @@ fn display(fmt: .Formatter, error: .Error, file-path: ByteSlice, modules: .Array
             $fmt &lookup &error.actual Type:pretty
             $fmt Fmt:dedent
             $fmt $modules &error.origin $file-path display-origin
+            $fmt Fmt:dedent
+        }
+        case Error.Global -> {
+            @error
+            $fmt $file-path &error.token Lexer:Token-location make Lexer:TokenLocation & Lexer:format-location
+            $fmt ": expected this global to be of type:\n" Fmt:write
+            $fmt Fmt:indent $fmt Fmt:indent
+            $fmt Fmt:write-indent
+            $fmt &lookup &error.expected.type Type:pretty
+            $fmt "\n" Fmt:write $fmt Fmt:dedent
+            $fmt Fmt:write-indent
+            $fmt "but it s actually of type:\n" Fmt:write
+            $fmt Fmt:indent $fmt Fmt:write-indent
+            $fmt &lookup &error.actual Type:pretty
+            $fmt Fmt:dedent
+            $fmt $modules $error.expected.origin $file-path display-origin
             $fmt Fmt:dedent
         }
         case Error.MatchParametersMismatch -> {

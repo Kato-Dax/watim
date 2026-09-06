@@ -1,0 +1,21 @@
+[== Stdin Compiler ==]
+struct Bar { x: i32 y: i64 }
+fn main() -> Bar {
+    0 5 make Bar
+}
+[== Args Compiler ==]
+infer
+-
+main
+--quiet
+[== Status Compiler ==]
+1
+[== Stderr Compiler ==]
+-:3:7: expected this word to return a value of type:
+    i64
+  but it returns:
+    i32
+
+  The expected type originated from:
+    -:3:9: the field y of this struct: i64
+    -:2:14: The 1. return type: Bar

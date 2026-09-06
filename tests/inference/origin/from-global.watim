@@ -1,0 +1,21 @@
+[== Stdin Compiler ==]
+global A: i32
+fn main() -> i32 {
+    $A ~
+}
+[== Args Compiler ==]
+infer
+-
+main
+--quiet
+[== Status Compiler ==]
+1
+[== Stderr Compiler ==]
+-:3:6: expected this global to be of type:
+    .i32
+  but it s actually of type:
+    i32
+
+  The expected type originated from:
+    -:3:8: The 1. argument of this call: .i32
+    -:2:14: The 1. return type: i32

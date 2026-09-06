@@ -12,6 +12,8 @@ import "../resolving/pretty-type-without-holes.watim" as Type
 import "../resolving/module.watim" as Resolved (Module)
 import "../resolving/type-lookup.watim" as TypeLookup
 
+import "../name.watim" as Name (Name, Name-format, Name-unpack)
+
 struct TypeWithOrigin {
     type: Type
     origin: .List<Origin>
@@ -86,6 +88,21 @@ fn FromGlobal-format(fmt: .Formatter, self: .FromGlobal) {
     $fmt ")" Fmt:write
 }
 
+struct FromMakeStruct {
+    token: Token
+    field-name: Name
+    type: Type
+}
+fn FromMakeStruct-format(fmt: .Formatter, self: .FromMakeStruct) {
+    $fmt "(FromMakeStruct " Fmt:write
+    $fmt &self.token Token-format
+    $fmt " " Fmt:write
+    $fmt &self.field-name Name-format
+    $fmt " " Fmt:write
+    $fmt &self.type Type:format
+    $fmt ")" Fmt:write
+}
+
 variant Origin {
     case FromReturn -> FromReturn
     case FromParameter -> FromParameter
@@ -97,6 +114,7 @@ variant Origin {
     case FromString -> Token
     case FromCaseParameter -> Token
     case FromGlobal -> FromGlobal
+    case FromMakeStruct -> FromMakeStruct
     case TODO
 }
 
@@ -112,6 +130,7 @@ fn Origin-format(fmt: .Formatter, self: .Origin) {
         case FromString -> { drop $fmt "FromString" Fmt:write }
         case FromCaseParameter -> { drop $fmt "FromCaseParameter" Fmt:write }
         case FromGlobal -> { $fmt flip FromGlobal-format }
+        case FromMakeStruct -> { $fmt flip FromMakeStruct-format }
         case TODO -> { $fmt "TODO" Fmt:write }
     }
 }
@@ -172,6 +191,14 @@ fn display(fmt: .Formatter, modules: .Array<Module>, self: .Origin, file-path: B
             $fmt $file-path &origin.token Token-location make TokenLocation & format-location
             $fmt ": This global: " Fmt:write
             $fmt &lookup &origin.expected Type:pretty
+        }
+        case FromMakeStruct -> {
+            @origin
+            $fmt $file-path &origin.token Token-location make TokenLocation & format-location
+            $fmt ": the field " Fmt:write
+            $fmt &origin.field-name Name-unpack Fmt:write
+            $fmt " of this struct: " Fmt:write
+            $fmt &lookup &origin.type Type:pretty
         }
         case _ -> {
             drop

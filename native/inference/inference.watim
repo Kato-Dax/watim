@@ -1241,7 +1241,7 @@ fn check(ctx: .Ctx, source: .Source, known: .TypeWithOrigin) -> Maybe<Error> { b
                         } else { $result-type } @result-type
 
                         &result-type.type &known.type Type:eq not if {
-                            $source.token $known.type $result-type.type $known.origin ~ make Error:LocalError make Error.Local make Maybe.Some break
+                            $source.token $result-type.type $known.type $known.origin ~ make Error:LocalError make Error.Local make Maybe.Some break
                         }
 
                         $ctx $source.result-type &result-type fill-hole-with-origin
@@ -1267,7 +1267,8 @@ fn check(ctx: .Ctx, source: .Source, known: .TypeWithOrigin) -> Maybe<Error> { b
                 } @result-type
                 $ctx $source.result-type &result-type fill-hole-with-origin
                 &known.type &result-type.type Type:eq not if {
-                    &source.token "expected global to have different type" error make Maybe<Error>.Some break
+                    $source.token $result-type.type $known ~ make Error:GlobalError make Error.Global make Maybe.Some break
+
                 }
             }
             case Source.FromMakeStruct -> {
@@ -1299,7 +1300,7 @@ fn check(ctx: .Ctx, source: .Source, known: .TypeWithOrigin) -> Maybe<Error> { b
 
                 $ctx $source.type $known fill-hole-with-origin
 
-                $ctx $struc &source.arguments $known-type $known.origin check-make-struct-fields break
+                $ctx &source.token $struc &source.arguments $known-type $known.origin check-make-struct-fields break
             }
             case Source.FromMakeVariant -> { $ctx flip $known check-from-make-variant break }
             case Source.FromNode -> { $ctx flip $known check-from-node break }
@@ -2501,7 +2502,7 @@ fn infer(ctx: .Ctx, source: .Source) -> InferenceResult {
 
                     $ctx $source.type &inferred fill-hole-with-origin
 
-                    $ctx $struc &source.arguments &inferred.type match {
+                    $ctx &source.token $struc &source.arguments &inferred.type match {
                         case Type.Custom -> {}
                         case _ -> { drop Core:unreachable<.Type:CustomTypeType> }
                     } $inferred.origin check-make-struct-fields match {
@@ -3205,13 +3206,15 @@ fn infer-closure(ctx: .Ctx, closure: .Source:FromClosure) -> InferenceResult { b
     } make InferenceResult.Success
 } }
 
-fn check-make-struct-fields(ctx: .Ctx, struc: .Resolved:Struct, arguments: .Array<Source>, known: .Type:CustomTypeType, origin: .List<Origin>) -> Maybe<Error> {
+fn check-make-struct-fields(ctx: .Ctx, token: .Token, struc: .Resolved:Struct, arguments: .Array<Source>, known: .Type:CustomTypeType, origin: .List<Origin>) -> Maybe<Error> {
     0 loop {
         @i $i $struc.fields.len = if { make Maybe<Error>.None break }
         &struc.fields $i Array:get<_> @field
         $ctx.arena &field.type &known.generic-arguments Type:with-generics @field-type
         $arguments $i Array:get<_> @field-source
-        $ctx.temp make Origin.TODO $origin List:cons Arena:push @origin
+        $ctx.temp
+        $token ~ $field.name $field-type make Origin:FromMakeStruct make Origin.FromMakeStruct
+        $origin List:cons Arena:push @origin
         $ctx $field-source $field-type $origin make TypeWithOrigin & check match {
             case None -> {}
             case _ -> { break }
