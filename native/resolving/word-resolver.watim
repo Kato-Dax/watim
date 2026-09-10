@@ -117,6 +117,14 @@ fn lookup-signature(ctx: .WordCtx, handle: .FunctionHandle) -> .FunctionSignatur
     }
 }
 
+fn lookup-global(ctx: .WordCtx, id: GlobalId) -> .Global {
+    $id.module $ctx.module-id = if {
+        &ctx.globals.values
+    } else {
+        &ctx.modules.values $id.module.index Array:get .globals.values
+    } $id.index Array:get
+}
+
 fn allocate-static-data(ctx: .WordCtx, ptr: .i8, len: i32) -> i32, i32 {
     $ctx.static-data.ptr $ctx.static-data.len $ptr $len Bytes:find-seq
     if { $len } else {
@@ -218,13 +226,19 @@ fn resolve-word(ctx: .WordCtx, word: .P:Word) -> Result<OneOrMany<Word>, Resolve
         }
         case P:Word.RefLocal -> {
             @word
-            $word.ident
             $ctx &word.ident lookup-variable match {
                 case Error -> { make Result<OneOrMany<Word>, ResolveError>.Error break }
                 case Success -> {}
+            } @var-id
+
+            $var-id match {
+                case VarId.Global -> {
+                    $ctx flip lookup-global .reffed 1 1 = store
+                }
+                case _ -> { drop }
             }
-            $word.fields
-            make RefLocal make Word.RefLocal
+
+            $word.ident $var-id $word.fields make RefLocal make Word.RefLocal
         }
         case P:Word.Store -> {
             @word

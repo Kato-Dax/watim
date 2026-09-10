@@ -35,7 +35,7 @@ import "./ctx.watim" as Ctx (
     generate-pack-i32s, generate-unpack-i32s,
     generate-flip-i32-i32, generate-flip-i32-i64,
     generate-flip-i64-i32, generate-flip-i64-i64,
-    generate-dup-i64,
+    generate-dup-i64, generate-flip,
 )
 import "./common.watim" as Common (
     generate-local-ident, generate-type, generate-var-ident,
@@ -546,17 +546,7 @@ fn generate-word(ctx: .Ctx, module: i32, locals: .Map<LocalId, Local>, word: .Wo
         }
         case Word.Flip -> {
             @flip
-            &ctx.program.type-infos $flip.lower type-size @lower-size
-            &ctx.program.type-infos $flip.upper type-size @upper-size
-            $lower-size 4 le $lower-size 8 gt or @lower-is-i32
-            $upper-size 4 le $upper-size 8 gt or @upper-is-i32
-            block {
-                $lower-is-i32     $upper-is-i32     and if { $ctx generate-flip-i32-i32 break }
-                $lower-is-i32     $upper-is-i32 not and if { $ctx generate-flip-i32-i64 break }
-                $lower-is-i32 not $upper-is-i32     and if { $ctx generate-flip-i64-i32 break }
-                $lower-is-i32 not $upper-is-i32 not and if { $ctx generate-flip-i64-i64 break }
-                0 0 / drop
-            }
+            $ctx $flip.lower $flip.upper generate-flip
         }
         case Word.Cast -> {
             @word
@@ -683,7 +673,9 @@ fn generate-word(ctx: .Ctx, module: i32, locals: .Map<LocalId, Local>, word: .Wo
             0 !.Arena Arena:temp @temp @temp-save
             $temp $ctx &word.fields 1 0 = 0 1 = determine-loads @loads
             $ctx &loads generate-loads
-            $ctx.fmt " call $intrinsic:flip " Fmt:write
+            $ctx.fmt " " Fmt:write
+            $ctx $word.type I32-id generate-flip
+            $ctx.fmt " " Fmt:write
             $ctx $word.type generate-store
             $temp $temp-save Arena:restore
         }

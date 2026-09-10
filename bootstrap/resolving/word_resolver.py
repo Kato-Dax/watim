@@ -138,7 +138,10 @@ class WordResolver:
             case parsing.SetWord():
                 return resolved.SetLocal(word.ident, self.lookup_variable(word.ident), word.fields),
             case parsing.RefWord():
-                return resolved.RefLocal(word.ident, self.lookup_variable(word.ident), word.fields),
+                var_id = self.lookup_variable(word.ident)
+                if isinstance(var_id, GlobalId):
+                    self.lookup_global(var_id).reffed = True
+                return resolved.RefLocal(word.ident, var_id, word.fields),
             case parsing.StoreWord():
                 return self.resolve_store_local(word),
             case parsing.LoadWord():
@@ -240,6 +243,12 @@ class WordResolver:
         if name.lexeme in self.globals:
             return GlobalId(name, self.module_id, self.globals.index_of(name.lexeme))
         self.abort(name, "variable not found")
+
+    def lookup_global(self, global_id: GlobalId) -> Global:
+        if self.module_id == global_id.module:
+            return self.globals.index(global_id.index)
+        else:
+            return self.modules.index(global_id.module).globals.index(global_id.index)
 
     def resolve_init_local(self, word: parsing.InitWord) -> resolved.InitLocal | resolved.StructFieldInitWord:
         if self.struct_literal_env is not None:

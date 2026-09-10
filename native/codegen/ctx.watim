@@ -8,7 +8,7 @@ import "../lexer.watim" as Lexer (Token, Token-lexeme)
 import "../resolving/type.watim" as Resolved (CustomTypeHandle)
 import "../resolving/words.watim" as Resolved (LocalId, GlobalId, VarId(Global, Local))
 import "../monomorphization/monomizer.watim" as Monomized (
-    Monomized, Key, Key-type,
+    Monomized, Key, Key-type, type-size,
     FunctionHandle, Local, Global,
     Module, Extern, Function, ExternOrInstances(Extern, Instances),
     can-live-in-reg, local-lives-in-memory, globl-lives-in-memory
@@ -98,5 +98,19 @@ fn generate-unpack-i32s(ctx: .Ctx) {
 fn generate-dup-i64(ctx: .Ctx) {
     1 1 = #ctx.dup-i64-used
     $ctx.fmt "call $intrinsic:dupi64" Fmt:write
+}
+
+fn generate-flip(ctx: .Ctx, lower: TypeId, upper: TypeId) {
+    &ctx.program.type-infos $lower type-size @lower-size
+    &ctx.program.type-infos $upper type-size @upper-size
+    $lower-size 4 le $lower-size 8 gt or @lower-is-i32
+    $upper-size 4 le $upper-size 8 gt or @upper-is-i32
+    block {
+        $lower-is-i32     $upper-is-i32     and if { $ctx generate-flip-i32-i32 break }
+        $lower-is-i32     $upper-is-i32 not and if { $ctx generate-flip-i32-i64 break }
+        $lower-is-i32 not $upper-is-i32     and if { $ctx generate-flip-i64-i32 break }
+        $lower-is-i32 not $upper-is-i32 not and if { $ctx generate-flip-i64-i64 break }
+        0 0 / drop
+    }
 }
 

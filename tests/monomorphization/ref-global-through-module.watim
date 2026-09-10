@@ -1,0 +1,71 @@
+[== Stdin Compiler ==]
+import "./global.watim" as Global
+
+
+fn main "_start" () {
+	Global:ref-it drop
+}
+[== Args Compiler ==]
+monomize
+-
+--quiet
+[== Status Compiler ==]
+0
+[== Stdout Compiler ==]
+(Monomized
+  types=[
+    (Some Bool),
+    (Some I8),
+    (Some I32),
+    (Some I64),
+    (Some (CustomType 0 0)),
+    (Some (Ptr (TypeId 4)))],
+  type-infos=[
+    (TypeInfo 4 1),
+    (TypeInfo 1 1),
+    (TypeInfo 4 4),
+    (TypeInfo 8 8),
+    (TypeInfo 8 4),
+    (TypeInfo 4 4)],
+  modules=(Map
+    "./global.watim"=(Module
+      custom-types=[
+        (Struct
+          name=(IDENT Foo 1 8),
+          fields=[
+            (NamedTypeId (User (IDENT a 2 2)) (TypeId 2)),
+            (NamedTypeId (User (IDENT b 3 2)) (TypeId 2))])],
+      globals=[
+        (Global (IDENT FOO 6 8) (TypeId 4) True)],
+      functions=[
+        [
+          (Function
+            name=(User (IDENT ref-it 8 4)),
+            export=None,
+            signature=(Signature [] [
+              (TypeId 5)]),
+            generic-arguments=[],
+            locals=(Map),
+            local-copy-space=0,
+            max-stack-returns=0,
+            max-alignment=1,
+            body=(Scope 0 [
+              (RefLocal (IDENT FOO 9 3) (GlobalId (IDENT FOO 9 3) 0 0) [])]))]]),
+    "-"=(Module
+      custom-types=[],
+      globals=[],
+      functions=[
+        [
+          (Function
+            name=(User (IDENT main 4 4)),
+            export=(Some (STRING "_start" 4 9)),
+            signature=(Signature [] []),
+            generic-arguments=[],
+            locals=(Map),
+            local-copy-space=0,
+            max-stack-returns=0,
+            max-alignment=1,
+            body=(Scope 0 [
+              (Call (IDENT ref-it 5 9) (FunctionHandle 0 0 0) 0),
+              (Intrinsic (IDENT drop 5 16) (Drop (TypeId 5)))]))]])),
+  function-table=[])

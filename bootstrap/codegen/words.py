@@ -477,7 +477,9 @@ def generate_word(ctx: Ctx, module: int, locals: IndexedDict[LocalId, Local], wo
             generate_var_ident(ctx, locals, word.var)
             loads = determine_loads(ctx, word.fields, False, False)
             generate_loads(ctx, loads)
-            ctx.fmt.write(" call $intrinsic:flip ")
+            ctx.fmt.write(" ")
+            generate_flip(ctx, word.type, I32_ID)
+            ctx.fmt.write(" ")
             generate_store(ctx, word.type)
         case mono.MemGrow():
             ctx.fmt.write("memory.grow")
@@ -488,19 +490,7 @@ def generate_word(ctx: Ctx, module: int, locals: IndexedDict[LocalId, Local], wo
         case mono.Sizeof():
             ctx.fmt.write(f"i32.const {type_size(ctx.program.sizes, word.type)}")
         case mono.Flip():
-            lower_size = type_size(ctx.program.sizes, word.lower)
-            upper_size = type_size(ctx.program.sizes, word.upper)
-            lower_is_i32 = lower_size <= 4 or lower_size > 8
-            upper_is_i32 = upper_size <= 4 or upper_size > 8
-            if lower_is_i32 and upper_is_i32:
-                generate_flip_i32_i32(ctx)
-            elif lower_is_i32 and not upper_is_i32:
-                generate_flip_i32_i64(ctx)
-            elif not lower_is_i32 and upper_is_i32:
-                generate_flip_i64_i32(ctx)
-            else:
-                assert not lower_is_i32 and not upper_is_i32
-                generate_flip_i64_i64(ctx)
+            generate_flip(ctx, word.lower, word.upper)
         case mono.Shl():
             if isinstance(ctx.lookup_type(word.taip), I64):
                 ctx.fmt.write("i64.shl")
@@ -970,4 +960,18 @@ def generate_make_struct(ctx: Ctx, word: mono.MakeStruct):
     generate_type_pretty(ctx, word.type)
     ctx.fmt.write(" end")
 
+def generate_flip(ctx: Ctx, lower: TypeId, upper: TypeId):
+    lower_size = type_size(ctx.program.sizes, lower)
+    upper_size = type_size(ctx.program.sizes, upper)
+    lower_is_i32 = lower_size <= 4 or lower_size > 8
+    upper_is_i32 = upper_size <= 4 or upper_size > 8
+    if lower_is_i32 and upper_is_i32:
+        generate_flip_i32_i32(ctx)
+    elif lower_is_i32 and not upper_is_i32:
+        generate_flip_i32_i64(ctx)
+    elif not lower_is_i32 and upper_is_i32:
+        generate_flip_i64_i32(ctx)
+    else:
+        assert not lower_is_i32 and not upper_is_i32
+        generate_flip_i64_i64(ctx)
 
