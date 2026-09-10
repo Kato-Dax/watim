@@ -26,7 +26,7 @@ fn main "_start" () {
     PA:current-number-of-pages 3 /= if { "discarding a page doesn't change the total page count" crash }
     // #-X
 
-    PA:alloc-page Core:dup 2 flip !i32 IO:print drop 65536 !.i8 /= if { "can reuse previously discarded page" crash }
+    PA:alloc-page 65536 !.i8 /= if { "can reuse previously discarded page" crash }
     // #XX
 
     65536 !.i8 PA:discard-page
