@@ -1,8 +1,10 @@
+import "../std/core.watim" as Core
 import "../std/page-alloc.watim" as PA
 import "../std/io.watim" as IO
 
 fn crash(ptr: .i8, len: i32) {
     2 $ptr $len IO:write-all IO:check
+    2 "\n" IO:write-all IO:check
     0 0 / drop
 }
 
@@ -14,22 +16,41 @@ fn main "_start" () {
 
     PA:alloc-page 65536 !.i8 /= if { "Expected the first alloced page to be at 65536" crash }
     PA:current-number-of-pages 2 /= if { "Expected two pages after allocating the first one" crash }
+    // #X
 
     PA:alloc-page 131072 !.i8 /= if { "Expected the second alloced page to be at 131072" crash }
     PA:current-number-of-pages 3 /= if { "Expected three pages after allocating the second one" crash }
+    // #XX
 
     65536 !.i8 PA:discard-page
     PA:current-number-of-pages 3 /= if { "discarding a page doesn't change the total page count" crash }
+    // #-X
 
-    PA:alloc-page 65536 !.i8 /= if { "can reuse previously discarded page" crash }
+    PA:alloc-page Core:dup 2 flip !i32 IO:print drop 65536 !.i8 /= if { "can reuse previously discarded page" crash }
+    // #XX
 
     65536 !.i8 PA:discard-page
+    // #-X
     PA:current-number-of-pages 3 /= if { "discarding a page doesn't change the total page count" crash }
 
     3 PA:contiguous-pages 131072 65536 + !.i8 /= if { "allocating multiple contiguous pages will find a gap" crash }
+    // #-XXXX
 
-    PA:alloc-page 65536 !.i8 /= if { "can reuse page which was too smal for contiguous" crash }
+    PA:alloc-page 65536 !.i8 /= if { "can reuse page which was too small for contiguous" crash }
+    // #XXXXX
 
     PA:alloc-page 65536 6 * !.i8 /= if { "alloc-page skips pages occupied by contiguous-pages" crash }
+    // #XXXXXX
+
+    65536 4 * !.i8 PA:discard-page
+    // #XXX-XX
+
+    65536 3 * !.i8 PA:discard-page
+    // #XX--XX
+
+    65536 5 * !.i8 PA:discard-page
+    // #XX---X
+
+    3 PA:contiguous-pages 65536 3 * !.i8 /= if { "contigous pages were found in unordered free-list" crash }
 }
 

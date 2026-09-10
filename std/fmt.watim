@@ -1,6 +1,5 @@
 import "./core.watim" as CORE
 import "./io.watim" as IO
-import "./byte-slice.watim" as ByteSlice (ByteSlice)
 
 struct Formatter {
     indent-level: i32

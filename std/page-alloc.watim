@@ -41,12 +41,62 @@ fn alloc-page() -> .i8 {
     }
     $ACTIVE_PAGES 1 + #ACTIVE_PAGES
 }
-fn search-free-list-for-contiguous(list: .Page, n: i32) -> .Page { block {
-    // TODO: This function only finds contiguous free pages which are also contguous in the free-list.
-    // That is they need to be sorted in the free-list, according to their address, to be found by this naive function.
-    // The fix would either be to keep the free-list sorted on every `discard-page`
-    // or to only sort the list on large allocations across multiple pages.
 
+fn halve(list: .Page) -> .Page, .Page { block {
+    $list 0!.Page = if { $list $list break }
+
+    $list.next 0!.Page = if { 0!.Page $list break }
+
+    $list // first half
+    $list @second-half
+    $list @node-before-second-half
+    loop {
+        $list 0!.Page = if { $second-half break }
+        $list.next 0!.Page = if { $second-half break }
+        $list.next.next #list
+        $second-half #node-before-second-half
+        $second-half.next #second-half
+    }
+    $node-before-second-half 0!.Page /= if {
+        0!.Page #node-before-second-half.next
+    }
+} }
+fn merge(a: .Page, b: .Page) -> .Page { block {
+    $a 0!.Page = if { $b break }
+    $b 0!.Page = if { $a break }
+
+    $a !i32 $b !i32 lt if {
+        $a.next $b merge #a.next
+        $a
+    } else {
+        $a $b.next merge #b.next
+        $b
+    }
+} }
+fn merge-sort(list: .Page) -> .Page { block {
+    $list 0!.Page = if { $list break }
+    $list.next 0!.Page = if { $list break }
+
+    $list halve @second-half @first-half
+    $first-half merge-sort #first-half
+    $second-half merge-sort #second-half
+    $first-half $second-half merge
+} }
+
+fn is-free-list-ordered() -> bool {
+    $ALLOCATOR.free-list loop {
+        @node
+        $node 0!.Page = if { 1 1 = break }
+        $node.next 0!.Page = if { 1 1 = break }
+        $node !i32 $node.next !i32 gt if { 0 1 = break }
+        $node.next
+    }
+}
+
+fn sort-free-list() {
+    $ALLOCATOR.free-list merge-sort #ALLOCATOR.free-list
+}
+fn search-free-list-for-contiguous(list: .Page, n: i32) -> .Page { block {
     1 $n / drop // $n 0 /= assert
 
     // no free page
@@ -74,9 +124,9 @@ fn search-free-list-for-contiguous(list: .Page, n: i32) -> .Page { block {
     }
 } }
 fn contiguous-pages(n: i32) -> .i8 {
-    $ACTIVE_PAGES $n + #ACTIVE_PAGES
     $ALLOCATOR.free-list $n search-free-list-for-contiguous @contiguous-free
     $contiguous-free 0!.Page /= if {
+        $ACTIVE_PAGES $n + #ACTIVE_PAGES
         $ALLOCATOR.free-list @list
         $list $contiguous-free = if {
             loop {
@@ -110,13 +160,19 @@ fn contiguous-pages(n: i32) -> .i8 {
         }
         $contiguous-free !.i8
     } else {
-        do-the-mem-grow @first
-        loop {
-            $n 1 = if { break }
-            do-the-mem-grow drop
-            $n 1 - #n
+        is-free-list-ordered if {
+            $ACTIVE_PAGES $n + #ACTIVE_PAGES
+            do-the-mem-grow @first
+            loop {
+                $n 1 = if { break }
+                do-the-mem-grow drop
+                $n 1 - #n
+            }
+            $first
+        } else {
+            sort-free-list
+            $n contiguous-pages
         }
-        $first
     }
 }
 fn discard-page(page: .i8) {
