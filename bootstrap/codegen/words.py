@@ -668,7 +668,7 @@ def determine_loads(ctx: Ctx, fields: tuple[mono.FieldAccess, ...], just_ref: bo
 
             if base_in_mem:
                 # source_type is a ptr and it is already in mem, effectively ..T
-                return merge_loads((OffsetLoad(field.source_type, 0), *determine_loads(ctx, tail, just_ref, False)))
+                return merge_loads((OffsetLoad(field.source_type, 0), *determine_loads(ctx, fields, just_ref, False)))
 
             if just_ref and len(fields) == 1:
                 if offset == 0:

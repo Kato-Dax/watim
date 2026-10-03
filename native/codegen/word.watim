@@ -1130,7 +1130,7 @@ fn determine-loads(arena: .Arena, ctx: .Ctx, fields: .FieldAccesses, just-ref: b
                 //  => unwrap one layer
                 $field.source-type 0 make TypeAtOffset make Load.OffsetLoad @load
                 0 1 = @base-in-mem
-                $arena $ctx &tail $just-ref $base-in-mem determine-loads @rest
+                $arena $ctx $fields $just-ref $base-in-mem determine-loads @rest
                 $arena $load &rest List:cons<Load> merge-loads
                 break
             }
