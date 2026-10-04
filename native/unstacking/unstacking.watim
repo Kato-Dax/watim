@@ -15,9 +15,9 @@ import "../../std/io.watim" as IO
 import "../lexer.watim" as Lexer (Token, Token-format, TokenTy, Token-new-synthetic)
 import "../name.watim" as Name (Name, Name-token)
 
-import "../parser.watim" as Parser (GenericType)
+import "../parser.watim" as Parser
 
-import "../resolving/type.watim" as WithHoles (CustomTypeHandle)
+import "../resolving/type.watim" as WithHoles (CustomTypeHandle, GenericType, TokenOrLiteral, Literal)
 import "../resolving/type-without-holes.watim" as Type (Type)
 import "../resolving/local.watim" as Resolved (Parameter-type)
 import "../resolving/words.watim" as Resolved (VarId, LocalId, LocalId-format, LocalId-eq)
@@ -38,7 +38,7 @@ import "./voids.watim" as Voids (
 import "./unstacker.watim" as Unstacker (
     Unstacker, BreakStack, ClosureEnv, ClosureEnv-lookup,
     pre-add-node, add-node, fill-node,
-    fresh-hole, fresh-holes, fresh-field-hole,
+    fresh-hole, fresh-holes, fresh-field-hole, fresh-hole-literal,
     with-struct-init, with-cleared-reachable-flag, with-break-stacks,
     Holes, Holes-format, Holes-empty, Holes-fill,
     lookup-type-definition, lookup-signature, lookup-global,
@@ -200,6 +200,10 @@ fn add-sub-generic-constraints(predicate: .Array<Maybe<Type>>) -> Maybe<ByteSlic
     make Maybe.None
 } }
 
+fn literal(ptr: .i8, len: i32, info-ptr: .i8, info-len: i32) -> TokenOrLiteral {
+    $ptr $len make ByteSlice $info-ptr $info-len make ByteSlice make Literal make TokenOrLiteral.Literal
+}
+
 fn init-intrinsic-signatures() {
     $INTRINSIC_DESCRIPTIONS_INITIALIZED if {
         0 0 / drop
@@ -244,22 +248,17 @@ fn init-intrinsic-signatures() {
 
     make IntrinsicSignature {
         $arena "T" make ByteSlice Array:singleton @generic-parameters
+        make GenericType {
+            0 @index
+            "T" "and" literal @name
+        } make Type.Generic @T
         block {
             $arena 2 Array:new-with-capacity @parameters
-            &parameters make GenericType {
-                0 @index
-                make Lexer:TokenTy.TOKEN_FN 0 0 Lexer:Token-new-keyword @name
-            } make Type.Generic Array:push-assert-no-alloc
-            &parameters make GenericType {
-                0 @index
-                make Lexer:TokenTy.TOKEN_FN 0 0 Lexer:Token-new-keyword @name
-            } make Type.Generic Array:push-assert-no-alloc
+            &parameters $T Array:push-assert-no-alloc
+            &parameters $T Array:push-assert-no-alloc
             $parameters
         } @parameters
-        $arena make GenericType {
-            0 @index
-            make Lexer:TokenTy.TOKEN_FN 0 0 Lexer:Token-new-keyword @name
-        } make Type.Generic Array:singleton @returns
+        $arena $T Array:singleton @returns
 
         Array:new @constraints
     } @signature-and
@@ -274,8 +273,9 @@ fn init-intrinsic-signatures() {
         $arena "T" make ByteSlice Array:singleton @generic-parameters
         block {
             $arena 2 Array:new-with-capacity @parameters
-            &parameters make Lexer:TokenTy.TOKEN_FN 0 0 Lexer:Token-new-keyword 0 make GenericType make Type.Generic Array:push-assert-no-alloc
-            &parameters make Lexer:TokenTy.TOKEN_FN 0 0 Lexer:Token-new-keyword 0 make GenericType make Type.Generic Array:push-assert-no-alloc
+            "T" "cmp" literal 0 make GenericType make Type.Generic @T
+            &parameters $T Array:push-assert-no-alloc
+            &parameters $T Array:push-assert-no-alloc
             $parameters
         } @parameters
         $arena $type-bool Array:singleton @returns
@@ -297,7 +297,7 @@ fn init-intrinsic-signatures() {
 
     make IntrinsicSignature {
         $arena "T" make ByteSlice Array:singleton @generic-parameters
-        make Lexer:TokenTy.TOKEN_FN 0 0 Lexer:Token-new-keyword 0 make GenericType make Type.Generic @T
+        "T" "eq" literal 0 make GenericType make Type.Generic @T
         block {
             $arena 2 Array:new-with-capacity @parameters
             &parameters $T Array:push-assert-no-alloc
@@ -324,7 +324,7 @@ fn init-intrinsic-signatures() {
 
     make IntrinsicSignature {
         $arena "T" make ByteSlice Array:singleton @generic-parameters
-        make Lexer:TokenTy.TOKEN_FN 0 0 Lexer:Token-new-keyword 0 make GenericType make Type.Generic @T
+        "T" "muldivmod" literal 0 make GenericType make Type.Generic @T
         block {
             $arena 2 Array:new-with-capacity @parameters
             &parameters $T Array:push-assert-no-alloc
@@ -364,8 +364,8 @@ fn init-intrinsic-signatures() {
             &generic-parameters "B" make ByteSlice Array:push-assert-no-alloc
             $generic-parameters
         } @generic-parameters
-        make Lexer:TokenTy.TOKEN_FN 0 0 Lexer:Token-new-keyword 0 make GenericType make Type.Generic @A
-        make Lexer:TokenTy.TOKEN_FN 0 0 Lexer:Token-new-keyword 1 make GenericType make Type.Generic @B
+        "A" "addsub" literal 0 make GenericType make Type.Generic @A
+        "B" "addsub" literal 1 make GenericType make Type.Generic @B
         block {
             $arena 2 Array:new-with-capacity @parameters
             &parameters $A Array:push-assert-no-alloc
@@ -423,7 +423,7 @@ fn init-intrinsic-signatures() {
 
     make IntrinsicSignature {
         $arena "T" make ByteSlice Array:singleton @generic-parameters
-        make Lexer:TokenTy.TOKEN_FN 0 0 Lexer:Token-new-keyword 0 make GenericType make Type.Generic @T
+        "T" "drop" literal 0 make GenericType make Type.Generic @T
         $arena $T Array:singleton @parameters
         Array:new @returns
         Array:new @constraints
@@ -434,7 +434,7 @@ fn init-intrinsic-signatures() {
 
     make IntrinsicSignature {
         $arena "T" make ByteSlice Array:singleton @generic-parameters
-        make Lexer:TokenTy.TOKEN_FN 0 0 Lexer:Token-new-keyword 0 make GenericType make Type.Generic @T
+        "T" "uninit" literal 0 make GenericType make Type.Generic @T
         Array:new @parameters
         $arena $T Array:singleton @returns
         Array:new @constraints
@@ -450,8 +450,8 @@ fn init-intrinsic-signatures() {
             &generic-parameters "B" make ByteSlice Array:push-assert-no-alloc
             $generic-parameters
         } @generic-parameters
-        make Lexer:TokenTy.TOKEN_FN 0 0 Lexer:Token-new-keyword 0 make GenericType make Type.Generic @A
-        make Lexer:TokenTy.TOKEN_FN 0 0 Lexer:Token-new-keyword 1 make GenericType make Type.Generic @B
+        "A" "flip" literal 0 make GenericType make Type.Generic @A
+        "B" "flip" literal 1 make GenericType make Type.Generic @B
         block {
             $arena 2 Array:new-with-capacity @parameters
             &parameters $A Array:push-assert-no-alloc
@@ -472,7 +472,7 @@ fn init-intrinsic-signatures() {
 
     make IntrinsicSignature {
         $arena "T" make ByteSlice Array:singleton @generic-parameters
-        make Lexer:TokenTy.TOKEN_FN Lexer:Token-new-synthetic 0 make GenericType make Type.Generic @T
+        "T" "load" literal 0 make GenericType make Type.Generic @T
         $arena $arena $T Arena:push make Type.Ptr Array:singleton @parameters
         $arena $T Array:singleton @returns
         Array:new @constraints
@@ -483,7 +483,7 @@ fn init-intrinsic-signatures() {
 
     make IntrinsicSignature {
         $arena "T" make ByteSlice Array:singleton @generic-parameters
-        make Lexer:TokenTy.TOKEN_FN 0 0 Lexer:Token-new-keyword 0 make GenericType make Type.Generic @T
+        "T" "store" literal 0 make GenericType make Type.Generic @T
         block {
             $arena 2 Array:new-with-capacity @parameters
             &parameters $arena $T Arena:push make Type.Ptr Array:push-assert-no-alloc
@@ -509,7 +509,7 @@ fn init-intrinsic-signatures() {
 
     make IntrinsicSignature {
         $arena "T" make ByteSlice Array:singleton @generic-parameters
-        make Lexer:TokenTy.TOKEN_FN 0 0 Lexer:Token-new-keyword 0 make GenericType make Type.Generic @T
+        "T" "not" literal 0 make GenericType make Type.Generic @T
         $arena $T Array:singleton @parameters
         $arena $T Array:singleton @returns
         $arena 0 $booli8i32i64 make MustBeOneOf make ConstraintOnGeneric.MustBeOneOf Array:singleton @constraints
@@ -1145,7 +1145,7 @@ fn fresh-holes-for-holey-types(unstacker: .Unstacker, types: .Array<WithHoles:Ty
     loop {
         $holes.len $types.len = if { $holes break }
         $types $holes.len Array:get<_> @type
-        $unstacker $type WithHoles:Type-token ~ fresh-hole @hole
+        $unstacker $type WithHoles:Type-token-or-literal fresh-hole-literal @hole
         &holes $hole Array:push-assert-no-alloc
         $unstacker.arena $type Type:without-holes match {
             case Error -> { drop }

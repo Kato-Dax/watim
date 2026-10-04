@@ -1,0 +1,19 @@
+[== Stdin Compiler ==]
+struct Array<T> {}
+fn new<T>() -> Array<T> { make Array }
+fn main "_start" () -> Array<i32> {
+    new flip drop
+}
+[== Args Compiler ==]
+compile
+-
+--quiet
+[== Status Compiler ==]
+1
+[== Stderr Compiler ==]
+-:4:9: call to `flip` expected the following arguments:
+	[A, B]
+	A = unknown
+	B = unknown
+but got:
+	[_]

@@ -1,5 +1,6 @@
 import "../../std/array.watim" as Array (Array)
 import "../../std/fmt.watim" as Fmt (Formatter)
+import "../../std/byte-slice.watim" as ByteSlice
 
 import "../lexer.watim" as L (Token-lexeme)
 import "../parser.watim" as P
@@ -8,7 +9,7 @@ import "./top-items.watim" as TopItems (TypeDefinition(Struct, Variant))
 import "./module.watim" as Module (Module)
 import "./type.watim" as Type (
     Type(Bool, I8, I32, I64, Ptr, Custom, Fun, Closure, Generic, Hole),
-    CustomTypeType, FunType)
+    CustomTypeType, FunType, GenericType, TokenOrLiteral)
 import "./type-lookup.watim" as TypeLookup (TypeLookup)
 
 fn pretty(fmt: .Formatter, lookup: .TypeLookup, self: .Type) { block {
@@ -21,10 +22,17 @@ fn pretty(fmt: .Formatter, lookup: .TypeLookup, self: .Type) { block {
         case Custom -> { $lookup flip CustomTypeType-pretty break }
         case Fun -> { $lookup flip FunType-pretty break }
         case Closure -> { $lookup flip ClosureType-pretty break }
-        case Generic -> { P:GenericType-pretty break }
+        case Generic -> { GenericType-pretty break }
         case Hole -> { drop "_" }
     } Fmt:write
 } }
+
+fn GenericType-pretty(fmt: .Formatter, self: .GenericType) {
+    &self.name match {
+        case TokenOrLiteral.Token -> { $fmt flip Token-lexeme Fmt:write }
+        case TokenOrLiteral.Literal -> { .literal $fmt flip ~ ByteSlice:unpack Fmt:write }
+    }
+}
 
 fn FunType-pretty(fmt: .Formatter, lookup: .TypeLookup, self: .FunType) {
     $fmt "(" Fmt:write

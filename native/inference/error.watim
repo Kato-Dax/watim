@@ -8,6 +8,7 @@ import "../../std/util.watim" as Util (i32-format)
 
 import "../lexer.watim" as Lexer (Token)
 
+import "../resolving/type.watim" as Type (TokenOrLiteral)
 import "../resolving/module.watim" as Resolved (Module)
 import "../resolving/type-without-holes.watim" as Type (Type)
 import "../resolving/pretty-type-without-holes.watim" as Type
@@ -82,17 +83,12 @@ variant Error {
     case MatchParametersMismatch -> MatchParametersMismatchError
 }
 struct DeprecatedError {
-    token: .Token
+    token: TokenOrLiteral
     msg-ptr: .i8
     msg-len: i32
 }
-fn error(token: .Token, msg-ptr: .i8, msg-len: i32) -> Error {
+fn error(token: TokenOrLiteral, msg-ptr: .i8, msg-len: i32) -> Error {
     $token $msg-ptr $msg-len make DeprecatedError make Error.Deprecated
-}
-fn error-with-origin(arena: .Arena, token: .Token, origin: .List<Origin>, msg-ptr: .i8, msg-len: i32) -> Error {
-    $token $msg-ptr $msg-len
-    // $arena $origin copy-origin
-    error
 }
 
 fn display-origin(fmt: .Formatter, modules: .Array<Resolved:Module>, origin: .List<Origin>, file-path: ByteSlice) {
@@ -129,10 +125,14 @@ fn display(fmt: .Formatter, error: .Error, file-path: ByteSlice, modules: .Array
         case Error.Deprecated ->{
             @error
 
-            $fmt
-            $file-path $error.token Lexer:Token-location make Lexer:TokenLocation &
-            Lexer:format-location
-
+            &error.token match {
+                case TokenOrLiteral.Token -> {
+                    $fmt flip $file-path flip Lexer:Token-location make Lexer:TokenLocation & Lexer:format-location
+                }
+                case TokenOrLiteral.Literal -> {
+                    drop $fmt "<intrinsic>" Fmt:write
+                }
+            }
             $fmt ": " Fmt:write
             $fmt $error.msg-ptr $error.msg-len Fmt:write
             $fmt "\n" Fmt:write

@@ -15,7 +15,7 @@ import "../lexer.watim" as Lexer (Token, Token-format, TokenTy, Token-new-synthe
 
 import "../parser.watim" as Parser (GenericType)
 
-import "../resolving/type.watim" as WithHoles (CustomTypeHandle)
+import "../resolving/type.watim" as WithHoles (CustomTypeHandle, TokenOrLiteral)
 import "../resolving/type-without-holes.watim" as Type (Type)
 import "../resolving/words.watim" as Resolved (VarId, LocalId, LocalId-format)
 import "../resolving/intrinsics.watim" as Resolved
@@ -199,6 +199,9 @@ fn lookup-global(unstacker: .Unstacker, global-id: Resolved:GlobalId) -> .Resolv
 }
 
 fn fresh-hole(unstacker: .Unstacker, token: Token) -> InferenceHole {
+    $unstacker $token make TokenOrLiteral.Token fresh-hole-literal
+}
+fn fresh-hole-literal(unstacker: .Unstacker, token: TokenOrLiteral) -> InferenceHole {
     $token $unstacker.next-inference-hole-index ~ make InferenceHole
     $unstacker.next-inference-hole-index ~ 1 + =>unstacker.next-inference-hole-index
 }

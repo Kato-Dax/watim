@@ -5,7 +5,7 @@ import "../../std/util.watim" as Util (i32-format, bool-format)
 
 import "../lexer.watim" as Lexer (Token, Token-format)
 
-import "../resolving/type.watim" as Type (Type)
+import "../resolving/type.watim" as Type (Type, TokenOrLiteral, TokenOrLiteral-format)
 import "../resolving/type.watim" as Resolved (CustomTypeHandle, CustomTypeHandle-format)
 import "../resolving/words.watim" as Resolved (
     VarId, VarId-format,
@@ -16,12 +16,12 @@ import "../resolving/words.watim" as Resolved (
 )
 
 struct InferenceHole {
-    token: Token
+    token: TokenOrLiteral
     index: i32
 }
 fn InferenceHole-format(fmt: .Formatter, self: .InferenceHole) {
     $fmt "(InferenceHole " Fmt:write
-    $fmt &self.token Token-format
+    $fmt &self.token TokenOrLiteral-format
     $fmt " " Fmt:write
     $fmt $self.index i32-format
     $fmt ")" Fmt:write

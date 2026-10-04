@@ -5,9 +5,9 @@ import "../../std/byte-slice.watim" as ByteSlice (ByteSlice)
 import "../../std/util.watim" as Util (i32-format)
 import "../../std/fmt.watim" as Fmt (Formatter)
 import "../../std/io.watim" as IO
+import "../../std/fmt-utils.watim" as Fmt (ByteSlice-format)
 
 import "../lexer.watim" as Lexer (Token, Token-format, Token-lexeme)
-import "../parser.watim" as P
 
 struct ModuleId { index: i32 }
 fn ModuleId-format(fmt: .Formatter, self: .ModuleId) {
@@ -39,21 +39,61 @@ variant Type {
     case Custom -> CustomTypeType
     case Fun -> FunType
     case Closure -> FunType
-    case Generic -> P:GenericType
+    case Generic -> GenericType
     case Hole -> Token
 }
-fn Type-token(self: .Type) -> .Token {
+fn Type-token(self: .Type) -> Maybe<.Token> {
     $self match {
-        case Bool -> {}
-        case I8 -> {}
-        case I32 -> {}
-        case I64 -> {}
+        case Bool -> { make Maybe.Some }
+        case I8 -> { make Maybe.Some }
+        case I32 -> { make Maybe.Some }
+        case I64 -> { make Maybe.Some }
         case Ptr -> { ~ Type-token }
-        case Custom -> { .token }
-        case Fun -> { .token }
-        case Closure -> { .token }
-        case Generic -> { .name }
-        case Hole -> {}
+        case Custom -> { .token make Maybe.Some }
+        case Fun -> { .token make Maybe.Some }
+        case Closure -> { .token make Maybe.Some }
+        case Generic -> {
+            .name match {
+                case Token -> { make Maybe.Some }
+                case Literal -> {
+                    drop make Maybe.None
+                }
+            }
+        }
+        case Hole -> { make Maybe.Some }
+    }
+}
+fn Type-lexeme(self: .Type) -> .i8, i32 {
+    $self match {
+        case Bool -> { Token-lexeme }
+        case I8 -> { Token-lexeme }
+        case I32 -> { Token-lexeme }
+        case I64 -> { Token-lexeme }
+        case Ptr -> { ~ Type-lexeme }
+        case Custom -> { .token Token-lexeme }
+        case Fun -> { .token Token-lexeme }
+        case Closure -> { .token Token-lexeme }
+        case Generic -> {
+            .name match {
+                case Token -> { Token-lexeme }
+                case Literal -> { .literal ~ ByteSlice:unpack }
+            }
+        }
+        case Hole -> { Token-lexeme }
+    }
+}
+fn Type-token-or-literal(self: .Type) -> TokenOrLiteral {
+    $self match {
+        case Bool -> { ~ make TokenOrLiteral.Token }
+        case I8 -> { ~ make TokenOrLiteral.Token }
+        case I32 -> { ~ make TokenOrLiteral.Token }
+        case I64 -> { ~ make TokenOrLiteral.Token }
+        case Ptr -> { ~ Type-token-or-literal }
+        case Custom -> { .token ~ make TokenOrLiteral.Token }
+        case Fun -> { .token ~ make TokenOrLiteral.Token }
+        case Closure -> { .token ~ make TokenOrLiteral.Token }
+        case Generic -> { .name ~ }
+        case Hole -> { ~ make TokenOrLiteral.Token }
     }
 }
 fn format(fmt: .Formatter, self: .Type) { block {
@@ -71,7 +111,7 @@ fn format(fmt: .Formatter, self: .Type) { block {
         case Custom -> { CustomTypeType-format break }
         case Fun -> { FunType-format break }
         case Closure -> { ClosureType-format break }
-        case Generic -> { P:GenericType-format break }
+        case Generic -> { GenericType-format break }
         case Hole -> { $fmt "(Hole " Fmt:write Token-format $fmt ")" Fmt:write break }
     } Fmt:write
 } }
@@ -161,6 +201,40 @@ fn clone(arena: .Arena, self: .Type) -> Type {
         case Fun -> { $arena flip FunType-clone make Type.Fun }
         case Closure -> { $arena flip FunType-clone make Type.Closure }
     }
+}
+
+struct Literal {
+    literal: ByteSlice
+    debug-info: ByteSlice
+}
+
+variant TokenOrLiteral {
+    case Token -> Token
+    case Literal -> Literal
+}
+fn TokenOrLiteral-format(fmt: .Formatter, self: .TokenOrLiteral) {
+    $self match {
+        case Token -> { $fmt flip Token-format }
+        case Literal -> { .literal $fmt flip ByteSlice-format }
+    }
+}
+
+struct GenericType {
+    name: TokenOrLiteral
+    index: i32
+}
+fn GenericType-format(fmt: .Formatter, self: .GenericType) {
+    $fmt "(GenericType " Fmt:write
+    $fmt &self.name TokenOrLiteral-format
+    $fmt " " Fmt:write
+    $fmt $self.index i32-format
+    $fmt ")" Fmt:write
+}
+fn GenericType-pretty(fmt: .Formatter, self: .GenericType) {
+    $fmt &self.name match {
+        case Token -> { Token-lexeme }
+        case Literal -> { .literal ~ ByteSlice:unpack }
+    } Fmt:write
 }
 
 struct FunType {

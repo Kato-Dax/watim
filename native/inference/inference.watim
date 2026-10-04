@@ -15,10 +15,10 @@ import "../../std/util.watim" as Util (i32-format)
 
 import "../lexer.watim" as Lexer (Token, Token-lexeme, Token-format, Token-line, Token-column, TokenTy, Token-new-synthetic)
 import "../name.watim" as Name (Name, AnonymousFunctionName, Name-token, Name-unpack)
-import "../parser.watim" as Parser (GenericType)
 
 import "../resolving/type.watim" as WithHoles (
     CustomTypeHandle, CustomTypeHandle-eq, ModuleId,
+    TokenOrLiteral, GenericType, Literal,
 )
 import "../resolving/pretty-type.watim" as WithHoles
 import "../resolving/type-without-holes.watim" as Type (
@@ -57,7 +57,7 @@ import "../unstacking/ast.watim" as Unstacked
 
 import "./ast.watim" as Checked (Module, FunctionOrExtern, Function, FieldAccesses, FieldAccessStep)
 import "./origin.watim" as Origin (Origin(), TypeWithOrigin, TypeWithOrigin-format, TypeWithOrigin-type, Origin-format, empty-origin)
-import "./error.watim" as Error (Error, error, error-with-origin)
+import "./error.watim" as Error (Error, error)
 
 fn load<T>(ptr: .T) -> T { $ptr ~ }
 
@@ -184,7 +184,7 @@ fn infer-function(
                         case None -> {}
                     }
                     &fmt "]" Fmt:write
-                    &function.name $buf Array:unpack<_> error make Result.Error break
+                    $function.name make TokenOrLiteral.Token $buf Array:unpack<_> error make Result.Error break
                 }
             }
         }
@@ -235,7 +235,7 @@ fn infer-function(
                     @deferred
                     $deferred.progress $ctx.progress = if {
                         $ctx.fmt $deferred.source Source-format
-                        $ctx.arena $deferred.source Source-token $deferred.known.origin "failed to check item" error-with-origin make Maybe<Error>.Some break
+                        $ctx.arena $deferred.source Source-token ~ make TokenOrLiteral.Token "failed to check item" error make Maybe<Error>.Some break
                     }
                     &ctx $deferred.source &deferred.known check match {
                         case None -> {}
@@ -256,7 +256,7 @@ fn infer-function(
                             case StackVoid.Call -> { .token }
                             case StackVoid.ImpossibleMatch -> { .token }
                             case StackVoid.SetGlobal -> { .token }
-                        }
+                        } ~ make TokenOrLiteral.Token
                         "failed to infer type of void" error make Maybe<Error>.Some break
                     }
 
@@ -282,7 +282,7 @@ fn infer-function(
                         case InferenceResult.Error -> { make Maybe<Error>.Some break }
                         case InferenceResult.Success -> {}
                         case InferenceResult.Fail -> {
-                            &local.name Name-token
+                            &local.name Name-token ~ make TokenOrLiteral.Token
                             "StackVoid.SetLocal failed to infer type of local" error make Maybe<Error>.Some break
                         }
                     }
@@ -475,13 +475,13 @@ fn infer-stack-void(ctx: .Ctx, void: .StackVoid) -> Maybe<Error> {
                 @void
                 &void.dst match {
                     case None -> {
-                        &void.token "dst missing" error make Maybe<Error>.Some break
+                        $void.token make TokenOrLiteral.Token "dst missing" error make Maybe<Error>.Some break
                     }
                     case Some -> {}
                 } @dst
                 &void.src match {
                     case None -> {
-                        &void.token "src missing" error make Maybe<Error>.Some break
+                        $void.token make TokenOrLiteral.Token "src missing" error make Maybe<Error>.Some break
                     }
                     case Some -> {}
                 } @src
@@ -493,7 +493,7 @@ fn infer-stack-void(ctx: .Ctx, void: .StackVoid) -> Maybe<Error> {
                             case InferenceResult.Error -> { make Maybe<Error>.Some break }
                             case InferenceResult.Success -> {}
                             case InferenceResult.Fail -> {
-                                &void.token "failed to infer type of store" error make Maybe<Error>.Some break
+                                $void.token make TokenOrLiteral.Token "failed to infer type of store" error make Maybe<Error>.Some break
                             }
                         } @src
                         // TODO: add item to origin for this store, something like make Origin.FromLoad
@@ -507,7 +507,7 @@ fn infer-stack-void(ctx: .Ctx, void: .StackVoid) -> Maybe<Error> {
                         $dst.type match {
                             case Type.Ptr -> {}
                             case _ -> {
-                                drop &void.token "cannot store into non-ptr" error make Maybe<Error>.Some break
+                                drop $void.token make TokenOrLiteral.Token "cannot store into non-ptr" error make Maybe<Error>.Some break
                             }
                         } @dst-child-type
                         // TODO: add item to origin for this store, something like make Origin.FromLoad
@@ -523,7 +523,7 @@ fn infer-stack-void(ctx: .Ctx, void: .StackVoid) -> Maybe<Error> {
             case StackVoid.IndirectCall -> {
                 @void
                 &void.function match {
-                    case None -> { &void.token "expected function on stack" error make Maybe<Error>.Some break }
+                    case None -> { $void.token make TokenOrLiteral.Token "expected function on stack" error make Maybe<Error>.Some break }
                     case Some -> {}
                 } @function
                 $ctx &void.parameters lookup-holes match {
@@ -559,7 +559,7 @@ fn infer-stack-void(ctx: .Ctx, void: .StackVoid) -> Maybe<Error> {
                 } @known
 
                 &void.source match {
-                    case None -> { &void.token "set global expected item" error make Maybe<Error>.Some break }
+                    case None -> { $void.token make TokenOrLiteral.Token "set global expected item" error make Maybe<Error>.Some break }
                     case Some -> {}
                 } @source
 
@@ -671,7 +671,7 @@ fn infer-stack-void(ctx: .Ctx, void: .StackVoid) -> Maybe<Error> {
                                 &void.generic-arguments
                                 $signature $i Unstacked:Signature-parameter
                                 &argument-types $i Array:get<_> match {
-                                    case None -> { &void.token "failed to infer argument" error make Maybe<Error>.Some break }
+                                    case None -> { $void.token make TokenOrLiteral.Token "failed to infer argument" error make Maybe<Error>.Some break }
                                     case Some -> {}
                                 } unify-types match {
                                     case UnificationResult.Success -> {}
@@ -693,31 +693,31 @@ fn infer-stack-void(ctx: .Ctx, void: .StackVoid) -> Maybe<Error> {
             case StackVoid.ImpossibleMatch -> {
                 @void
                 &void.source match {
-                    case None -> { &void.token "match expected value" error make Maybe<Error>.Some break }
+                    case None -> { $void.token make TokenOrLiteral.Token "match expected value" error make Maybe<Error>.Some break }
                     case Some -> {}
                 } @source
                 $ctx $source infer match {
                     case InferenceResult.Error -> { make Maybe<Error>.Some break }
                     case InferenceResult.Success -> {}
                     case InferenceResult.Fail -> {
-                        &void.token "failed to infer type of scrutinee" error make Maybe<Error>.Some break
+                        $void.token make TokenOrLiteral.Token "failed to infer type of scrutinee" error make Maybe<Error>.Some break
                     }
                 } .type match {
                     case Type.Custom -> {}
                     case Type.Ptr -> { match {
                         case Type.Custom -> { ~ }
-                        case _ -> { drop &void.token "expected to match on a variant" error make Maybe<Error>.Some break }
+                        case _ -> { drop $void.token make TokenOrLiteral.Token "expected to match on a variant" error make Maybe<Error>.Some break }
                     } }
-                    case _ -> { drop &void.token "expected to match on a variant" error make Maybe<Error>.Some break }
+                    case _ -> { drop $void.token make TokenOrLiteral.Token "expected to match on a variant" error make Maybe<Error>.Some break }
                 } .type-definition @varint
                 $ctx &varint lookup-type-definition match {
                     case TypeDefinition.Struct -> {
-                        drop &void.token "expected to match on a variant" error make Maybe<Error>.Some break
+                        drop $void.token make TokenOrLiteral.Token "expected to match on a variant" error make Maybe<Error>.Some break
                     }
                     case TypeDefinition.Variant -> {}
                 } @varint
                 $varint.cases.len 0 /= if {
-                    &void.token "expected a variant with zero cases" error make Maybe<Error>.Some break
+                    $void.token make TokenOrLiteral.Token "expected a variant with zero cases" error make Maybe<Error>.Some break
                 }
                 0 1 =
             }
@@ -733,7 +733,7 @@ fn generic-types-from-generic-parameters(arena: .Arena, parameters: .Array<Token
     $arena $parameters.len Array:new-with-capacity @types
     0 loop {
         @i $i $parameters.len = if { $types break }
-        &types $parameters $i Array:get ~ $i make GenericType make Type.Generic Array:push-assert-no-alloc
+        &types $parameters $i Array:get ~ make TokenOrLiteral.Token $i make GenericType make Type.Generic Array:push-assert-no-alloc
         $i 1 +
     }
 }
@@ -784,7 +784,7 @@ fn call-argument-mismatch-error(
         $i 1 +
     }
     &fmt "]" Fmt:write
-    $token $msg Array:unpack<_> error
+    $token ~ make TokenOrLiteral.Token $msg Array:unpack<_> error
 }
 
 variant InferenceState {
@@ -958,7 +958,7 @@ fn generic-parameters-to-arguments(arena: .Arena, token: Token, generic-paramete
     0 loop {
         @i $i $generic-parameters.len = if { break }
         &generic-arguments
-        $token $i make Parser:GenericType make Type.Generic
+        $token make TokenOrLiteral.Token $i make GenericType make Type.Generic
         Array:push-assert-no-alloc<_>
         $i 1 +
     }
@@ -1053,14 +1053,14 @@ fn traverse-fields(ctx: .Ctx, local-type: .TypeWithOrigin, fields: .Array<Unstac
                 &custom-type.type-definition $ctx flip lookup-type-definition match {
                     case TypeDefinition.Variant -> {
                         drop
-                        &access.name "variants do not have fields" error make Result.Error break
+                        $access.name make TokenOrLiteral.Token "variants do not have fields" error make Result.Error break
                     }
                     case TypeDefinition.Struct -> {}
                 } @struc
 
                 0 loop {
                     @i $i $struc.fields.len = if {
-                        &access.name "field not found" error make Result<TypeAtFieldIndex, Error>.Error break
+                        $access.name make TokenOrLiteral.Token "field not found" error make Result<TypeAtFieldIndex, Error>.Error break
                     }
                     &struc.fields $i Array:get<_> @field
                     &field.name Name-unpack &access.name Token-lexeme Bytes:eq if {
@@ -1076,7 +1076,7 @@ fn traverse-fields(ctx: .Ctx, local-type: .TypeWithOrigin, fields: .Array<Unstac
             }
             case _ -> {
                 drop
-                &access.name "only structs have fields" error make Result.Error break
+                $access.name make TokenOrLiteral.Token "only structs have fields" error make Result.Error break
             }
         } TypeAtFieldIndex-unpack @field-index #type
         $ctx $access.target-type $type $origin make TypeWithOrigin & fill-hole-with-origin
@@ -1118,7 +1118,7 @@ fn check(ctx: .Ctx, source: .Source, known: .TypeWithOrigin) -> Maybe<Error> { b
                 case Known -> {
                     @previous
                     &previous.type &known.type Type:eq not if {
-                        $source Source-token "check expected different" error make Maybe<Error>.Some break
+                        $source Source-token ~ make TokenOrLiteral.Token "check expected different" error make Maybe<Error>.Some break
                     }
                     1 1 =
                 }
@@ -1174,7 +1174,7 @@ fn check(ctx: .Ctx, source: .Source, known: .TypeWithOrigin) -> Maybe<Error> { b
                             &fmt " " Fmt:write
                             &fmt &known.type Type:format
                             &fmt "\n" Fmt:write
-                            &source.token "expected local to have different type" error make Maybe<Error>.Some break
+                            $source.token make TokenOrLiteral.Token "expected local to have different type" error make Maybe<Error>.Some break
                         }
                         make Maybe<Error>.None break
                     }
@@ -1197,7 +1197,7 @@ fn check(ctx: .Ctx, source: .Source, known: .TypeWithOrigin) -> Maybe<Error> { b
 
                             $ctx $local.type &expected fill-hole-with-origin
                             &initialization.source match {
-                                case None -> { &initialization.token "expected item" error make Maybe<Error>.Some break }
+                                case None -> { $initialization.token make TokenOrLiteral.Token "expected item" error make Maybe<Error>.Some break }
                                 case Some -> {}
                             } $ctx flip &expected check match {
                                 case None -> {}
@@ -1223,7 +1223,7 @@ fn check(ctx: .Ctx, source: .Source, known: .TypeWithOrigin) -> Maybe<Error> { b
                                 &fmt " " Fmt:write
                                 &fmt $known TypeWithOrigin-format
                                 &fmt "\n" Fmt:write
-                                &source.token "check FromLocal: mismatch" error make Maybe<Error>.Some break
+                                $source.token make TokenOrLiteral.Token "check FromLocal: mismatch" error make Maybe<Error>.Some break
                             }
                         }
                     }
@@ -1278,24 +1278,24 @@ fn check(ctx: .Ctx, source: .Source, known: .TypeWithOrigin) -> Maybe<Error> { b
                     case TypeDefinition.Struct -> {}
                     case TypeDefinition.Variant -> {
                         drop
-                        &source.token "`make` expected struct" error make Maybe<Error>.Some break
+                        $source.token make TokenOrLiteral.Token "`make` expected struct" error make Maybe<Error>.Some break
                     }
                 } @struc
 
                 $source.arguments.len $struc.fields.len /= if {
-                    &source.token "`make struct` expected more arguments" error make Maybe<Error>.Some break
+                    $source.token make TokenOrLiteral.Token "`make struct` expected more arguments" error make Maybe<Error>.Some break
                 }
 
                 &known.type match {
                     case Type.Custom -> {}
                     case _ -> {
                         drop
-                        &source.token "`make struct` only makes custom types" error make Maybe<Error>.Some break
+                        $source.token make TokenOrLiteral.Token "`make struct` only makes custom types" error make Maybe<Error>.Some break
                     }
                 } @known-type
 
                 $known-type.type-definition $source.type-definition /= if {
-                    &source.token "expected different type" error make Maybe<Error>.Some break
+                    $source.token make TokenOrLiteral.Token "expected different type" error make Maybe<Error>.Some break
                 }
 
                 $ctx $source.type $known fill-hole-with-origin
@@ -1309,15 +1309,15 @@ fn check(ctx: .Ctx, source: .Source, known: .TypeWithOrigin) -> Maybe<Error> { b
                 $ctx.arena &source.dst-type Type:without-holes match {
                     case Error -> {
                         // A cast like this: !._ is odd, but there is no reason it shouldn't be accepted eventually.
-                        & "Holes are not yet supported here" error make Maybe<Error>.Some break
+                        make TokenOrLiteral.Token "Holes are not yet supported here" error make Maybe<Error>.Some break
                     }
                     case Success -> {}
                 } @dst-type
                 &dst-type &known.type Type:eq not if {
-                    &source.token "check FromCast: known /= dst-type" error make Maybe<Error>.Some break
+                    $source.token make TokenOrLiteral.Token "check FromCast: known /= dst-type" error make Maybe<Error>.Some break
                 }
                 $source.src match {
-                    case None -> { &source.token "check FromCast: src is None" error make Maybe<Error>.Some break }
+                    case None -> { $source.token make TokenOrLiteral.Token "check FromCast: src is None" error make Maybe<Error>.Some break }
                     case Some -> {}
                 } @src
                 $ctx $src infer match {
@@ -1330,7 +1330,7 @@ fn check(ctx: .Ctx, source: .Source, known: .TypeWithOrigin) -> Maybe<Error> { b
                         // The argument to the cast couldn't be inferred, but it might be inferrable later.
                         // When should we retry? Ever?
                         // Should this just error immediately instead?
-                        &source.token "LOL" error make Maybe<Error>.Some break
+                        $source.token make TokenOrLiteral.Token "LOL" error make Maybe<Error>.Some break
                     }
                 }
             }
@@ -1345,7 +1345,7 @@ fn check(ctx: .Ctx, source: .Source, known: .TypeWithOrigin) -> Maybe<Error> { b
 
                 $source.scrutinee match {
                     case None -> {
-                        &source.token "check FromCase: expected scrutinee" error make Maybe<Error>.Some break
+                        $source.token make TokenOrLiteral.Token "check FromCase: expected scrutinee" error make Maybe<Error>.Some break
                     }
                     case Some -> {}
                 } @scrutinee
@@ -1381,7 +1381,7 @@ fn check(ctx: .Ctx, source: .Source, known: .TypeWithOrigin) -> Maybe<Error> { b
                                 // Even just knowing whether the annotated type starts with a dot is
                                 // enough to make progress here.
 
-                                &source.token "`match` failed to infer type of scrutinee" error make Maybe<Error>.Some break
+                                $source.token make TokenOrLiteral.Token "`match` failed to infer type of scrutinee" error make Maybe<Error>.Some break
                             }
                         } @scrutinee-type
                         $ctx $source.scrutinee-type &scrutinee-type fill-hole-with-origin
@@ -1392,7 +1392,7 @@ fn check(ctx: .Ctx, source: .Source, known: .TypeWithOrigin) -> Maybe<Error> { b
 
                 $ctx &source.varint lookup-type-definition match {
                     case TypeDefinition.Struct -> {
-                        drop &source.token "`match` expected variant" error make Maybe<Error>.Some break
+                        drop $source.token make TokenOrLiteral.Token "`match` expected variant" error make Maybe<Error>.Some break
                     }
                     case TypeDefinition.Variant -> {}
                 } @varint
@@ -1403,11 +1403,11 @@ fn check(ctx: .Ctx, source: .Source, known: .TypeWithOrigin) -> Maybe<Error> { b
                     case _ -> {}
                 } match {
                     case Type.Custom -> {}
-                    case _ -> { drop &source.token "`match` can only match on variants" error make Maybe<Error>.Some break }
+                    case _ -> { drop $source.token make TokenOrLiteral.Token "`match` can only match on variants" error make Maybe<Error>.Some break }
                 } @scrutinee-custom-type
                 $scrutinee-custom-type.type-definition $source.varint /= if {
                     // TODO: proper error message
-                    &source.token "`match` expected to match on a different type" error make Maybe<Error>.Some break
+                    $source.token make TokenOrLiteral.Token "`match` expected to match on a different type" error make Maybe<Error>.Some break
                 }
                 $ctx.arena $case-type &scrutinee-custom-type.generic-arguments Type:with-generics &
                 &scrutinee-type.type match {
@@ -1415,7 +1415,7 @@ fn check(ctx: .Ctx, source: .Source, known: .TypeWithOrigin) -> Maybe<Error> { b
                     case _ -> { drop ~ }
                 } @case-type
                 &case-type &known.type Type:eq not if {
-                    $ctx.arena &source.token $known.origin "check: FromCase expected different" error-with-origin make Maybe<Error>.Some break
+                    $ctx.arena $source.token make TokenOrLiteral.Token "check: FromCase expected different" error make Maybe<Error>.Some break
                 }
             }
             case Source.FromFunRef -> {
@@ -1426,13 +1426,13 @@ fn check(ctx: .Ctx, source: .Source, known: .TypeWithOrigin) -> Maybe<Error> { b
                     case Type.Fun -> {}
                     case _ -> {
                         drop
-                        &source.token "check: FromFunRef: got function expected different" error make Maybe<Error>.Some break
+                        $source.token make TokenOrLiteral.Token "check: FromFunRef: got function expected different" error make Maybe<Error>.Some break
                     }
                 } @known-type
 
                 $known-type.parameters.len $signature.parameters.len /=
                 $known-type.returns.len $signature.returns.len /= or if {
-                    &source.token "check: FromFunRef: expected different signature" error make Maybe<Error>.Some break
+                    $source.token make TokenOrLiteral.Token "check: FromFunRef: expected different signature" error make Maybe<Error>.Some break
                 }
 
                 block {
@@ -1464,7 +1464,7 @@ fn check(ctx: .Ctx, source: .Source, known: .TypeWithOrigin) -> Maybe<Error> { b
                 } match {
                     case UnificationResult.Success -> {}
                     case _ -> {
-                        drop &source.token "check: FromFunRef: TODO" error make Maybe<Error>.Some break
+                        drop $source.token make TokenOrLiteral.Token "check: FromFunRef: TODO" error make Maybe<Error>.Some break
                     }
                 }
             }
@@ -1475,25 +1475,25 @@ fn check(ctx: .Ctx, source: .Source, known: .TypeWithOrigin) -> Maybe<Error> { b
                     case InferenceResult.Error -> { make Maybe<Error>.Some break }
                     case InferenceResult.Success -> {}
                     case InferenceResult.Fail -> {
-                        &source.token "check: FromGetField: failed to infer type of struct" error make Maybe<Error>.Some break
+                        $source.token make TokenOrLiteral.Token "check: FromGetField: failed to infer type of struct" error make Maybe<Error>.Some break
                     }
                 } .type @type
                 &type &known.type Type:eq not if {
-                    &source.token "expected different" error make Maybe<Error>.Some break
+                    $source.token make TokenOrLiteral.Token "expected different" error make Maybe<Error>.Some break
                 }
             }
             case Source.FromClosure -> {
                 @source
                 $known.type match {
                     case Type.Closure -> {}
-                    case _ -> { drop &source.token "check FromClosure: TODO" error make Maybe.Some break }
+                    case _ -> { drop $source.token make TokenOrLiteral.Token "check FromClosure: TODO" error make Maybe.Some break }
                 } @known-type
 
                 $known-type.parameters.len $source.parameters.len /= if {
-                    &source.token "check FromClosure: TODO known.parameters.len /= source.parameters.len" error make Maybe.Some break
+                    $source.token make TokenOrLiteral.Token "check FromClosure: TODO known.parameters.len /= source.parameters.len" error make Maybe.Some break
                 }
                 $known-type.returns.len $source.return-types.len /= if {
-                    &source.token "check FromClosure: TODO $known.returns.len /= $source.return-types.len" error make Maybe.Some break
+                    $source.token make TokenOrLiteral.Token "check FromClosure: TODO $known.returns.len /= $source.return-types.len" error make Maybe.Some break
                 }
 
                 0 loop {
@@ -1551,7 +1551,7 @@ fn check-match-scrutinee-variant(ctx: .Ctx, source: .Source:FromMatchExit, scrut
         case _ -> { drop make Maybe<.CustomTypeHandle>.None }
     } match {
         case None -> {
-            &source.token "check FromMatchExit: expected variant" error make Maybe<Error>.Some
+            $source.token make TokenOrLiteral.Token "check FromMatchExit: expected variant" error make Maybe<Error>.Some
         }
         case Some -> {
             @actual
@@ -1561,7 +1561,7 @@ fn check-match-scrutinee-variant(ctx: .Ctx, source: .Source:FromMatchExit, scrut
                 &fmt $ctx &source.varint lookup-type-definition TypeDefinition-name Token-lexeme Fmt:write
                 &fmt "\nbut got:\n\t" Fmt:write
                 &fmt $ctx $actual lookup-type-definition TypeDefinition-name Token-lexeme Fmt:write
-                &source.token $msg Array:unpack<_> error make Maybe<Error>.Some
+                $source.token make TokenOrLiteral.Token $msg Array:unpack<_> error make Maybe<Error>.Some
             } else {
                 make Maybe<Error>.None
             }
@@ -1574,12 +1574,12 @@ fn check-from-make-variant(ctx: .Ctx, source: .Source:FromMakeVariant, known: .T
         case Type.Custom -> {}
         case _ -> {
             drop
-            &source.token "check FromMakeVariant expected different" error make Maybe<Error>.Some break
+            $source.token make TokenOrLiteral.Token "check FromMakeVariant expected different" error make Maybe<Error>.Some break
         }
     } @known-type
 
     $known-type.type-definition $source.type-definition /= if {
-        &source.token "check FromMakeVariant expected different" error make Maybe<Error>.Some break
+        $source.token make TokenOrLiteral.Token "check FromMakeVariant expected different" error make Maybe<Error>.Some break
     }
 
     $ctx &source.type-definition lookup-type-definition match {
@@ -1594,7 +1594,7 @@ fn check-from-make-variant(ctx: .Ctx, source: .Source:FromMakeVariant, known: .T
             $ctx.arena flip &known-type.generic-arguments Type:with-generics @source-type
             $source.source match {
                 case None -> {
-                    &source.token "check FromMakeVariant expected input" error make Maybe<Error>.Some break
+                    $source.token make TokenOrLiteral.Token "check FromMakeVariant expected input" error make Maybe<Error>.Some break
                 }
                 case Some -> {
                     $ctx flip make TypeWithOrigin {
@@ -1627,7 +1627,7 @@ fn check-from-node(ctx: .Ctx, source: .Source:FromNode, known: .TypeWithOrigin) 
     }
 
     $node match {
-        case PlaceHolder -> { 0 !.Token "check FromNode encountered PlaceHolder" error make Maybe<Error>.Some break }
+        case PlaceHolder -> { "_" make ByteSlice "check-from-node PlaceHolder" make ByteSlice make Literal make TokenOrLiteral.Literal "check FromNode encountered PlaceHolder" error make Maybe<Error>.Some break }
         case Call -> {
             @source
             $ctx $source.function lookup-signature @signature
@@ -1739,7 +1739,7 @@ fn check-from-node(ctx: .Ctx, source: .Source:FromNode, known: .TypeWithOrigin) 
             }
 
             &source.condition match {
-                case None -> { &source.token "If is missing condition" error make Maybe<Error>.Some break }
+                case None -> { $source.token make TokenOrLiteral.Token "If is missing condition" error make Maybe<Error>.Some break }
                 case Some -> {}
             } @condition
 
@@ -1759,7 +1759,7 @@ fn check-from-node(ctx: .Ctx, source: .Source:FromNode, known: .TypeWithOrigin) 
                         &fmt &ctx.type-lookup &inferred.type Type:pretty
                         &fmt " vs " Fmt:write
                         &fmt &ctx.type-lookup &known.type Type:pretty
-                        &source.token $string Array:unpack<_> error make Maybe<Error>.Some break
+                        $source.token make TokenOrLiteral.Token $string Array:unpack<_> error make Maybe<Error>.Some break
                     }
                     make Maybe<Error>.None break
                 }
@@ -1796,7 +1796,7 @@ fn check-from-node(ctx: .Ctx, source: .Source:FromNode, known: .TypeWithOrigin) 
             }
 
             &source.condition match {
-                case None -> { &source.token "If is missing condition" error make Maybe<Error>.Some break }
+                case None -> { $source.token make TokenOrLiteral.Token "If is missing condition" error make Maybe<Error>.Some break }
                 case Some -> {}
             } @condition
 
@@ -1824,7 +1824,7 @@ fn check-from-node(ctx: .Ctx, source: .Source:FromNode, known: .TypeWithOrigin) 
                 case InferenceResult.Success -> {
                     @inferred
                     &inferred.type &known.type Type:eq not if {
-                        &source.token "check FromBlockExit: expected different" error make Maybe<Error>.Some break
+                        $source.token make TokenOrLiteral.Token "check FromBlockExit: expected different" error make Maybe<Error>.Some break
                     }
                     make Maybe<Error>.None break
                 }
@@ -1864,7 +1864,7 @@ fn check-from-node(ctx: .Ctx, source: .Source:FromNode, known: .TypeWithOrigin) 
                 case None -> {}
                 case Some -> {
                     .len ~ $source.arguments.len /= if {
-                        &source.token "source.arguments.len != source.next-arguments.len" error make Maybe.Some break
+                        $source.token make TokenOrLiteral.Token "source.arguments.len != source.next-arguments.len" error make Maybe.Some break
                     } } }
 
             $source.parameters.len 1 - $return-depth - @return-index
@@ -1939,7 +1939,7 @@ fn check-from-node(ctx: .Ctx, source: .Source:FromNode, known: .TypeWithOrigin) 
 
             &source.scrutinee match {
                 case None -> {
-                    &source.token "check FromMatchExit: expected scrutinee" error make Maybe<Error>.Some break
+                    $source.token make TokenOrLiteral.Token "check FromMatchExit: expected scrutinee" error make Maybe<Error>.Some break
                 }
                 case Some -> {}
             } @scrutinee
@@ -1950,7 +1950,7 @@ fn check-from-node(ctx: .Ctx, source: .Source:FromNode, known: .TypeWithOrigin) 
                         case InferenceResult.Success -> {}
                         case InferenceResult.Error -> { make Maybe<Error>.Some break }
                         case InferenceResult.Fail -> {
-                            &source.token "check FromMatchExit: failed to infer type of scrutinee" error make Maybe<Error>.Some break
+                            $source.token make TokenOrLiteral.Token "check FromMatchExit: failed to infer type of scrutinee" error make Maybe<Error>.Some break
                         }
                     } @scrutinee-type
 
@@ -1975,7 +1975,7 @@ fn check-from-node(ctx: .Ctx, source: .Source:FromNode, known: .TypeWithOrigin) 
                     drop
                     $source.function match {
                         case None -> {
-                            &source.token "check IndirectCall: expected function as item on stack" error make Maybe<Error>.Some break
+                            $source.token make TokenOrLiteral.Token "check IndirectCall: expected function as item on stack" error make Maybe<Error>.Some break
                         }
                         case Some -> {}
                     } @function
@@ -2001,14 +2001,14 @@ fn check-from-node(ctx: .Ctx, source: .Source:FromNode, known: .TypeWithOrigin) 
                                 case InferenceResult.Error -> { make Maybe<Error>.Some break }
                                 case InferenceResult.Success -> { Core:dup $ctx flip $source.function-type flip & fill-hole-with-origin }
                                 case InferenceResult.Fail -> {
-                                    &source.token "check IndirectCall: failed to infer function type" error make Maybe<Error>.Some break
+                                    $source.token make TokenOrLiteral.Token "check IndirectCall: failed to infer function type" error make Maybe<Error>.Some break
                                 }
                             } .type match {
                                 case Type.Fun -> {}
                                 case Type.Closure -> {}
                                 case _ -> {
                                     drop
-                                    &source.token "check IndirectCall: expected function" error make Maybe<Error>.Some break
+                                    $source.token make TokenOrLiteral.Token "check IndirectCall: expected function" error make Maybe<Error>.Some break
                                 }
                             }
                         }
@@ -2027,7 +2027,7 @@ fn check-from-node(ctx: .Ctx, source: .Source:FromNode, known: .TypeWithOrigin) 
                     }
                     $function-type.parameters.len $source.parameters.len /=
                     $function-type.returns.len $source.return-types.len /= or if {
-                        &source.token "check IndirectCall: invalid annotation" error make Maybe<Error>.Some break
+                        $source.token make TokenOrLiteral.Token "check IndirectCall: invalid annotation" error make Maybe<Error>.Some break
                     }
 
                     $ctx make Origin.TODO origin-singleton @origin
@@ -2066,7 +2066,7 @@ fn check-from-node(ctx: .Ctx, source: .Source:FromNode, known: .TypeWithOrigin) 
             } @return-type
 
             $return-type &known.type Type:eq not if {
-                &source.token "check IndirectCall: expected different" error make Maybe<Error>.Some break
+                $source.token make TokenOrLiteral.Token "check IndirectCall: expected different" error make Maybe<Error>.Some break
             }
             make Maybe<Error>.None break
         }
@@ -2112,7 +2112,7 @@ fn stack-annotation-mismatch-error(ctx: .Ctx, source: .Source:FromStackAnnotatio
     }
     &fmt "]\n  expected: " Fmt:write
     &fmt &ctx.type-lookup &source.types WithHoles:Types-pretty-bracketed
-    &source.token $msg Array:unpack<_> error
+    $source.token make TokenOrLiteral.Token $msg Array:unpack<_> error
 } }
 
 fn check-local-assignments(ctx: .Ctx, local: .Unstacked:Local, expected: .TypeWithOrigin) -> Maybe<Error> { block {
@@ -2132,7 +2132,7 @@ fn check-local-assignments(ctx: .Ctx, local: .Unstacked:Local, expected: .TypeWi
                 case Type.Ptr -> { ~ }
                 case _ -> {
                     drop
-                    &assignment.token "assignment is store but operates on non-ptr" error make Maybe<Error>.Some break
+                    $assignment.token make TokenOrLiteral.Token "assignment is store but operates on non-ptr" error make Maybe<Error>.Some break
                 }
             }
         } else {
@@ -2150,7 +2150,7 @@ fn check-local-assignments(ctx: .Ctx, local: .Unstacked:Local, expected: .TypeWi
         $ctx $assignment.type &expected-at-assignment fill-hole-with-origin
         $ctx &assignment.source match {
             case None -> {
-                &assignment.token "assignment expected item" error make Maybe<Error>.Some break
+                $assignment.token make TokenOrLiteral.Token "assignment expected item" error make Maybe<Error>.Some break
             }
             case Some -> {}
         } $expected-at-assignment & check match {
@@ -2481,12 +2481,12 @@ fn infer(ctx: .Ctx, source: .Source) -> InferenceResult {
                         case TypeDefinition.Struct -> {}
                         case TypeDefinition.Variant -> {
                             drop
-                            &source.token "`make` expected struct" error make InferenceResult.Error break
+                            $source.token make TokenOrLiteral.Token "`make` expected struct" error make InferenceResult.Error break
                         }
                     } @struc
 
                     $source.arguments.len $struc.fields.len /= if {
-                        &source.token "`make struct` expected more arguments" error make InferenceResult.Error break
+                        $source.token make TokenOrLiteral.Token "`make struct` expected more arguments" error make InferenceResult.Error break
                     }
 
                     $ctx $source.type-definition Struct-signature @signature
@@ -2544,7 +2544,7 @@ fn infer(ctx: .Ctx, source: .Source) -> InferenceResult {
                                     $ctx.arena flip &generic-arguments Type:with-generics @source-type
                                     $source.source match {
                                         case None -> {
-                                            &source.token "check FromMakeVariant expected input" error make InferenceResult.Error break
+                                            $source.token make TokenOrLiteral.Token "check FromMakeVariant expected input" error make InferenceResult.Error break
                                         }
                                         case Some -> {}
                                     }
@@ -2574,7 +2574,7 @@ fn infer(ctx: .Ctx, source: .Source) -> InferenceResult {
 
                     $source.source match {
                         case None -> {
-                            &source.token "infer: FromMakeVariant: expected item" error make InferenceResult.Error break
+                            $source.token make TokenOrLiteral.Token "infer: FromMakeVariant: expected item" error make InferenceResult.Error break
                         }
                         case Some -> {}
                     } @case-source
@@ -2684,7 +2684,7 @@ fn infer(ctx: .Ctx, source: .Source) -> InferenceResult {
                             $ctx &source.parameters $return-index Array:get<_> ~ &type fill-hole-with-origin
 
                             &source.condition match {
-                                case None -> { &source.token "If is missing condition" error make InferenceResult.Error break }
+                                case None -> { $source.token make TokenOrLiteral.Token "If is missing condition" error make InferenceResult.Error break }
                                 case Some -> {}
                             } @condition
 
@@ -2719,7 +2719,7 @@ fn infer(ctx: .Ctx, source: .Source) -> InferenceResult {
 
                             &source.scrutinee match {
                                 case None -> {
-                                    &source.token "infer MatchEntry: expected scrutinee" error make InferenceResult.Error break
+                                    $source.token make TokenOrLiteral.Token "infer MatchEntry: expected scrutinee" error make InferenceResult.Error break
                                 }
                                 case Some -> {}
                             } @scrutinee
@@ -2798,7 +2798,7 @@ fn infer(ctx: .Ctx, source: .Source) -> InferenceResult {
 
                             &source.scrutinee match {
                                 case None -> {
-                                    &source.token "infer FromMatchExit: expected scrutinee" error make InferenceResult.Error break
+                                    $source.token make TokenOrLiteral.Token "infer FromMatchExit: expected scrutinee" error make InferenceResult.Error break
                                 }
                                 case Some -> {}
                             } @scrutinee
@@ -2808,7 +2808,7 @@ fn infer(ctx: .Ctx, source: .Source) -> InferenceResult {
                                     $ctx $scrutinee infer match {
                                         case InferenceResult.Success -> {}
                                         case InferenceResult.Fail -> {
-                                            &source.token "infer FromMatchExit: failed to infer type of scrutinee" error make InferenceResult.Error break
+                                            $source.token make TokenOrLiteral.Token "infer FromMatchExit: failed to infer type of scrutinee" error make InferenceResult.Error break
                                         }
                                         case _ -> { break }
                                     } @scrutinee-type
@@ -2834,7 +2834,7 @@ fn infer(ctx: .Ctx, source: .Source) -> InferenceResult {
                                     drop
                                     $source.function match {
                                         case None -> {
-                                            &source.token "infer IndirectCall: expected function as item on stack" error make InferenceResult.Error break
+                                            $source.token make TokenOrLiteral.Token "infer IndirectCall: expected function as item on stack" error make InferenceResult.Error break
                                         }
                                         case Some -> {}
                                     } @function
@@ -2875,7 +2875,7 @@ fn infer(ctx: .Ctx, source: .Source) -> InferenceResult {
                                                 case Type.Closure -> {}
                                                 case _ -> {
                                                     drop
-                                                    &source.token "infer IndirectCall: expected function" error make InferenceResult.Error break
+                                                    $source.token make TokenOrLiteral.Token "infer IndirectCall: expected function" error make InferenceResult.Error break
                                                 }
                                             }
                                             ~ $type-with-origin.origin
@@ -2887,7 +2887,7 @@ fn infer(ctx: .Ctx, source: .Source) -> InferenceResult {
 
                                     $function-type.parameters.len $source.parameters.len /=
                                     $function-type.returns.len $source.return-types.len /= or if {
-                                        &source.token "infer IndirectCall: invalid annotation" error make InferenceResult.Error break
+                                        $source.token make TokenOrLiteral.Token "infer IndirectCall: invalid annotation" error make InferenceResult.Error break
                                     }
                                     0 loop {
                                         @i $i $function-type.parameters.len = if { break }
@@ -2956,18 +2956,24 @@ fn infer(ctx: .Ctx, source: .Source) -> InferenceResult {
                 case Source.FromCast -> {
                     @source
                     $ctx $source.src match {
-                        case None -> { &source.src-type.token "cast expected item" error make InferenceResult.Error break }
+                        case None -> { $source.src-type.token "cast expected item" error make InferenceResult.Error break }
                         case Some -> {}
                     } infer match {
                         case InferenceResult.Success -> {}
                         case InferenceResult.Fail -> {
-                            &source.src-type.token "infer FromCast TODO: could not infer src-type" error make InferenceResult.Error break
+                            $source.src-type.token "infer FromCast TODO: could not infer src-type" error make InferenceResult.Error break
                         }
                         case _ -> { break }
                     } @src-type
                     $ctx.arena &source.dst-type Type:without-holes match {
                         case Error -> {
-                            & "holes are not supported here yet" error make InferenceResult.Error break
+                            // TODO: this crashes:
+                            // &
+
+                            // This does not:
+                            make TokenOrLiteral.Token
+
+                            "holes are not supported here yet" error make InferenceResult.Error break
                         }
                         case Success -> {}
                     } @dst-type
@@ -2984,7 +2990,7 @@ fn infer(ctx: .Ctx, source: .Source) -> InferenceResult {
                     @source
                     $source.scrutinee match {
                         case None -> {
-                            &source.token "infer FromCase: expected scrutinee" error make InferenceResult.Error break
+                            $source.token make TokenOrLiteral.Token "infer FromCase: expected scrutinee" error make InferenceResult.Error break
                         }
                         case Some -> {}
                     } @scrutinee
@@ -3002,7 +3008,7 @@ fn infer(ctx: .Ctx, source: .Source) -> InferenceResult {
                     $ctx &source.varint lookup-type-definition match {
                         case TypeDefinition.Struct -> {
                             drop
-                            $ctx &source.token "can only match on variants" error make InferenceResult.Error break
+                            $ctx $source.token make TokenOrLiteral.Token "can only match on variants" error make InferenceResult.Error break
                         }
                         case TypeDefinition.Variant -> {}
                     } @varint
@@ -3012,10 +3018,10 @@ fn infer(ctx: .Ctx, source: .Source) -> InferenceResult {
                         case _ -> {}
                     } match {
                         case Type.Custom -> {}
-                        case _ -> { drop $ctx &source.token "can only match on variants" error make InferenceResult.Error break }
+                        case _ -> { drop $ctx $source.token make TokenOrLiteral.Token "can only match on variants" error make InferenceResult.Error break }
                     } @scrutinee-varint-type
                     $scrutinee-varint-type.type-definition $source.varint /= if {
-                        $ctx &source.token "match expected to match on different type" error make InferenceResult.Error break
+                        $ctx $source.token make TokenOrLiteral.Token "match expected to match on different type" error make InferenceResult.Error break
                     }
 
                     &varint.cases $source.tag Array:get<_> .type match {
@@ -3077,7 +3083,7 @@ fn infer(ctx: .Ctx, source: .Source) -> InferenceResult {
                     @source
                     $source.source match {
                         case None -> {
-                            &source.token "infer FromGetField: expected item on stack" error make InferenceResult.Error break
+                            $source.token make TokenOrLiteral.Token "infer FromGetField: expected item on stack" error make InferenceResult.Error break
                         }
                         case Some -> {}
                     } $ctx flip infer match {
@@ -3094,13 +3100,13 @@ fn infer(ctx: .Ctx, source: .Source) -> InferenceResult {
                         case Type.Custom -> {}
                         case _ -> {
                             drop
-                            &source.token "infer FromGetField: expected struct or ptr to struct" error make InferenceResult.Error break
+                            $source.token make TokenOrLiteral.Token "infer FromGetField: expected struct or ptr to struct" error make InferenceResult.Error break
                         }
                     } @custom-type
                     $ctx &custom-type.type-definition lookup-type-definition match {
                         case TypeDefinition.Variant -> {
                             drop
-                            &source.token "infer FromGetField: expected struct" error make InferenceResult.Error break
+                            $source.token make TokenOrLiteral.Token "infer FromGetField: expected struct" error make InferenceResult.Error break
                         }
                         case TypeDefinition.Struct -> {}
                     } @struc
@@ -3228,7 +3234,7 @@ fn infer-loop-entry(ctx: .Ctx, source: .Source:FromLoopEntry, return-depth: i32)
         case None -> {}
         case Some -> {
             .len ~ $source.arguments.len /= if {
-                &source.token "source.arguments.len != source.next-arguments.len" error make InferenceResult.Error break
+                $source.token make TokenOrLiteral.Token "source.arguments.len != source.next-arguments.len" error make InferenceResult.Error break
             } } }
     $source.parameters.len $return-depth - 1 - @return-index
 
@@ -3361,7 +3367,7 @@ fn infer-if-exit(ctx: .Ctx, source: .Source:FromIfExit, return-depth: i32) -> In
     $source.return-types.len $return-depth - 1 - @return-index
 
     &source.condition match {
-        case None -> { &source.token "If is missing condition" error make InferenceResult.Error break }
+        case None -> { $source.token make TokenOrLiteral.Token "If is missing condition" error make InferenceResult.Error break }
         case Some -> {}
     } @condition
 
@@ -3465,7 +3471,7 @@ fn if-returns-mismatch-error(ctx: .Ctx, source: .Source:FromIfExit) -> Error { b
         case Some -> { break }
     }
     &fmt "]" Fmt:write
-    &source.token $string Array:unpack<_> error
+    $source.token make TokenOrLiteral.Token $string Array:unpack<_> error
 } }
 
 fn arms-type-mismatch-error(ctx: .Ctx, source: .Source:FromMatchExit) -> Error {
@@ -3525,7 +3531,7 @@ fn arms-type-mismatch-error(ctx: .Ctx, source: .Source:FromMatchExit) -> Error {
         $i 1 +
     } match {
         case Some -> {}
-        case None -> { &source.token $string Array:unpack<_> error }
+        case None -> { $source.token make TokenOrLiteral.Token $string Array:unpack<_> error }
     }
 }
 
@@ -3534,7 +3540,7 @@ fn break-types-mismatch-error(ctx: .Ctx, source: .Source:FromBlockExit) -> Error
     &fmt "break stack mismatch:" Fmt:write
     &source.break-returns 0 Array:get<_> .sources.len ~ @break-count
     0 loop {
-        @i $i $break-count = if { &source.token $msg Array:unpack<_> error break }
+        @i $i $break-count = if { $source.token make TokenOrLiteral.Token $msg Array:unpack<_> error break }
         &source.break-returns 0 Array:get<_> .sources $i Array:get<_> .token @break-token
         &fmt "\n\t" Fmt:write
         &fmt $break-token Token-line i32-format
@@ -3573,7 +3579,7 @@ fn infer-local(ctx: .Ctx, local: .Unstacked:Local) -> InferenceResult { block {
         @i $i $local.assignments.len = if { make InferenceResult.Fail break }
         &local.assignments $i Array:get<_> @assignment
         &assignment.source match {
-            case None -> { &assignment.token "var assignment expected item on stack" error make InferenceResult.Error break }
+            case None -> { $assignment.token make TokenOrLiteral.Token "var assignment expected item on stack" error make InferenceResult.Error break }
             case Some -> {}
         } @assignment-source
 
@@ -3699,7 +3705,7 @@ fn check-generic-parameter-constraints(
                 $ctx.temp $save Arena:restore
                 match {
                     case None -> {}
-                    case Some -> { $token flip ByteSlice:unpack error make Maybe.Some break }
+                    case Some -> { $token ~ make TokenOrLiteral.Token flip ByteSlice:unpack error make Maybe.Some break }
                 }
             }
         }
