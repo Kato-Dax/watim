@@ -21,7 +21,7 @@ fn main "_start" () {
     "Main" Arena:new @arena
     &arena Args:get-args @args
 
-    &arena FS:init IO:check @fs
+    &arena FS:init IO:unwrap @fs
 
     $args.len 1 = if {
         2 "Expected command and path to test file!\n" IO:write-all IO:check

@@ -5,15 +5,18 @@ extern "wasi_snapshot_preview1" "fd_write" fn raw_write(file: i32, iovs: .Iov, i
 
 variant Error {
     case Noent
+    case Badf
     case Raw -> i32
 }
 fn error-from-raw(code: i32) -> Error { block {
     $code 44 = if { make Error.Noent break }
+    $code 8 = if { make Error.Badf break }
     $code make Error.Raw
 } }
 fn error-to-raw(error: Error) -> i32 {
     $error match {
-        case Noent -> { 44 }
+        case Noent -> { 44 } // no entry
+        case Badf -> { 8 } // bad file descriptor
         case Raw -> {}
     }
 }

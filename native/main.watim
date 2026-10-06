@@ -259,9 +259,7 @@ fn read-file-or-stdin(
                     2 "\n" IO:write-all IO:check
                     1 Core:exit
                 }
-                case Raw -> {
-                    IO:check
-                }
+                case _ -> { IO:error-to-raw IO:check }
             }
             Core:unreachable<Array<i8>>
         }
@@ -288,7 +286,7 @@ fn main "_start" () {
     ActiveMemory:init
     Arena:init-temp
     "Setup" Arena:new @arena
-    &arena FS:init IO:check @fs
+    &arena FS:init IO:unwrap @fs
     &arena parse-args @args
     $args.quiet if { Logging:disable }
 
@@ -305,7 +303,7 @@ fn run-single-file-command(fs: .FileSystem, command: SingleFileCommand) { block 
     &command SingleFileCommand-path ~ @file-path
 
     "Files" Arena:new @files-arena
-    &files-arena FS:init IO:check @fs
+    &files-arena FS:init IO:unwrap @fs
     &files-arena &fs $file-path 0 !.TokenLocation read-file-or-stdin @watim-code
     "Tokens" Arena:new @tokens-arena
     &tokens-arena &watim-code Array:to-slice lex @tokens

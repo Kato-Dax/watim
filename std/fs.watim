@@ -1,4 +1,5 @@
 import "./result.watim" as Result (Result)
+import "./maybe.watim" as Maybe (Maybe(Some, None))
 import "./core.watim" as CORE
 import "./io.watim" as IO (Error, error-from-raw)
 import "./arena.watim" as Arena (Arena)
@@ -42,37 +43,40 @@ fn FileSystem-new(preopened-fds: Array<PreopenedFd>) -> FileSystem {
     $preopened-fds make FileSystem
 }
 
-fn init(arena: .Arena) -> FileSystem, i32 {
-    0 @code
+fn init(arena: .Arena) -> Result<FileSystem, IO:Error> {
     3 @fd
     $arena Arena:save @restore
     Array:new<PreopenedFd> @fds
     $arena Arena:temp @temp @temp-save
     loop {
         uninit<Prestat> @prestat
-        $fd &prestat fd_prestat_get #code
+        $fd &prestat fd_prestat_get @code
         // 8 = Bad file descriptor
         $code 8 = if { 
-            0 #code
-            break 
+            make Maybe.None break
         }
         $code 0 /= if {
-            break
+            $code IO:error-from-raw make Maybe.Some break
         }
         $prestat.path_len @len
 
         $arena $len Arena:alloc-bytes @buf
-        $fd $buf $len fd_prestat_dir_name #code
+        $fd $buf $len fd_prestat_dir_name @code
         $code 0 /= if {
-            break
+            $code IO:error-from-raw make Maybe.Some break
         }
         $buf $len make ByteSlice @path
         $temp &fds $fd $path make PreopenedFd Array:push<PreopenedFd>
         $fd 1 + #fd
-    }
-    $arena $fds.ptr $fds.len Array:init<PreopenedFd> FileSystem-new $code
-    $code 0 /= if {
-        $arena $restore Arena:restore
+    } match {
+        case Some -> {
+            $arena $restore Arena:restore
+            make Result.Error
+        }
+        case None -> {
+            $arena $fds.ptr $fds.len Array:init<PreopenedFd> FileSystem-new
+            make Result.Success
+        }
     }
     $temp $temp-save Arena:restore
 }
