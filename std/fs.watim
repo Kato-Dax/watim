@@ -1,4 +1,4 @@
-import "./result.watim" as Result (Result)
+import "./result.watim" as Result (Result(Error, Success))
 import "./maybe.watim" as Maybe (Maybe(Some, None))
 import "./core.watim" as CORE
 import "./io.watim" as IO (Error, error-from-raw)
@@ -80,37 +80,17 @@ fn init(arena: .Arena) -> Result<FileSystem, IO:Error> {
     }
     $temp $temp-save Arena:restore
 }
-// returns 0, 0 if not found
-// returns 0, e if error
-fn find-current-dir(fs: .FileSystem) -> i32, i32 {
-    $fs.preopened-fds.len 0 = if {
-        2 "failed to find preopened current directory\n" IO:write-all IO:check
-        1 CORE:exit
-    }
-    0 @i
-    loop {
-        $i $fs.preopened-fds.len = if { 
-            // no preopend directory named "." found, using
-            // the first preopened directory as a fallback.
-            &fs.preopened-fds 0 Array:get<PreopenedFd> .fd ~ 0 break
-        }
-        &fs.preopened-fds $i Array:get<PreopenedFd> @preopened-fd
-        $preopened-fd.path ByteSlice:unpack "." Bytes:is-prefix
-        if { $preopened-fd.fd 0 break }
-        $i 1 + #i
-    }
-}
 
 struct Prestat {
     kind: i32
     path_len: i32
 }
 
-fn path-dir(path-ptr: .i8, path-len: i32) -> .i8, i32 {
+fn path-dir(path-ptr: .i8, path-len: i32) -> Maybe<ByteSlice> {
     $path-ptr $path-len "/" drop ~ Bytes:find-rev if {
-        $path-ptr flip
+        $path-ptr flip make ByteSlice make Maybe.Some
     } else {
-        drop $path-ptr $path-len
+        drop make Maybe.None
     }
 }
 
@@ -142,10 +122,9 @@ fn normalize(arena: .Arena, path-ptr: .i8, path-len: i32) -> .i8, i32 {
     $arena Arena:temp @temp @temp-save
     Array:new<i8> @out
 
-    $path-ptr $path-len "./" Bytes:is-prefix not if {
-        $temp &out "./" Array:append-raw<_>
-    }
-    $temp &out $path-ptr $path-len Array:append-raw<_>
+    $temp &out
+    $path-ptr $path-len make ByteSlice "./" strip-prefix ByteSlice:unpack
+    Array:append-raw<_>
 
     $temp &out Array:unpack<_> "//" "/" str-replace #out
     $temp &out Array:unpack<_> "/./" "/" str-replace #out
@@ -177,14 +156,53 @@ fn normalize(arena: .Arena, path-ptr: .i8, path-len: i32) -> .i8, i32 {
     $temp $temp-save Arena:restore
 }
 
-fn open-file(fs: .FileSystem, path: .i8, path_len: i32, rights: i64, inheriting_rights: i64, oflags: i32) -> i32, i32 {
-    $fs find-current-dir @code @parent-fd
-    $code 0 /= if {
-        0 $code
-    } else {
-        0 @fd
-        $parent-fd 0 $path $path_len $oflags $rights $inheriting_rights 0 &fd path_open #code
-        $fd $code
+fn strip-prefix(path: ByteSlice, prefix-ptr: .i8, prefix-len: i32) -> ByteSlice {
+    $path.ptr $path.len $prefix-ptr $prefix-len Bytes:is-prefix if {
+        $path.ptr $prefix-len + #path.ptr
+        $path.len $prefix-len - #path.len
+    }
+    $path
+}
+
+fn without-preopened-path-prefix(preopened: ByteSlice, path: ByteSlice) -> Maybe<ByteSlice> { block {
+    $preopened ByteSlice:unpack "." Bytes:eq if {
+        $path make Maybe.Some break
+    }
+
+    $path "." strip-prefix #path
+    $path "/" strip-prefix #path
+
+    $path ByteSlice:unpack $preopened ByteSlice:unpack Bytes:is-prefix if {
+        $path.ptr $preopened.len + $path.len $preopened.len - make ByteSlice
+        "/" strip-prefix make Maybe.Some break
+    }
+
+    make Maybe.None
+} }
+
+fn open-file(fs: .FileSystem, path: .i8, path-len: i32, rights: i64, inheriting-rights: i64, oflags: i32) -> Result<i32, IO:Error> {
+    0 loop {
+        @i $i $fs.preopened-fds.len = if {
+            make IO:Error.Noent make Result.Error break
+        }
+        &fs.preopened-fds $i Array:get<PreopenedFd> @preopened-fd
+
+        $preopened-fd.path $path $path-len make ByteSlice without-preopened-path-prefix match {
+            case None -> {}
+            case Some -> {
+                @path
+                0 @fd
+                $preopened-fd.fd 0 $path ByteSlice:unpack $oflags $rights $inheriting-rights 0 &fd path_open @code
+                $code 0 /= if {
+                    $code make IO:Error.Noent IO:error-to-raw /= if {
+                        $code IO:error-from-raw make Result.Error break
+                    }
+                } else {
+                    $fd make Result.Success break
+                }
+            }
+        }
+        $i 1 +
     }
 }
 
@@ -194,11 +212,10 @@ fn read-file(arena: .Arena, fs: .FileSystem, path: .i8, path-len: i32) -> Result
     create-rights rights-read
     create-rights
     create-oflags
-    open-file @code @fd
-    $code 0 /= if {
-        $fd close drop
-        $code error-from-raw make Result<Array<i8>, Error>.Error break
-    }
+    open-file match {
+        case Error -> { make Result.Error break }
+        case Success -> {}
+    } @fd
     $arena $fd read-all
     $fd close drop
 } }

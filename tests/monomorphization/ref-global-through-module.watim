@@ -28,7 +28,7 @@ monomize
     (TypeInfo 8 4),
     (TypeInfo 4 4)],
   modules=(Map
-    "./global.watim"=(Module
+    "global.watim"=(Module
       custom-types=[
         (Struct
           name=(IDENT Foo 1 8),

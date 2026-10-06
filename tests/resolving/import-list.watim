@@ -8,7 +8,7 @@ resolve
 0
 [== Stdout Compiler ==]
 (Map
-  "./struct.watim"=(Module
+  "struct.watim"=(Module
     imports=(Map),
     type-definitions=(Map
       "Struct"=(Struct
@@ -21,7 +21,7 @@ resolve
     static-data=""),
   "-"=(Module
     imports=(Map
-      "S"=[(Import (IMPORT import 1 1) 0 "./struct.watim" (IDENT S 1 28) [
+      "S"=[(Import (IMPORT import 1 1) 0 "struct.watim" (IDENT S 1 28) [
         (StructImport (IDENT Struct 1 31) (CustomTypeHandle 0 0))])]),
     type-definitions=(Map),
     globals=(Map),

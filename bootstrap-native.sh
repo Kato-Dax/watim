@@ -5,10 +5,10 @@ set -xe
 python ./bootstrap compile ./native/main.watim --guard-stack > bootstrapped.wat
 
 # Let the bootstrapped native compiler recompile itself.
-wasmtime -C cache=n --dir=. bootstrapped.wat compile ./native/main.watim > watim0.wat
+wasmtime -C cache=n --dir=native::native --dir=std::std bootstrapped.wat compile ./native/main.watim > watim0.wat
 
 # Compile the native compiler using the bootstrapped native compiler
-wasmtime -C cache=n --dir=. watim0.wat compile ./native/main.watim > watim.wat
+wasmtime -C cache=n --dir=native::native --dir=std::std watim0.wat compile ./native/main.watim > watim.wat
 
 # Compile WAT into a binary
 wat2wasm watim.wat -o watim.wasm

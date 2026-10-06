@@ -12,7 +12,7 @@ resolve
 0
 [== Stdout Compiler ==]
 (Map
-  "./function.watim"=(Module
+  "function.watim"=(Module
     imports=(Map),
     type-definitions=(Map),
     globals=(Map),
@@ -50,7 +50,7 @@ resolve
     static-data=""),
   "-"=(Module
     imports=(Map
-      "F"=[(Import (IMPORT import 1 1) 0 "./function.watim" (IDENT F 1 30) [
+      "F"=[(Import (IMPORT import 1 1) 0 "function.watim" (IDENT F 1 30) [
         (FunctionImport (IDENT function-b 1 33) (FunctionHandle 0 1))])]),
     type-definitions=(Map),
     globals=(Map),

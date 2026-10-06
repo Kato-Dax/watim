@@ -150,7 +150,10 @@ fn resolve-imprt(
     $module-path ~ ByteSlice:unpack "-" Bytes:eq if {
         "" Array:init-no-copy<_>
     } else {
-        $module-path ~ ByteSlice:unpack FS:path-dir Array:init-no-copy<_>
+        $module-path ~ ByteSlice:unpack FS:path-dir match {
+            case None -> { "" }
+            case Some -> { ByteSlice:unpack }
+        } Array:init-no-copy<_>
     } @path
 
     $temp-arena &path &imp.path Token-lexeme 2 - flip 1 + flip Array:append-raw<_>

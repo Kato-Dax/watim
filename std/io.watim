@@ -1,4 +1,4 @@
-import "./core.watim" as CORE
+import "./core.watim" as Core
 import "./result.watim" as Result (Result(Success, Error))
 extern "wasi_snapshot_preview1" "fd_read" fn raw_read(file: i32, iovs: .Iov, iovs_count: i32, read: .i32) -> i32
 extern "wasi_snapshot_preview1" "fd_write" fn raw_write(file: i32, iovs: .Iov, iovs_count: i32, written: .i32) -> i32
@@ -26,7 +26,7 @@ fn check(code: i32) {
         2 2 "Error Code: " write-all drop $code print drop
         2 "\n" write-all drop
         0 0 / drop
-        1 CORE:exit
+        1 Core:exit
     }
 }
 
@@ -34,19 +34,26 @@ fn unwrap<T>(res: Result<T, Error>) -> T {
     $res match {
         case Success -> {}
         case Error -> {
-            error-to-raw @code
             2 "Error Code: " write-all check
-            2 $code print check
+            Core:dup
+            match {
+                case Noent -> { 2 "Noent: No such file or directory" write-all check }
+                case Badf -> { 2 "Badf: Bad file descriptor" write-all check }
+                case _ -> {
+                    error-to-raw @code
+                    2 $code print check
+                }
+            }
             2 "\n" write-all check
-            $code CORE:exit
-            CORE:unreachable<T>
+            error-to-raw Core:exit
+            Core:unreachable<T>
         }
     }
 }
 
 fn abort(msg-ptr: .i8, msg-len: i32) {
     2 $msg-ptr $msg-len write-all check
-    1 CORE:exit
+    1 Core:exit
 }
 
 struct Iov {
@@ -56,7 +63,7 @@ struct Iov {
 
 fn write(fd: i32, pt: .i8, len: i32) -> i32, i32 {
     uninit<Iov> @space
-    uninit<CORE:I32> @writ
+    uninit<Core:I32> @writ
     0 #writ.inner
     $pt #space.ptr
     $len #space.len
@@ -204,7 +211,7 @@ fn write-escaped(fd: i32, ptr: .i8, len: i32) -> i32 {
     0 @i
     loop {
         $i $len = if { 0 break }
-        $fd &escaped-char $ptr $i + ~ &escaped-char CORE:escape write-all @code
+        $fd &escaped-char $ptr $i + ~ &escaped-char Core:escape write-all @code
         $code 0 /= if { $code break }
         $i 1 + #i
     }

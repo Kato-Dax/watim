@@ -815,67 +815,77 @@ fn load-modules-recursively(
     file-path: Maybe<ByteSlice>,
     file-path-location: .TokenLocation,
     modules: .Map<ByteSlice, Parser:Module>
-) { block {
-    $file-path match {
-        case None -> { "-" make ByteSlice }
-        case Some -> {}
-    } @file-path-or-dash
-    $modules &file-path-or-dash Map:get<ByteSlice, Parser:Module> match {
-        case None -> {}
-        case Some -> { drop break }
-    }
-    Logging:enabled if {
-        2 "Loading module: " IO:write-all IO:check
-        2 $file-path-or-dash ByteSlice:unpack IO:write-all IO:check
-        2 IO:newline
-    }
+) {
     $arena Arena:temp @temp-arena @save
-
-    $temp-arena $fs $file-path $file-path-location read-file-or-stdin @watim-code
-    $arena &watim-code Array:to-slice lex @tokens
-    $arena &tokens Lexer:Tokens-copy drop
-    $arena $tokens parse match {
-        case Error -> {
-            2 flip $file-path-or-dash ByteSlice:unpack ParseError-print drop
-            2 IO:newline
-            2 Core:exit
-            Core:unreachable<Parser:Module>
-        }
-        case Success -> {}
-    } @module
-
-    $arena
-    $modules
-    $file-path match { case Some -> {} case None -> { "-" make ByteSlice } }
-    $module
-    Map:insert<ByteSlice, Parser:Module> match {
-        case None -> {}
-        case Some -> { drop 0 0 / drop }
-    }
-
-    0 @i
-    loop {
-        $module.imports.len $i = if { break }
-        &module.imports $i Array:get<Parser:Import> @imp
-        &imp.path Token-lexeme 2 - flip 1 + flip make ByteSlice @imp-path
-        $file-path-or-dash &imp.path Lexer:Token-location make TokenLocation @imp-path-loc
-        $file-path match {
-            case None -> {
-                $arena $fs $imp-path make Maybe<ByteSlice>.Some &imp-path-loc $modules load-modules-recursively
-            }
+    block {
+        // &file-path { $arena flip ByteSlice:unpack FS:normalize make ByteSlice } Maybe:map-in-place
+        &file-path match {
+            case None -> {}
             case Some -> {
-                ByteSlice:unpack FS:path-dir Array:init-no-copy<_> @path
-                $temp-arena &path $imp-path ByteSlice:unpack Array:append-raw<_>
-                $temp-arena &path Array:unpack<_> FS:normalize make ByteSlice @absolute-imp-path
-                $arena $absolute-imp-path ByteSlice:copy @absolute-imp-path
-                $arena $fs $absolute-imp-path make Maybe<ByteSlice>.Some &imp-path-loc $modules load-modules-recursively
+                Core:dup $arena flip ~ ByteSlice:unpack FS:normalize make ByteSlice store
             }
         }
-        $i 1 + #i
-    }
 
+        $file-path match {
+            case None -> { "-" make ByteSlice }
+            case Some -> {}
+        } @file-path-or-dash
+        $modules &file-path-or-dash Map:get<ByteSlice, Parser:Module> match {
+            case None -> {}
+            case Some -> { drop break }
+        }
+        Logging:enabled if {
+            2 "Loading module: " IO:write-all IO:check
+            2 $file-path-or-dash ByteSlice:unpack IO:write-all IO:check
+            2 IO:newline
+        }
+
+        $temp-arena $fs $file-path $file-path-location read-file-or-stdin @watim-code
+        $arena &watim-code Array:to-slice lex @tokens
+        $arena &tokens Lexer:Tokens-copy drop
+        $arena $tokens parse match {
+            case Error -> {
+                2 flip $file-path-or-dash ByteSlice:unpack ParseError-print drop
+                2 IO:newline
+                2 Core:exit
+                Core:unreachable<Parser:Module>
+            }
+            case Success -> {}
+        } @module
+
+        $arena
+        $modules
+        $file-path-or-dash
+        $module
+        Map:insert<ByteSlice, Parser:Module> match {
+            case None -> {}
+            case Some -> { drop 0 0 / drop }
+        }
+
+        0 @i
+        loop {
+            $module.imports.len $i = if { break }
+            &module.imports $i Array:get<Parser:Import> @imp
+            &imp.path Token-lexeme 2 - flip 1 + flip make ByteSlice @imp-path
+            $file-path-or-dash &imp.path Lexer:Token-location make TokenLocation @imp-path-loc
+            $file-path match {
+                case None -> {
+                    $arena $fs $imp-path make Maybe<ByteSlice>.Some &imp-path-loc $modules load-modules-recursively
+                }
+                case Some -> {
+                    ByteSlice:unpack FS:path-dir match {
+                        case None -> { "" }
+                        case Some -> { ByteSlice:unpack }
+                    } Array:init-no-copy<_> @path
+                    $temp-arena &path $imp-path ByteSlice:unpack Array:append-raw<_>
+                    $arena $fs &path Array:unpack make ByteSlice make Maybe<ByteSlice>.Some &imp-path-loc $modules load-modules-recursively
+                }
+            }
+            $i 1 + #i
+        }
+    }
     $temp-arena $save Arena:restore
-} }
+}
 
 fn determine-compilation-order(arena: .Arena, modules: .Map<ByteSlice, Parser:Module>) -> Map<ByteSlice, Parser:Module> {
     $arena Arena:temp @temp @temp-save
@@ -907,10 +917,13 @@ fn determine-compilation-order(arena: .Arena, modules: .Map<ByteSlice, Parser:Mo
                     $imp-path-ptr $imp-path-len make ByteSlice
                 } else {
                     Array:new @absolute-path
-                    $temp &absolute-path $module-file-path ~ ByteSlice:unpack FS:path-dir Array:append-raw<_>
+                    $temp &absolute-path $module-file-path ~ ByteSlice:unpack FS:path-dir match {
+                        case None -> { "" }
+                        case Some -> { ByteSlice:unpack }
+                    } Array:append-raw<_>
                     $temp &absolute-path $imp-path-ptr $imp-path-len Array:append-raw<_>
-                    $temp &absolute-path Array:unpack<i8> FS:normalize make ByteSlice
-                } @absolute-path
+                    &absolute-path Array:unpack<i8> make ByteSlice // TODO: the <i8> should be unnecessary here, but it is not
+                } $temp flip ByteSlice:unpack FS:normalize make ByteSlice @absolute-path
 
                 // Is this an import of an already `ordered` module?
                 &ordered-keys \ByteSlice:eq-by-ref &absolute-path Array:find<ByteSlice, .ByteSlice> flip drop not if {

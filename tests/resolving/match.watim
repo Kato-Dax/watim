@@ -14,7 +14,7 @@ resolve
 0
 [== Stdout Compiler ==]
 (Map
-  "./variant.watim"=(Module
+  "variant.watim"=(Module
     imports=(Map),
     type-definitions=(Map
       "Maybe"=(Variant
@@ -28,7 +28,7 @@ resolve
     static-data=""),
   "-"=(Module
     imports=(Map
-      "V"=[(Import (IMPORT import 1 1) 0 "./variant.watim" (IDENT V 1 29) [
+      "V"=[(Import (IMPORT import 1 1) 0 "variant.watim" (IDENT V 1 29) [
         (VariantImport (IDENT Maybe 1 32) (CustomTypeHandle 0 0) [1, 0])])]),
     type-definitions=(Map),
     globals=(Map),
