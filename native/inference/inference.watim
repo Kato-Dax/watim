@@ -1678,8 +1678,10 @@ fn check-from-node(ctx: .Ctx, source: .Source:FromNode, known: .TypeWithOrigin) 
                                 case Signature.Intrinsic -> { $ctx flip .parameters &source.generic-arguments $i &argument-type fit-to-types }
                             } match {
                                 case UnificationResult.Success -> {}
-                                case _ -> {
-                                    drop
+                                case UnificationResult.Generics -> {
+                                    $source.token flip $return-index flip $known.type flip ~ make Error:CallGenericContradictionError make Error.CallGenericsContradict make Maybe.Some break
+                                }
+                                case UnificationResult.TypeMismatch -> {
                                     $ctx &source.arguments infer-over-array match {
                                         case Error -> { make Maybe<Error>.Some break }
                                         case Success -> {}
@@ -2315,10 +2317,10 @@ fn unify-types(ctx: .Ctx, generic-arguments: .Array<InferenceHole>, holey: .Type
                 } @known
                 $ctx $generic-arguments $child &known unify-types
             }
-            case Type.Bool -> { drop make UnificationResult.Success }
-            case Type.I8 -> { drop make UnificationResult.Success }
-            case Type.I32 -> { drop make UnificationResult.Success }
-            case Type.I64 -> { drop make UnificationResult.Success }
+            case Type.Bool -> { drop &known.type match { case Type.Bool -> { drop make UnificationResult.Success } case _ -> { drop make UnificationResult.TypeMismatch } } }
+            case Type.I8 -> { drop &known.type match { case Type.I8 -> { drop make UnificationResult.Success } case _ -> { drop make UnificationResult.TypeMismatch } } }
+            case Type.I32 -> { drop &known.type match { case Type.I32 -> { drop make UnificationResult.Success } case _ -> { drop make UnificationResult.TypeMismatch } } }
+            case Type.I64 -> { drop &known.type match { case Type.I64 -> { drop make UnificationResult.Success } case _ -> { drop make UnificationResult.TypeMismatch } } }
             case Type.Custom -> {
                 @holey
                 &known.type match {
