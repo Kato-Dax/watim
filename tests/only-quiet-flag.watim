@@ -36,4 +36,5 @@ Commands:
   compile   compile to webassembly text format
     <path>
 Options:
-  -q, --quiet  Don't print any logs to stderr
+  -q, --quiet          Don't print any logs to stderr
+  --mem-stats-out-file Write statistics about memory usage to this file
