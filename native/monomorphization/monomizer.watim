@@ -362,11 +362,12 @@ fn lookup-checked-function(ctx: .Ctx, handle: Resolved:FunctionHandle) -> .Check
     .functions $handle.index Array:get<Checked:FunctionOrExtern>
 }
 fn insert-into-function-table(ctx: .Ctx, handle: FunctionHandle) -> i32 {
-    $ctx.function-table \FunctionHandle-eq  &handle Array:find<FunctionHandle, .FunctionHandle> 
-    if {} else {
-        drop
-        $ctx.function-table.len
-        $ctx.arena $ctx.function-table $handle Array:push<FunctionHandle>
+    $ctx.function-table \FunctionHandle-eq  &handle Array:find-index<FunctionHandle, .FunctionHandle> match {
+        case Some -> {}
+        case None -> {
+            $ctx.function-table.len
+            $ctx.arena $ctx.function-table $handle Array:push<FunctionHandle>
+        }
     }
 }
 fn lookup-type(ctx: .Ctx, type: TypeId) -> .Type {
@@ -500,33 +501,35 @@ fn monomize-type(ctx: .Ctx, type: .Checked:Type, generic-arguments: .Array<TypeI
         }
         case _ -> { $ctx flip $generic-arguments monomize-type break }
     } @key
-    $ctx.types \cmp-perhaps-empty-type-slot &key Array:find<Maybe<Key>, .Key> if {
-        $ctx.types.len $type-id.index 1 + = if {
-            $ctx.types Array:pop<Maybe<Key>> assert-none<Key>
-        }
-        make TypeId
-    } else {
-        drop
-        $ctx.types $type-id.index $key make Maybe<Key>.Some Array:set<Maybe<Key>> drop
-        &key match {
-            case CustomType -> {
-                @key
-                $type match {
-                    case Checked:Type.Custom -> {
-                        $ctx flip &key.generic-arguments monomize-custom-type
-                        make Type.Custom make Maybe<Type>.Some @type
-
-                        $ctx.types $type-id.index Array:get<Maybe<Key>> Maybe:ref<Key> Maybe:assert-some<.Key> match {
-                            case CustomType -> { .type $type store }
-                            case _ -> { drop 0 0 / drop }
-                        }
-                    }
-                    case _ -> { drop 0 0 / drop }
-                }
+    $ctx.types \cmp-perhaps-empty-type-slot &key Array:find-index<Maybe<Key>, .Key> match {
+        case Some -> {
+            $ctx.types.len $type-id.index 1 + = if {
+                $ctx.types Array:pop<Maybe<Key>> assert-none<Key>
             }
-            case _ -> { drop }
+            make TypeId
         }
-        $type-id
+        case None -> {
+            $ctx.types $type-id.index $key make Maybe<Key>.Some Array:set<Maybe<Key>> drop
+            &key match {
+                case CustomType -> {
+                    @key
+                    $type match {
+                        case Checked:Type.Custom -> {
+                            $ctx flip &key.generic-arguments monomize-custom-type
+                            make Type.Custom make Maybe<Type>.Some @type
+
+                            $ctx.types $type-id.index Array:get<Maybe<Key>> Maybe:ref<Key> Maybe:assert-some<.Key> match {
+                                case CustomType -> { .type $type store }
+                                case _ -> { drop 0 0 / drop }
+                            }
+                        }
+                        case _ -> { drop 0 0 / drop }
+                    }
+                }
+                case _ -> { drop }
+            }
+            $type-id
+        }
     }
 } }
 
@@ -592,12 +595,12 @@ fn monomize-custom-type(
 }
 
 fn add-monomized-custom-type(ctx: .Ctx, type: CustomType) -> CustomTypeHandle {
-    &ctx.custom-types \CustomType-eq &type Array:find<CustomType, .CustomType> if {
-        $ctx.module-id flip make CustomTypeHandle
-    } else {
-        drop
-        $ctx.module-id $ctx.custom-types.len make CustomTypeHandle
-        $ctx.arena &ctx.custom-types $type Array:push<CustomType>
+    &ctx.custom-types \CustomType-eq &type Array:find-index<CustomType, .CustomType> match {
+        case Some -> { $ctx.module-id flip make CustomTypeHandle }
+        case None -> {
+            $ctx.module-id $ctx.custom-types.len make CustomTypeHandle
+            $ctx.arena &ctx.custom-types $type Array:push<CustomType>
+        }
     }
 }
 

@@ -1,6 +1,6 @@
 import "../std/core.watim" as Core
 import "../std/result.watim" as Result (Result(Success, Error))
-import "../std/maybe.watim" as Maybe (Maybe(None, Some), or-default)
+import "../std/maybe.watim" as Maybe (Maybe(None, Some), or-default, is-some)
 import "../std/page-alloc.watim" as PageAlloc
 import "../std/arena.watim" as Arena (Arena)
 import "../std/args.watim" as Args
@@ -72,18 +72,16 @@ fn print-usage-and-exit() {
     2 "    <path>\n" IO:write-all IO:check
 
     2 "Options:\n" IO:write-all IO:check
-    2 "  -q, --quiet  Don't print any logs to stderr\n" IO:write-all IO:check
+    2 "  -q, --quiet          Don't print any logs to stderr\n" IO:write-all IO:check
+    2 "  --mem-stats-out-file Write statistics about memory usage to this file\n" IO:write-all IO:check
     1 Core:exit
 }
 
-fn find-flag(args: .Array<ByteSlice>, ptr: .i8, len: i32) -> bool {
+fn find-flag(args: .Array<ByteSlice>, ptr: .i8, len: i32) -> Maybe<i32> {
     $ptr $len make ByteSlice @str
-    $args \ByteSlice:eq-by-ref &str Array:find<ByteSlice, .ByteSlice> if {
-        $args flip Array:remove<ByteSlice> drop
-        1 1 =
-    } else {
-        drop
-        0 1 =
+    $args \ByteSlice:eq-by-ref &str Array:find-index<ByteSlice, .ByteSlice> match {
+        case Some -> { Core:dup $args flip Array:remove<ByteSlice> drop make Maybe.Some }
+        case None -> { make Maybe.None }
     }
 }
 
@@ -152,11 +150,20 @@ variant CliCommand {
 struct CliArgs {
     command: CliCommand
     quiet: bool
+    memory-statistics-output-file: Maybe<ByteSlice>
 }
 
 fn parse-args(arena: .Arena) -> CliArgs {
     $arena Args:get-args @args
-    &args "-q" find-flag &args "--quiet" find-flag or
+    &args "-q" find-flag & is-some &args "--quiet" find-flag & is-some or @quiet
+    &args "--mem-stats-out-file" find-flag match {
+        case None -> { make Maybe.None }
+        case Some -> {
+            @index
+            $index 1 + $args.len ge if { print-usage-and-exit }
+            &args $index 1 + Array:get ~ make Maybe.Some
+        }
+    } @memory-statistics-output-file
     $args.len 1 le if {
         print-usage-and-exit
     }
@@ -218,12 +225,12 @@ fn parse-args(arena: .Arena) -> CliArgs {
         }
         $command ByteSlice:unpack "compile" Bytes:eq if {
             $path
-            &args "--guard-stack" find-flag
+            &args "--guard-stack" find-flag & is-some
             make CompilationArgs make ProjectWideCommand.Compile make CliCommand.ProjectWide break
         }
         print-usage-and-exit loop { }
     }
-    flip make CliArgs
+    $quiet $memory-statistics-output-file make CliArgs
 }
 
 fn read-file-or-stdin(
@@ -926,9 +933,12 @@ fn determine-compilation-order(arena: .Arena, modules: .Map<ByteSlice, Parser:Mo
                 } $temp flip ByteSlice:unpack FS:normalize make ByteSlice @absolute-path
 
                 // Is this an import of an already `ordered` module?
-                &ordered-keys \ByteSlice:eq-by-ref &absolute-path Array:find<ByteSlice, .ByteSlice> flip drop not if {
-                    // if not then postpone processing this module.
-                    0 1 = break
+                &ordered-keys \ByteSlice:eq-by-ref &absolute-path Array:find-index<ByteSlice, .ByteSlice> match {
+                    case None -> {
+                        // if not then postpone processing this module.
+                        0 1 = break
+                    }
+                    case Some -> { drop }
                 }
                 $j 1 + #j
             } if {

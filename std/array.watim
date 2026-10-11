@@ -308,21 +308,20 @@ fn any<T>(self: .Array<T>, pred: (.T -> bool)) -> bool {
         $i 1 + #i
     }
 }
-fn find<T, A>(self: .Array<T>, compare: (.T, A -> bool), value: A) -> i32, bool {
+fn find-index<T, A>(self: .Array<T>, compare: (.T, A -> bool), value: A) -> Maybe<i32> {
     0 @i
-    loop {
-        $i $self.len = if { 0 0 1 = break }
+    loop (-> Maybe<i32>) {
+        $i $self.len = if { make Maybe.None break }
         $self $i get<T> $value $compare (.T, A -> bool) if {
-            $i 1 1 = break
+            $i make Maybe.Some break
         }
         $i 1 + #i
     }
 }
-fn find-ref<T, A>(self: .Array<T>, compare: (.T, A -> bool), value: A) -> .T, bool {
-    $self $compare $value find<T, A> if {
-        $self flip get<T> 1 1 =
-    } else {
-        drop 0 !.T 0 1 =
+fn find-ref<T, A>(self: .Array<T>, compare: (.T, A -> bool), value: A) -> Maybe<.T> {
+    $self $compare $value find-index<T, A> match {
+        case None -> { make Maybe.None }
+        case Some -> { $self flip get make Maybe.Some }
     }
 }
 fn find-map<T, O>(self: .Array<T>, pred: (.T -> Maybe<O>)) -> Maybe<O> {
@@ -370,11 +369,12 @@ fn ValueAtIndex-unpack<T>(self: ValueAtIndex<T>) -> T, i32 {
     $self.value $self.index
 }
 fn find-remove<T, A>(self: .Array<T>, compare: (.T, A -> bool), value: A) -> Maybe<ValueAtIndex<T>> {
-    $self $compare $value find<T, A> if {
-        @i
-        $self $i remove<T> $i make ValueAtIndex<T> make Maybe<ValueAtIndex<T>>.Some
-    } else {
-        drop make Maybe<ValueAtIndex<T>>.None
+    $self $compare $value find-index<T, A> match {
+        case Some -> {
+            @i
+            $self $i remove<T> $i make ValueAtIndex<T> make Maybe<ValueAtIndex<T>>.Some
+        }
+        case None -> { make Maybe<ValueAtIndex<T>>.None }
     }
 }
 fn join-with(arena: .A:Arena, self: .Array<ByteSlice>, del-ptr: .i8, del-len: i32) -> Array<i8> {

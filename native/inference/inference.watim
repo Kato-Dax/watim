@@ -3682,14 +3682,17 @@ fn check-generic-parameter-constraints(
                     case None -> {}
                     case Some -> {
                         .type
-                        &constraint.allowed flip \TypeShape-matches-Type flip Array:find not if {
-                            $ctx $arguments infer-over-array match {
-                                case Success -> {}
-                                case Error -> { make Maybe.Some break }
-                            } @argument-types
-                            $ctx $token $signature make Signature.Intrinsic $generic-arguments &argument-types call-argument-mismatch-error
-                            make Maybe.Some break
-                        } drop
+                        &constraint.allowed flip \TypeShape-matches-Type flip Array:find-index match {
+                            case None -> {
+                                $ctx $arguments infer-over-array match {
+                                    case Success -> {}
+                                    case Error -> { make Maybe.Some break }
+                                } @argument-types
+                                $ctx $token $signature make Signature.Intrinsic $generic-arguments &argument-types call-argument-mismatch-error
+                                make Maybe.Some break
+                            }
+                            case Some -> { drop }
+                        }
                     }
                 }
             }

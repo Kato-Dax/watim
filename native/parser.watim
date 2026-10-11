@@ -2240,9 +2240,12 @@ fn custom-type(parser: .Parser, token: .Token) -> Result<Type, ParseError> {
                     }
                     case _ -> {
                         drop
-                        &parser.generic-parameters \Token-eq-by-lexeme $token Array:find<Token, .Token> if {
-                            $token ~ flip make GenericType make Type.Generic make Result<Type, ParseError>.Success break
-                        } else { drop }
+                        &parser.generic-parameters \Token-eq-by-lexeme $token Array:find-index<Token, .Token> match {
+                            case Some -> {
+                                $token ~ flip make GenericType make Type.Generic make Result<Type, ParseError>.Success break
+                            }
+                            case None -> {}
+                        }
                         $token ~
                         $parser optional-generic-arguments match {
                             case Error -> { make Result<Type, ParseError>.Error break }
