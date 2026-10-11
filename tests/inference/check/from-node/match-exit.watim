@@ -1,0 +1,23 @@
+[== Stdin Compiler ==]
+variant Maybe<T> {
+    case Some -> T
+    case None
+}
+
+fn foo "foo" (m: Maybe<i32>) -> i32 {
+    $m match {
+        case Some -> { drop }
+        case None -> { 3 }
+    }
+}
+[== Args Compiler ==]
+infer
+-
+foo
+--quiet
+[== Status Compiler ==]
+1
+[== Stderr Compiler ==]
+-:7:8: arms of match case have different types:
+	[] -> [] in case Some
+	[] -> [i32] in case None

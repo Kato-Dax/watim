@@ -1926,7 +1926,10 @@ fn check-from-node(ctx: .Ctx, source: .Source:FromNode, known: .TypeWithOrigin) 
             0 loop {
                 @i $i $source.returns.len = if { make Maybe<Error>.None break }
 
-                &source.returns $i Array:get<_> .returns $return-index Array:get<_> @source
+                &source.returns $i Array:get<_> .returns $return-index Array:safe-get<_> match {
+                    case None -> { $ctx $source arms-type-mismatch-error make Maybe.Some break }
+                    case Some -> {}
+                } @source
                 // TODO: add node to the origins of known
                 $ctx $source $known check match {
                     case None -> {}
