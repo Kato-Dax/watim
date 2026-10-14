@@ -227,6 +227,16 @@ fn StackVoid-format-shallow(fmt: .Formatter, self: .StackVoid) {
         case ImpossibleMatch -> { ImpossibleMatchVoid-format-shallow }
     }
 }
+fn StackVoid-token(self: .StackVoid) -> .Token {
+    $self match {
+        case StackVoid.NonSpecific -> { .token }
+        case StackVoid.Store -> { .token }
+        case StackVoid.IndirectCall -> { .token }
+        case StackVoid.Call -> { .token }
+        case StackVoid.ImpossibleMatch -> { .token }
+        case StackVoid.SetGlobal -> { .token }
+    }
+}
 
 struct StoreVoid {
     token: Token

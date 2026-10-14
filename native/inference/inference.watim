@@ -52,7 +52,7 @@ import "../unstacking/unstacking.watim" as Unstacked (
     Signature, Signature-returns, Signature-parameters, Signature-parameters-len
 )
 import "../unstacking/graph.watim" as Graph
-import "../unstacking/voids.watim" as Unstacked (StackVoid)
+import "../unstacking/voids.watim" as Unstacked (StackVoid, StackVoid-token)
 import "../unstacking/ast.watim" as Unstacked
 
 import "./ast.watim" as Checked (Module, FunctionOrExtern, Function, FieldAccesses, FieldAccessStep)
@@ -227,44 +227,54 @@ fn infer-function(
 
         $ctx.progress 1 + #ctx.progress
 
+        0 1 = @is-stuck
         loop (-> Maybe<Error>) {
             $ctx.deferred.len 0 = if { make Maybe<Error>.None break }
-            &ctx.deferred Array:pop-front @deferred
-            $deferred match {
-                case DeferredCheck -> {
-                    @deferred
-                    $deferred.progress $ctx.progress = if {
-                        $ctx.fmt $deferred.source Source-format
-                        $ctx.arena $deferred.source Source-token ~ make TokenOrLiteral.Token "failed to check item" error make Maybe<Error>.Some break
-                    }
-                    &ctx $deferred.source &deferred.known check match {
-                        case None -> {}
-                        case _ -> { break }
-                    }
-                }
-                case DeferredInfer -> {
-                    @deferred
-                    $deferred.deferred match {
-                        case DeferredInfer.StackVoid -> {}
-                    } @void
 
-                    $deferred.progress $ctx.progress = if {
-                        $void match {
-                            case StackVoid.NonSpecific -> { .token }
-                            case StackVoid.Store -> { .token }
-                            case StackVoid.IndirectCall -> { .token }
-                            case StackVoid.Call -> { .token }
-                            case StackVoid.ImpossibleMatch -> { .token }
-                            case StackVoid.SetGlobal -> { .token }
-                        } ~ make TokenOrLiteral.Token
-                        "failed to infer type of void" error make Maybe<Error>.Some break
-                    }
+            1 1 = $ctx.deferred.len loop (bool, i32 -> Result<bool, Error>) {
+                @i $i 0 = if { make Result<bool, Error>.Success break }
+                $i 1 - @i
+                // @i $i $ctx.deferred.len = if { 0 1 = make Result<bool, Error>.Success break } // TODO: this line crashes the compiler
 
-                    &ctx $void infer-stack-void match {
-                        case None -> {}
-                        case _ -> { break }
-                    }
-                }
+                &ctx.deferred Array:pop-front @deferred-item
+
+                $deferred-item match {
+                    case DeferredCheck -> {
+                        @deferred $deferred.progress $ctx.progress /= if {
+                            &ctx $deferred.source &deferred.known check match {
+                                case None -> {}
+                                case Some -> { make Result.Error break } }
+                            0 1 =
+                        } else {
+                            $is-stuck if {
+                                $deferred.source Source-token ~ make TokenOrLiteral.Token
+                                "failed to check item" error make Result.Error break
+                            }
+                            $ctx.temp &ctx.deferred $deferred-item Array:push
+                            1 1 =
+                        } }
+                    case DeferredInfer -> {
+                        @deferred $deferred.deferred match {
+                            case DeferredInfer.StackVoid -> {}
+                        } @void
+                        $deferred.progress $ctx.progress /= if {
+                            &ctx $void infer-stack-void match {
+                                case None -> {}
+                                case Some -> { make Result.Error break } }
+                            0 1 =
+                        } else {
+                            $is-stuck if {
+                                $void StackVoid-token ~ make TokenOrLiteral.Token "failed to infer type of void" error make Result.Error break
+                            }
+                            $ctx.temp &ctx.deferred $deferred-item Array:push
+                            1 1 =
+                        } }
+                } and
+
+                $i
+            } match {
+                case Success -> { #is-stuck }
+                case Error -> { make Maybe.Some break }
             }
         } match {
             case None -> {}
@@ -660,35 +670,34 @@ fn infer-stack-void(ctx: .Ctx, void: .StackVoid) -> Maybe<Error> {
                                 }
                                 $i 1 +
                             } match {
-                                case None -> {}
+                                case None -> { 0 1 = }
                                 case _ -> { break }
                             }
                         }
                         case None -> {
-                            0 loop (i32 -> Maybe<Error>) {
-                                @i $i $signature Signature-parameters-len = if { make Maybe<Error>.None break }
+                            0 loop (i32 -> Result<bool, Error>) {
+                                @i $i $signature Signature-parameters-len = if { 0 1 = make Result<bool, Error>.Success break }
                                 $ctx
                                 &void.generic-arguments
                                 $signature $i Unstacked:Signature-parameter
                                 &argument-types $i Array:get<_> match {
-                                    case None -> { $void.token make TokenOrLiteral.Token "failed to infer argument" error make Maybe<Error>.Some break }
+                                    case None -> { 1 1 = make Result.Success break }
                                     case Some -> {}
                                 } unify-types match {
                                     case UnificationResult.Success -> {}
                                     case _ -> {
                                         drop $ctx &void.token $signature &void.generic-arguments &argument-types
-                                        call-argument-mismatch-error make Maybe<Error>.Some break
+                                        call-argument-mismatch-error make Result.Error break
                                     }
                                 }
                                 $i 1 +
                             } match {
-                                case None -> {}
-                                case _ -> { break }
+                                case Success -> {}
+                                case Error -> { make Maybe<Error>.Some break }
                             }
                         }
                     }
-                }
-                0 1 =
+                } else { 0 1 = }
             }
             case StackVoid.ImpossibleMatch -> {
                 @void
@@ -1241,7 +1250,8 @@ fn check(ctx: .Ctx, source: .Source, known: .TypeWithOrigin) -> Maybe<Error> { b
                         } else { $result-type } @result-type
 
                         &result-type.type &known.type Type:eq not if {
-                            $source.token $result-type.type $known.type $known.origin ~ make Error:LocalError make Error.Local make Maybe.Some break
+                            $source.token $result-type.type $known.type $known.origin ~ make Error:SingleReturnMismatchError
+                            make Error.SingleReturnMismatch make Maybe.Some break
                         }
 
                         $ctx $source.result-type &result-type fill-hole-with-origin
@@ -1314,7 +1324,12 @@ fn check(ctx: .Ctx, source: .Source, known: .TypeWithOrigin) -> Maybe<Error> { b
                     case Success -> {}
                 } @dst-type
                 &dst-type &known.type Type:eq not if {
-                    $source.token make TokenOrLiteral.Token "check FromCast: known /= dst-type" error make Maybe<Error>.Some break
+                    make Error:SingleReturnMismatchError {
+                        $source.token @token
+                        $dst-type @actual
+                        $known.type @expected
+                        $known.origin ~ @origin
+                    } make Error.SingleReturnMismatch make Maybe.Some break
                 }
                 $source.src match {
                     case None -> { $source.token make TokenOrLiteral.Token "check FromCast: src is None" error make Maybe<Error>.Some break }

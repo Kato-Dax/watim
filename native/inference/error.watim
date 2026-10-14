@@ -49,7 +49,7 @@ struct CallGenericContradictionError {
     contradiction: GenericsContradict
 }
 
-struct LocalError {
+struct SingleReturnMismatchError {
     token: Token
     actual: Type
     expected: Type
@@ -78,7 +78,7 @@ variant Error {
     case Number -> NumberError
     case Call -> CallError
     case CallGenericsContradict -> CallGenericContradictionError
-    case Local -> LocalError
+    case SingleReturnMismatch -> SingleReturnMismatchError
     case Global -> GlobalError
     case MatchParametersMismatch -> MatchParametersMismatchError
 }
@@ -209,10 +209,10 @@ fn display(fmt: .Formatter, error: .Error, file-path: ByteSlice, modules: .Array
             // $fmt &error.origin $file-path display-origin
             $fmt Fmt:dedent
         }
-        case Error.Local -> {
+        case Error.SingleReturnMismatch -> {
             @error
             $fmt $file-path &error.token Lexer:Token-location make Lexer:TokenLocation & Lexer:format-location
-            $fmt ": expected this variable lookup to return:\n" Fmt:write
+            $fmt ": expected this word to return:\n" Fmt:write
             $fmt Fmt:indent $fmt Fmt:indent
             $fmt Fmt:write-indent
             $fmt &lookup &error.expected Type:pretty
