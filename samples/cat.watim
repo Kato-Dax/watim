@@ -4,7 +4,15 @@ import "../std/io.watim" as IO
 import "../std/fs.watim" as FS
 import "../std/core.watim" as Core
 import "../std/arena.watim" as Arena (Arena)
-import "../std/array.watim" as Array
+import "../std/array.watim" as Array (Array)
+
+fn Array-foreach<T>(arr: .Array<T>, f: \(.T ->)) {
+    0 loop {
+        @i $i $arr.len = if { break }
+        $arr $i Array:get $f \(.T ->)
+        $i 1 +
+    }
+}
 
 fn main "_start" () {
     Arena:init-temp
@@ -18,17 +26,16 @@ fn main "_start" () {
         1 Core:exit
     }
 
-    $temp FS:init IO:check @fs
+    $temp FS:init IO:unwrap @fs
 
-    1 @arg-index
-    loop {
-        $args.len $arg-index = if { break }
-        &fs &args $arg-index Array:get<_> ~ ByteSlice:unpack
-
+    &args Array:pop-front drop
+    &args &{
+        &fs flip
+        ~ ByteSlice:unpack
         FS:create-rights FS:rights-read
         FS:create-rights
         FS:create-oflags
-        FS:open-file IO:check @fd
+        FS:open-file IO:unwrap @fd
 
         loop {
             $temp Arena:temp @temp @save
@@ -39,9 +46,8 @@ fn main "_start" () {
             1 $buf $read IO:write-all IO:check
             $temp $save Arena:restore
         }
-        $arg-index 1 + #arg-index
         $fd FS:close IO:check
-    }
+    } Array-foreach
 
     $temp $save Arena:restore
 }
