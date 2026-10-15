@@ -3827,13 +3827,11 @@ fn fill-holes-word(ctx: .Ctx, word: .Unstacked:Word) -> Checked:Word {
                     $ctx &word.fields fill-holes-field-accesses @fields
                     $ctx $word.result-type fill @result-type
                     $ctx $word.name $environment-fields.capture-kind &environment-fields.path &fields &result-type add-environment-path-to-fields @fields
-                    make Checked:GetLocal {
+                    make Checked:RefLocal {
                         $word.name @name
                         $environment-fields.environment-local make VarId.Local @var
                         $fields @fields
-                        $var-type @var-type
-                        $result-type @result-taip
-                    } make Checked:Word.GetLocal
+                    } make Checked:Word.RefLocal
                 }
             }
         }
