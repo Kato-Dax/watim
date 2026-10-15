@@ -332,6 +332,18 @@ fn generate-function(
         $ctx.fmt "(local $locl-copy-spac:e i32)\n" Fmt:write
     }
 
+    $function.max-alignment @necessary-stack-alignment
+
+    $function.local-copy-space 0 /=
+    $ctx &function.locals any-local-lives-in-memory or @uses-stack
+    $uses-stack if {
+        $ctx.fmt Fmt:write-indent
+        $ctx.fmt "(local $stac:k i32)\n" Fmt:write
+        $ctx.fmt Fmt:write-indent
+        $ctx.fmt "global.get $stac:k local.set $stac:k\n" Fmt:write
+        $ctx $necessary-stack-alignment align-stack
+    }
+
     0 loop {
         @i $i $function.signature.parameters.len = if { break }
         &function.signature.parameters $i Array:get .name match {
@@ -345,18 +357,6 @@ fn generate-function(
             case _ -> { drop }
         }
         $i 1 +
-    }
-
-    $function.max-alignment @necessary-stack-alignment
-
-    $function.local-copy-space 0 /=
-    $ctx &function.locals any-local-lives-in-memory or @uses-stack
-    $uses-stack if {
-        $ctx.fmt Fmt:write-indent
-        $ctx.fmt "(local $stac:k i32)\n" Fmt:write
-        $ctx.fmt Fmt:write-indent
-        $ctx.fmt "global.get $stac:k local.set $stac:k\n" Fmt:write
-        $ctx $necessary-stack-alignment align-stack
     }
 
     $function.local-copy-space 0 /= if {
