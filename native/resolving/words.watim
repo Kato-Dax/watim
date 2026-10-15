@@ -519,9 +519,30 @@ fn StackAnnotation-format(fmt: .Formatter, self: .StackAnnotation) {
     $fmt ")" Fmt:write
 }
 
+variant LocalIdSet {
+    case All
+    case None
+    case Some -> Array<LocalId>
+}
+fn LocalIdSet-format(fmt: .Formatter, self: .LocalIdSet) {
+    $self match {
+        case All -> { $fmt "All" Fmt:write }
+        case None -> { $fmt "None" Fmt:write }
+        case Some -> { $fmt flip \LocalId-format flip Array:format }
+    }
+}
+fn LocalIdSet-contains(self: .LocalIdSet, local: .LocalId) -> bool {
+    $self match {
+        case All -> { 1 1 = }
+        case None -> { 0 1 = }
+        case Some -> { \LocalId-eq $local Array:contains }
+    }
+}
+
 struct Closure {
     token: Token
     locals: Map<LocalId, Local>
+    captured-by-reference: LocalIdSet
     closure-local: LocalId
     scope: Scope
 }
@@ -535,6 +556,10 @@ fn Closure-format(fmt: .Formatter, self: .Closure) {
     $fmt Fmt:write-indent
     $fmt "locals=" Fmt:write
     $fmt \LocalId-format \Local-format &self.locals Map:format-multi-line
+    $fmt ",\n" Fmt:write
+    $fmt Fmt:write-indent
+    $fmt "captured-by-reference=" Fmt:write
+    $fmt &self.captured-by-reference LocalIdSet-format
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "closure-local=" Fmt:write

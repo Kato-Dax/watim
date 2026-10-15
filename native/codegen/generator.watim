@@ -53,7 +53,7 @@ fn generate(fmt: .Formatter, program: .Monomized, guard-stack: bool) {
         $i 1 + #i
     }
 
-    $fmt $program $static-data-offsets $guard-stack 0 1 = 0 1 = 0 1 = 0 1 = 0 1 = 0 1 = 0 1 = 0 1 = make Ctx @ctx
+    $fmt $program $static-data-offsets $guard-stack 0 1 = 0 1 = 0 1 = 0 1 = 0 1 = 0 1 = 0 1 = 0 1 = 0 1 = make Ctx @ctx
 
     0 @i
     loop {
@@ -75,7 +75,7 @@ fn generate(fmt: .Formatter, program: .Monomized, guard-stack: bool) {
     $fmt Fmt:write-indent $fmt "(export \"memory\" (memory 0))\n" Fmt:write
 
     &ctx generate-function-table
-    &ctx $all-static-data.len 4 align-to generate-globals 4 align-to @stack-start
+    &ctx $all-static-data.len 4 align-to generate-globals 4 align-to 4 Core:max @stack-start
 
     $fmt Fmt:write-indent
     $fmt "(global $stac:k (mut i32) (i32.const " Fmt:write
@@ -247,6 +247,14 @@ fn generate-intrinsic-functions(ctx: .Ctx) {
         $ctx.fmt "i32.const 1 " Fmt:write
         $ctx.fmt "global.get $stac:k global.get $stack-siz:e " Fmt:write
         $ctx.fmt "i32.lt_u i32.div_u drop)\n" Fmt:write
+    }
+    $ctx.closure-size-used if {
+        $ctx.fmt Fmt:write-indent
+        $ctx.fmt "(func $intrinsic:closure-size (param i64) (result i32) (local $ptr i32) " Fmt:write
+        $ctx.fmt "(local.set $ptr (i32.wrap_i64 (local.get 0))) " Fmt:write
+        $ctx.fmt "(if (result i32) (i32.eq (i32.const 0) (local.get $ptr)) " Fmt:write
+        $ctx.fmt   "(then (i32.const 0)) " Fmt:write
+        $ctx.fmt   "(else (i32.load (local.get $ptr)))))\n" Fmt:write
     }
 }
 

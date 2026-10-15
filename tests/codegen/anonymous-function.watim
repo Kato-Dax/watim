@@ -14,7 +14,7 @@ compile
 	(export "memory" (memory 0))
 	(table funcref (elem $intrinsic:flip
 		$0:main:0))
-	(global $stac:k (mut i32) (i32.const 0))
+	(global $stac:k (mut i32) (i32.const 4))
 	(data (i32.const 0) "")
 	(func $0:main (export "_start")
 		;; closure (LEFT_BRACE { 2 5)

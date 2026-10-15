@@ -17,7 +17,10 @@ import "../parser.watim" as Parser (GenericType)
 
 import "../resolving/type.watim" as WithHoles (CustomTypeHandle, TokenOrLiteral)
 import "../resolving/type-without-holes.watim" as Type (Type)
-import "../resolving/words.watim" as Resolved (VarId, LocalId, LocalId-format)
+import "../resolving/words.watim" as Resolved (
+    VarId, LocalId, LocalId-format, LocalId-eq,
+    LocalIdSet, LocalIdSet-format, LocalIdSet-contains,
+)
 import "../resolving/intrinsics.watim" as Resolved
 import "../resolving/top-items.watim" as Resolved (
     FunctionSignature, FunctionSignature-format,
@@ -27,13 +30,18 @@ import "../resolving/module.watim" as Resolved
 import "../inference/origin.watim" as Origin (Origin, TypeWithOrigin, clone-origin-list, TypeWithOrigin-format)
 
 import "./source.watim" as Source (Source, Source-format, Source-format-shallow, MultiReturnNode, SignatureHandle, SignatureHandle-format)
-import "./word.watim" as Word (InferenceHole, InferenceHole-format, InferenceFieldHole, Word, Scope, Scope-format, Intrinsic, FieldAccess, InferenceFieldHole, ClosureFieldAccess, NextClosureFieldAccess)
+import "./word.watim" as Word (
+    InferenceHole, InferenceHole-format, InferenceFieldHole, InferenceFieldHole,
+    Word, Scope, Scope-format, Intrinsic, FieldAccess,
+    ClosureFieldAccess, NextClosureFieldAccess, CaptureKind, CaptureKind-format,
+)
 import "./ast.watim" as Ast (Local, Local-format)
 import "./voids.watim" as Voids (StackVoid)
 
 struct LocalInEnv {
     local-id: LocalId
     local: .Local
+    capture-kind: CaptureKind
     fields: ClosureFieldAccess
 }
 struct ClosureEnv {
@@ -41,7 +49,8 @@ struct ClosureEnv {
     closure-local: LocalId
     locals: .Map<LocalId, Local>
     parent: Maybe<.ClosureEnv>
-    captured: .Map<LocalId, Unit>
+    by-reference: .LocalIdSet
+    captured: .Map<LocalId, CaptureKind>
 }
 fn ClosureEnv-format(fmt: .Formatter, env: .ClosureEnv) {
     $fmt "(ClosureEnv " Fmt:write
@@ -49,7 +58,7 @@ fn ClosureEnv-format(fmt: .Formatter, env: .ClosureEnv) {
     $fmt " " Fmt:write
     $fmt \ClosureEnv-format $env.parent Maybe:deref & Maybe:format
     $fmt " " Fmt:write
-    $fmt \LocalId-format \Unit-format $env.captured Map:format-multi-line
+    $fmt \LocalId-format \CaptureKind-format $env.captured Map:format-multi-line
     $fmt ")" Fmt:write
 }
 
@@ -65,12 +74,11 @@ fn ClosureEnv-lookup(arena: .Arena, env: .ClosureEnv, local-id: .LocalId, token:
                         case Some -> {
                             @local-in-env
 
-                            $arena $env.captured $parent.closure-local make Unit Map:insert-get-index @field-index
+                            $arena $env.captured $parent.closure-local $local-in-env.capture-kind Map:insert-get-index @field-index
 
-                            $local-in-env.local-id
-                            $local-in-env.local
+                            $local-in-env.local-id $local-in-env.local $local-in-env.capture-kind
                             $env.closure-index
-                            $field-index
+                            $field-index 1 + // 1 + because the first field is the closure size
                             $arena $local-in-env.fields Arena:push make NextClosureFieldAccess.Next
                             make ClosureFieldAccess
                             make LocalInEnv
@@ -83,11 +91,17 @@ fn ClosureEnv-lookup(arena: .Arena, env: .ClosureEnv, local-id: .LocalId, token:
         }
         case Some -> {
             @index
-            $arena $env.captured &env.locals.keys $index Array:get<LocalId> ~ make Unit Map:insert-get-index @field-index
+
+            $env.by-reference $local-id LocalIdSet-contains if {
+                make CaptureKind.ByReference
+            } else { make CaptureKind.ByValue } @capture-kind
+
+            $arena $env.captured &env.locals.keys $index Array:get<LocalId> ~ $capture-kind Map:insert-get-index @field-index
 
             &env.locals.keys $index Array:get ~
             &env.locals.values $index Array:get
-            $env.closure-index $field-index $result-type make NextClosureFieldAccess.Last make ClosureFieldAccess
+            $capture-kind
+            $env.closure-index $field-index 1 + $result-type make NextClosureFieldAccess.Last make ClosureFieldAccess
             make LocalInEnv
             make Maybe.Some
         }
@@ -97,7 +111,7 @@ fn ClosureEnv-lookup(arena: .Arena, env: .ClosureEnv, local-id: .LocalId, token:
 struct UnClosure {
     token: Token
     environment-local: LocalId
-    captured: Array<LocalId>
+    captured: Map<LocalId, CaptureKind>
     locals: Map<LocalId, Local>
     body: Scope
     parameters: Array<InferenceHole>
@@ -117,7 +131,7 @@ fn UnClosure-format(fmt: .Formatter, self: .UnClosure) {
     $fmt "\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "captured=" Fmt:write
-    $fmt \LocalId-format &self.captured Array:format
+    $fmt \LocalId-format \CaptureKind-format &self.captured Map:format-multi-line
     $fmt "\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "locals=" Fmt:write

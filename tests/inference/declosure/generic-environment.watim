@@ -74,7 +74,7 @@ monomize
               (Closure
                 token=(LEFT_BRACE { 6 8),
                 environment=(TypeId 5),
-                captured=[],
+                captured=(Map),
                 parameters=[(TypeId 2)],
                 returns=[(TypeId 2)],
                 function=(FunctionHandle 0 2 0),

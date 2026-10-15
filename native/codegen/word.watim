@@ -12,6 +12,7 @@ import "../../std/io.watim" as IO
 import "../lexer.watim" as Lexer (Token, Token-lexeme, Token-format)
 import "../resolving/words.watim" as Resolved (LocalId, LocalId-eq, VarId(Local, Global))
 import "../resolving/type.watim" as Resolved (CustomTypeHandle)
+import "../unstacking/word.watim" as Unstacked (CaptureKind)
 import "../monomorphization/monomizer.watim" as Monomized (
     Monomized, Module, ExternOrInstances,
     Extern, Function, FunctionHandle, Signature, Local, Global,
@@ -685,12 +686,27 @@ fn generate-word(ctx: .Ctx, module: i32, locals: .Map<LocalId, Local>, word: .Wo
             $ctx.fmt ";; closure " Fmt:write
             $ctx.fmt &word.token Token-format
             $ctx.fmt "\n" Fmt:write $ctx.fmt Fmt:write-indent
+            $word.captured.keys.len 0 /= if {
+                $ctx.fmt "i32.const " Fmt:write $ctx.fmt &ctx.program.type-infos $word.environment type-size i32-format $ctx.fmt " " Fmt:write
+            }
             0 loop {
-                @i $i $word.captured.len = if { break }
-                &word.captured $i Array:get @local-id
+                @i $i $word.captured.keys.len = if { break }
+                &word.captured.keys $i Array:get @local-id
+
                 $ctx.fmt "local.get " Fmt:write
                 $ctx $locals $local-id ~ make VarId.Local & generate-var-ident
                 $ctx.fmt " " Fmt:write
+                &word.captured.values $i Array:get ~ match {
+                    case CaptureKind.ByReference -> {}
+                    case CaptureKind.ByValue -> {
+                        $locals $local-id Map:get Maybe:assert-some @local
+                        $local.reffed if {
+                            &ctx.program.type-infos $local.type can-live-in-reg if {
+                                $ctx $local.type generate-type $ctx.fmt ".load " Fmt:write
+                            }
+                        }
+                    }
+                }
                 $i 1 +
             }
             $ctx $word.environment $word.copy-space-offset make MakeStruct & 1 1 = generate-make-struct

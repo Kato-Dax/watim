@@ -6,7 +6,7 @@
 	(memory 1 65536)
 	(export "memory" (memory 0))
 	(table funcref (elem))
-	(global $stac:k (mut i32) (i32.const 0))
+	(global $stac:k (mut i32) (i32.const 4))
 	(data (i32.const 0) "")
 	(func $intrinsic:flip (param $a i32) (param $b i32) (result i32 i32) local.get $b local.get $a)
 	(func $intrinsic:dupi32 (param $a i32) (result i32 i32) local.get $a local.get $a)
@@ -17,4 +17,3 @@
 0
 [== Stdout ==]
 [== Stderr ==]
-

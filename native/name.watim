@@ -9,6 +9,7 @@ variant Name {
     case AnonymousFunction -> AnonymousFunctionName
     case RefLocal -> Token
     case ClosureParam -> Token
+    case ClosureSizeFieldName -> Token
 }
 fn Name-format(fmt: .Formatter, self: .Name) {
     $self match {
@@ -16,6 +17,7 @@ fn Name-format(fmt: .Formatter, self: .Name) {
         case AnonymousFunction -> { $fmt flip AnonymousFunctionName-format }
         case RefLocal -> { $fmt "(RefLocal " Fmt:write $fmt flip Token-format $fmt ")" Fmt:write }
         case ClosureParam -> { $fmt "(ClosureParam " Fmt:write $fmt flip Token-format $fmt ")" Fmt:write }
+        case ClosureSizeFieldName -> { $fmt "(ClosureSizeFieldName " Fmt:write $fmt flip Token-format $fmt ")" Fmt:write }
     }
 }
 fn eq(self: .Name, other: .Name) -> bool { block {
@@ -38,6 +40,10 @@ fn eq(self: .Name, other: .Name) -> bool { block {
             case ClosureParam -> { Token-eq-by-lexeme }
             case _ -> { drop drop 0 1 = }
         } }
+        case ClosureSizeFieldName -> { $other match {
+            case ClosureSizeFieldName -> { Token-eq-by-lexeme }
+            case _ -> { drop drop 0 1 = }
+        } }
     }
 } }
 fn Name-unpack(self: .Name) -> .i8, i32 {
@@ -46,6 +52,7 @@ fn Name-unpack(self: .Name) -> .i8, i32 {
         case AnonymousFunction -> { AnonymousFunctionName-unpack }
         case RefLocal -> { drop "synth:ref" }
         case ClosureParam -> { drop "c;losure" }
+        case ClosureSizeFieldName -> { drop "closure:size" }
     }
 }
 fn Name-token(self: .Name) -> .Token {
@@ -54,6 +61,7 @@ fn Name-token(self: .Name) -> .Token {
         case AnonymousFunction -> { .surrounding-function }
         case RefLocal -> {}
         case ClosureParam -> {}
+        case ClosureSizeFieldName -> {}
     }
 }
 

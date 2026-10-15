@@ -40,6 +40,7 @@ import "./words.watim" as Words (
     FieldInit, Load, SetLocal, Call, FunctionHandle, RefLocal,
     StoreLocal, Block, IndirectCall, MakeStructNamed, FunRef,
     MakeStruct, DefaultCase, StackAnnotation, Closure,
+    LocalIdSet,
 )
 import "./env.watim" as Env (Env)
 import "./intrinsics.watim" as Intrinsics
@@ -60,6 +61,7 @@ fn StructLiteralEnv-of-struc(arena: .Arena, struc: .Struct, handle: CustomTypeHa
             case Name.AnonymousFunction -> { drop 0 0 / drop uninit }
             case Name.RefLocal -> { drop 0 0 / drop uninit }
             case Name.ClosureParam -> { drop 0 0 / drop uninit }
+            case Name.ClosureSizeFieldName -> { drop 0 0 / drop uninit }
         } Token-lexeme make ByteSlice
         $i Map:insert-assert-no-alloc<_, _> drop
         $i 1 + #i
@@ -482,7 +484,8 @@ fn resolve-word(ctx: .WordCtx, word: .P:Word) -> Result<OneOrMany<Word>, Resolve
                 case Success -> {}
             } @body
 
-            $word.token $locals $closure-local $body make Closure make Word.Closure
+            $word.by-reference if { make LocalIdSet.All } else { make LocalIdSet.None } @captured-by-reference
+            $word.token $locals $captured-by-reference $closure-local $body make Closure make Word.Closure
         }
     }
     make OneOrMany<Word>.One

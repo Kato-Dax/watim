@@ -32,6 +32,11 @@ fn clone<K, V>(arena: .Arena, self: .Map<K, V>) -> Map<K, V> {
     $arena &self.values Array:clone<V>
     $self.compare make Map<K, V>
 }
+fn clone-deep<K, V>(arena: .Arena, clone-key: (.Arena, .K -> K), clone-value: (.Arena, .V -> V), self: .Map<K, V>) -> Map<K, V> {
+    $arena $clone-key &self.keys Array:clone-deep<K>
+    $arena $clone-value &self.values Array:clone-deep<V>
+    $self.compare make Map<K, V>
+}
 fn insert<K, V>(arena: .Arena, self: .Map<K, V>, key: K, value: V) -> Maybe<V> {
     0 @i
     loop {

@@ -16,7 +16,7 @@ fn foo "foo" () -> Foo {
 	(memory 1 65536)
 	(export "memory" (memory 0))
 	(table funcref (elem))
-	(global $stac:k (mut i32) (i32.const 0))
+	(global $stac:k (mut i32) (i32.const 4))
 	(data (i32.const 0) "")
 	(func $0:foo (export "foo") (result i32)
 		(local $foo i32)

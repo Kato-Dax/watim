@@ -164,6 +164,18 @@ fn construct-set-stack-size(token: .Token, generic-arguments: .Array<InferenceHo
     $token ~ make Intrinsic.SetStackSize make Word.Intrinsic
 }
 
+fn construct-closure-size(token: .Token, generic-arguments: .Array<InferenceHole>) -> Word {
+    $token ~ make Intrinsic.ClosureSize make Word.Intrinsic
+}
+
+fn construct-closure-fun(token: .Token, generic-arguments: .Array<InferenceHole>) -> Word {
+    $token ~ make Intrinsic.ClosureFun make Word.Intrinsic
+}
+
+fn construct-closure-ptr(token: .Token, generic-arguments: .Array<InferenceHole>) -> Word {
+    $token ~ make Intrinsic.ClosurePtr make Word.Intrinsic
+}
+
 fn add-sub-generic-constraints(predicate: .Array<Maybe<Type>>) -> Maybe<ByteSlice> { block (-> Maybe<ByteSlice>) {
     $predicate 0 Array:get match {
         case None -> { make Maybe.None break }
@@ -212,8 +224,8 @@ fn init-intrinsic-signatures() {
 
     "IntrinsicSignatures" Arena:new #INTRINSIC_DESCRIPTIONS_ARENA
     &INTRINSIC_DESCRIPTIONS_ARENA @arena
-    $arena \Resolved:Intrinsic-eq 27 Map:new-with-capacity #INTRINSIC_SIGNATURES
-    $arena \Resolved:Intrinsic-eq 27 Map:new-with-capacity #INTRINSIC_DESCRIPTIONS
+    $arena \Resolved:Intrinsic-eq 30 Map:new-with-capacity #INTRINSIC_SIGNATURES
+    $arena \Resolved:Intrinsic-eq 30 Map:new-with-capacity #INTRINSIC_DESCRIPTIONS
 
     make TokenTy.TOKEN_BOOL Token-new-synthetic make Type.Bool @type-bool
     make TokenTy.TOKEN_I8   Token-new-synthetic make Type.I8   @type-i8
@@ -527,6 +539,30 @@ fn init-intrinsic-signatures() {
 
     &INTRINSIC_SIGNATURES make Resolved:Intrinsic.SetStackSize $signature-set-stack-size Map:insert-assert-no-alloc assert-none
     &INTRINSIC_DESCRIPTIONS make Resolved:Intrinsic.SetStackSize $signature-set-stack-size \construct-set-stack-size make IntrinsicDescription Map:insert-assert-no-alloc assert-none
+
+    make IntrinsicSignature {
+        $arena "F" make ByteSlice Array:singleton @generic-parameters
+        "F" "closure-(size|fun)" literal 0 make GenericType make Type.Generic @F
+        $arena $F Array:singleton @parameters
+        $arena $type-i32 Array:singleton @returns
+        Array:new @constraints
+    } @signature-closure-size
+
+    &INTRINSIC_SIGNATURES make Resolved:Intrinsic.ClosureSize $signature-closure-size Map:insert-assert-no-alloc assert-none
+    &INTRINSIC_DESCRIPTIONS make Resolved:Intrinsic.ClosureSize $signature-closure-size \construct-closure-size make IntrinsicDescription Map:insert-assert-no-alloc assert-none
+    &INTRINSIC_SIGNATURES make Resolved:Intrinsic.ClosureFun $signature-closure-size Map:insert-assert-no-alloc assert-none
+    &INTRINSIC_DESCRIPTIONS make Resolved:Intrinsic.ClosureFun $signature-closure-size \construct-closure-fun make IntrinsicDescription Map:insert-assert-no-alloc assert-none
+
+    make IntrinsicSignature {
+        $arena "F" make ByteSlice Array:singleton @generic-parameters
+        "F" "closure-ptr" literal 0 make GenericType make Type.Generic @F
+        $arena $F Array:singleton @parameters
+        $arena $arena $type-i8 Arena:push make Type.Ptr Array:singleton @returns
+        Array:new @constraints
+    } @signature-closure-ptr
+
+    &INTRINSIC_SIGNATURES make Resolved:Intrinsic.ClosurePtr $signature-closure-ptr Map:insert-assert-no-alloc assert-none
+    &INTRINSIC_DESCRIPTIONS make Resolved:Intrinsic.ClosurePtr $signature-closure-ptr \construct-closure-ptr make IntrinsicDescription Map:insert-assert-no-alloc assert-none
 }
 fn uninit-intrinsic-signatures() {
     0 $INTRINSIC_DESCRIPTIONS_INITIALIZED !i32 / drop
@@ -649,6 +685,7 @@ fn unstack-function(arena: .Arena, modules: .Array<Resolved:Module>, function: .
             &unstacker &local.name Name-token ~ fresh-hole @type
             Array:new<Assignment> @assignments
             0 1 = @assignments-checked
+            1 1 = @by-reference
         } Map:insert-assert-no-alloc<_, _> drop
         $i 1 +
     }
@@ -1088,6 +1125,7 @@ fn unstack-word(unstacker: .Unstacker, stack: .Stack, word: .Resolved:Word, rema
                     $unstacker &local.name Name-token ~ fresh-hole @type
                     Array:new<Assignment> @assignments
                     0 1 = @assignments-checked
+                    1 1 = @by-reference
                 } Map:insert-assert-no-alloc drop
                 $i 1 +
             }
@@ -1101,6 +1139,7 @@ fn unstack-word(unstacker: .Unstacker, stack: .Stack, word: .Resolved:Word, rema
                 &unstacker.closure-env Maybe:ref @parent
                 $unstacker.locals @locals
                 $word.closure-local @closure-local
+                &word.captured-by-reference @by-reference
                 &captured @captured
             } @closure-env
 
@@ -1117,7 +1156,7 @@ fn unstack-word(unstacker: .Unstacker, stack: .Stack, word: .Resolved:Word, rema
                 $word.token @token
                 $word.closure-local @environment-local
                 $environment-type @environment-type
-                $captured.keys @captured
+                $captured @captured
                 $body @body
                 $closure-locals @locals
                 $parameters Array:reverse
@@ -1666,7 +1705,19 @@ fn unstack-store-local(unstacker: .Unstacker, stack: .Stack, word: .Resolved:Sto
     $word.var match {
         case VarId.Local -> {
             @local-id
-            $unstacker.locals &local-id Map:get<_, _> Maybe:assert-some<_> @local
+            $unstacker.locals &local-id Map:get<_, _> match {
+                case Some -> { make Maybe.None }
+                case None -> {
+                    &unstacker.closure-env Maybe:ref Maybe:assert-some @closure-env
+
+                    $unstacker.arena $closure-env &local-id &word.name $field-type ClosureEnv-lookup Maybe:assert-some
+                    @local-in-env
+
+                    $local-in-env.local
+                    $closure-env.closure-local $local-in-env.capture-kind $local-in-env.fields make EnvironmentFields make Maybe.Some
+                }
+            } @environment-fields @local
+
             $unstacker.arena &local.assignments
             $word.name $source $fields $field-type 1 1 = make Assignment
             Array:push<_>
@@ -1676,6 +1727,7 @@ fn unstack-store-local(unstacker: .Unstacker, stack: .Stack, word: .Resolved:Sto
                 $word.name @name
                 $fields @fields
                 $field-type @field-type
+                $environment-fields @environment-fields
             }
         }
         case VarId.Global -> {
@@ -1800,7 +1852,7 @@ fn unstack-set-local(unstacker: .Unstacker, stack: .Stack, word: .Resolved:SetLo
                     @local-in-env
 
                     $local-in-env.local
-                    $closure-env.closure-local $local-in-env.fields make EnvironmentFields make Maybe.Some
+                    $closure-env.closure-local $local-in-env.capture-kind $local-in-env.fields make EnvironmentFields make Maybe.Some
                 }
             } @environment-fields @local
 
@@ -1864,7 +1916,7 @@ fn unstack-get-local(unstacker: .Unstacker, stack: .Stack, word: .Resolved:GetLo
                     @local-in-env
 
                     $local-in-env.local
-                    $closure-env.closure-local $local-in-env.fields make EnvironmentFields make Maybe.Some
+                    $closure-env.closure-local $local-in-env.capture-kind $local-in-env.fields make EnvironmentFields make Maybe.Some
                 }
             } @environment-fields @local
 
@@ -1924,7 +1976,7 @@ fn unstack-ref-local(unstacker: .Unstacker, stack: .Stack, word: .Resolved:RefLo
                     @local-in-env
 
                     $local-in-env.local
-                    $closure-env.closure-local $local-in-env.fields make EnvironmentFields make Maybe.Some
+                    $closure-env.closure-local $local-in-env.capture-kind $local-in-env.fields make EnvironmentFields make Maybe.Some
                 }
             } @environment-fields @local
             // 1 1 = #local.reffed

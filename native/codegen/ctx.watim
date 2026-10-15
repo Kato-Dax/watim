@@ -28,6 +28,7 @@ struct Ctx {
     unpack-i32s-used: bool
     dup-i64-used: bool
     align-to-used: bool
+    closure-size-used: bool
 }
 
 variant FunctionOrExtern {
@@ -98,6 +99,10 @@ fn generate-unpack-i32s(ctx: .Ctx) {
 fn generate-dup-i64(ctx: .Ctx) {
     1 1 = #ctx.dup-i64-used
     $ctx.fmt "call $intrinsic:dupi64" Fmt:write
+}
+fn generate-closure-size(ctx: .Ctx) {
+    1 1 = #ctx.closure-size-used
+    $ctx.fmt "call $intrinsic:closure-size" Fmt:write
 }
 
 fn generate-flip(ctx: .Ctx, lower: TypeId, upper: TypeId) {

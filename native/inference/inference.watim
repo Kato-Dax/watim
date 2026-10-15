@@ -45,7 +45,7 @@ import "../unstacking/source.watim" as Source (
     ),
     SignatureHandle,
 )
-import "../unstacking/word.watim" as Unstacked (InferenceHole, InferenceFieldHole, NextClosureFieldAccess)
+import "../unstacking/word.watim" as Unstacked (InferenceHole, InferenceFieldHole, NextClosureFieldAccess, CaptureKind)
 import "../unstacking/unstacker.watim" as Unstacked (Holes, Holes-lookup, Holes-fill)
 import "../unstacking/unstacking.watim" as Unstacked (
     intrinsic-signatures,
@@ -111,6 +111,7 @@ fn infer-function(
         $modules TypeLookup:complete @type-lookup
         $module-id @module-id
         $function-handle @function-handle
+        $function-handle @function-handle-before-closures
         &locals-of-function-and-all-closures @locals
         $globals @globals
         &function.closures @closures
@@ -325,12 +326,21 @@ fn infer-function(
             &function.closures $closure-index Array:get @closure
 
             Array:new @environment-fields
+            $closure.captured.values.len 0 /= if {
+                $ctx.arena &environment-fields make NamedType {
+                    $closure.token make Name.ClosureSizeFieldName @name
+                    $closure.token make Type.I32 @type
+                } Array:push
+            }
             0 loop {
-                @i $i $closure.captured.len = if { break }
-                &closure.captured $i Array:get @captured-local-id
+                @i $i $closure.captured.keys.len = if { break }
+                &closure.captured $i Map:get-key @captured-local-id
+                &closure.captured $i Map:get-value ~ @capture-kind
                 &locals-of-function-and-all-closures $captured-local-id Map:get Maybe:assert-some @captured-local
 
-                &ctx $captured-local.type lookup-hole Maybe:assert-some .type make Type.Ptr
+                &ctx $captured-local.type lookup-hole Maybe:assert-some .type $capture-kind match {
+                    case CaptureKind.ByValue -> { ~ }
+                    case CaptureKind.ByReference -> { make Type.Ptr } }
                 $captured-local.name flip make NamedType
                 $ctx.arena flip &environment-fields flip Array:push
                 $i 1 +
@@ -843,6 +853,7 @@ struct Ctx {
     log-level: LogLevel
     fmt: .Formatter
     function-handle: FunctionHandle
+    function-handle-before-closures: FunctionHandle
     modules: .Array<Resolved:Module>
     module-id: ModuleId
     type-lookup: TypeLookup
@@ -3787,7 +3798,7 @@ fn fill-holes-word(ctx: .Ctx, word: .Unstacked:Word) -> Checked:Word {
                     $ctx &word.fields fill-holes-field-accesses @fields
                     $ctx $word.var-type fill @var-type
                     $ctx $word.result-type fill @result-type
-                    $ctx $word.name &environment-fields.path &fields &result-type add-environment-path-to-fields @fields
+                    $ctx $word.name $environment-fields.capture-kind &environment-fields.path &fields &result-type add-environment-path-to-fields @fields
 
                     make Checked:GetLocal {
                         $word.name @name
@@ -3815,7 +3826,7 @@ fn fill-holes-word(ctx: .Ctx, word: .Unstacked:Word) -> Checked:Word {
                     $ctx $word.var-type fill @var-type
                     $ctx &word.fields fill-holes-field-accesses @fields
                     $ctx $word.result-type fill @result-type
-                    $ctx $word.name &environment-fields.path &fields &result-type add-environment-path-to-fields @fields
+                    $ctx $word.name $environment-fields.capture-kind &environment-fields.path &fields &result-type add-environment-path-to-fields @fields
                     make Checked:GetLocal {
                         $word.name @name
                         $environment-fields.environment-local make VarId.Local @var
@@ -3882,7 +3893,7 @@ fn fill-holes-word(ctx: .Ctx, word: .Unstacked:Word) -> Checked:Word {
 
                     $ctx &word.fields fill-holes-field-accesses @fields
                     $ctx $word.field-type fill @target-type
-                    $ctx $word.name &environment-fields.path &fields &target-type add-environment-path-to-fields @fields
+                    $ctx $word.name $environment-fields.capture-kind &environment-fields.path &fields &target-type add-environment-path-to-fields @fields
                     make Checked:SetLocal {
                         $word.name @name
                         $environment-fields.environment-local make VarId.Local @var
@@ -3903,12 +3914,29 @@ fn fill-holes-word(ctx: .Ctx, word: .Unstacked:Word) -> Checked:Word {
         }
         case Unstacked:Word.StoreLocal -> {
             @word
-            make Checked:StoreLocal {
-                $word.name @name
-                $word.var make VarId.Local @var
-                $ctx &word.fields fill-holes-field-accesses @fields
-                $ctx $word.field-type fill @type
-            } make Checked:Word.StoreLocal
+            $word.environment-fields match {
+                case Maybe.None -> {
+                    make Checked:StoreLocal {
+                        $word.name @name
+                        $word.var make VarId.Local @var
+                        $ctx &word.fields fill-holes-field-accesses @fields
+                        $ctx $word.field-type fill @type
+                    } make Checked:Word.StoreLocal
+                }
+                case Maybe.Some -> {
+                    @environment-fields
+
+                    $ctx &word.fields fill-holes-field-accesses @fields
+                    $ctx $word.field-type fill @target-type
+                    $ctx $word.name $environment-fields.capture-kind &environment-fields.path &fields &target-type add-environment-path-to-fields @fields
+                    make Checked:StoreLocal {
+                        $word.name @name
+                        $environment-fields.environment-local make VarId.Local @var
+                        $fields @fields
+                        $target-type @type
+                    } make Checked:Word.StoreLocal
+                }
+            }
         }
         case Unstacked:Word.If -> {
             @word
@@ -4036,7 +4064,7 @@ fn fill-holes-word(ctx: .Ctx, word: .Unstacked:Word) -> Checked:Word {
                             $type.parameters @parameters
                             $type.returns @returns
                         } @type
-                        $ctx &ctx.function-handle lookup-function-signature .generic-parameters $ctx.arena flip $word.token flip generic-parameters-to-arguments @generic-arguments
+                        $ctx &ctx.function-handle-before-closures lookup-function-signature .generic-parameters $ctx.arena flip $word.token flip generic-parameters-to-arguments @generic-arguments
                     } make Checked:Word.ClosureCall
                 }
                 case _ -> { drop Core:unreachable }
@@ -4102,27 +4130,22 @@ fn fill-holes-word(ctx: .Ctx, word: .Unstacked:Word) -> Checked:Word {
             $ctx &word.returns fill-holes
             $ctx.function-handle.module $ctx.function-handle.index $word.closure-index + 1 + make FunctionHandle
             $ctx.environment-types $word.closure-index Array:get Maybe:ref Maybe:assert-some ~
-            $ctx.arena \LocalId-clone $ctx.closures $word.closure-index Array:get .captured Array:clone-deep
+            $ctx.arena \LocalId-clone \copy-clone $ctx.closures $word.closure-index Array:get .captured Map:clone-deep
             make Checked:Closure make Checked:Word.Closure
         }
     }
 }
 
-fn append-load(arena: .Arena, fields: .FieldAccesses, type: .Type) -> .FieldAccesses {
-    $fields loop {
-        Core:dup match {
-            case FieldAccesses.FieldAccess -> { ~ .next flip drop }
-            case FieldAccesses.End -> {
-                $type ~ make FieldAccesses.Load store break
-            }
-            case FieldAccesses.Load -> {
-                drop 0 0 / drop drop break
-            }
-        }
-    }
-    $fields
-}
-fn add-environment-path-to-fields(ctx: .Ctx, token: Token, field-access: .Unstacked:ClosureFieldAccess, fields: .FieldAccesses, final-type: .Type) -> FieldAccesses {
+fn copy-clone<T>(arena: .Arena, ptr: .T) -> T { $ptr ~ }
+
+fn add-environment-path-to-fields(
+    ctx: .Ctx,
+    token: Token,
+    capture-kind: CaptureKind,
+    field-access: .Unstacked:ClosureFieldAccess,
+    fields: .FieldAccesses,
+    final-type: .Type,
+) -> FieldAccesses {
     $field-access.next match {
         case NextClosureFieldAccess.Last -> {
             drop
@@ -4136,7 +4159,11 @@ fn add-environment-path-to-fields(ctx: .Ctx, token: Token, field-access: .Unstac
             &final-environment-struct.fields $field-access.field-index Array:get .type @target-type
 
             make FieldAccessStep {
-                $ctx.arena $fields $final-type ptrify-fields @next
+                $fields $capture-kind match {
+                    case CaptureKind.ByReference -> { $ctx.arena flip $final-type ptrify-fields }
+                    case CaptureKind.ByValue -> { ~ }
+                } @next
+
                 make Checked:FieldAccess {
                     $token @name // TODO: this is bullshit
                     $final-environment-type ~ make Type.Custom
@@ -4159,7 +4186,7 @@ fn add-environment-path-to-fields(ctx: .Ctx, token: Token, field-access: .Unstac
                 $ctx.environment-types $next.closure-index Array:get Maybe:ref Maybe:assert-some ~ make Type.Custom @target-type
                 $field-access.field-index @field-index
             }
-            $ctx $token $next $fields $final-type add-environment-path-to-fields
+            $ctx $token $capture-kind $next $fields $final-type add-environment-path-to-fields
             make FieldAccessStep
             $ctx.arena flip Arena:push
             make FieldAccesses.FieldAccess
@@ -4367,6 +4394,9 @@ fn fill-holes-intrinsic(ctx: .Ctx, intrinsic: .Unstacked:Intrinsic) -> Checked:I
             $ctx $intrinsic.type fill make Checked:Intrinsic.Not make Checked:IntrinsicWord
         }
         case Unstacked:Intrinsic.SetStackSize -> { ~ make Checked:Intrinsic.SetStackSize make Checked:IntrinsicWord }
+        case Unstacked:Intrinsic.ClosureSize -> { ~ make Checked:Intrinsic.ClosureSize make Checked:IntrinsicWord }
+        case Unstacked:Intrinsic.ClosureFun -> { ~ make Checked:Intrinsic.ClosureFun make Checked:IntrinsicWord }
+        case Unstacked:Intrinsic.ClosurePtr -> { ~ make Checked:Intrinsic.ClosurePtr make Checked:IntrinsicWord }
     }
 }
 

@@ -14,7 +14,7 @@ import "../monomorphization/type.watim" as Type (
     CustomType, CustomType-name, Variant, VariantCase, Struct,
 )
 
-import "./ctx.watim" as Ctx (Ctx, lookup-type)
+import "./ctx.watim" as Ctx (Ctx, lookup-type, generate-closure-size)
 import "./common.watim" as Common (generate-store, generate-type)
 
 fn generate-intrinsic(ctx: .Ctx, intrinsic: .Intrinsic) { block (->) {
@@ -156,5 +156,8 @@ fn generate-intrinsic(ctx: .Ctx, intrinsic: .Intrinsic) { block (->) {
         case Intrinsic.SetStackSize -> {
             $ctx.guard-stack if { "global.set $stack-siz:e" } else { "drop" }
         }
+        case Intrinsic.ClosureSize -> { $ctx generate-closure-size break }
+        case Intrinsic.ClosurePtr -> { "i32.wrap_i64" }
+        case Intrinsic.ClosureFun -> { "i64.const 32 i64.shr_u i32.wrap_i64" }
     } Fmt:write
 } }

@@ -26,6 +26,9 @@ import "../resolving/words.watim" as Resolved (
 )
 import "../resolving/local.watim" as Resolved
 import "../resolving/top-items.watim" as Resolved
+
+import "../unstacking/word.watim" as Unstacked (CaptureKind, CaptureKind-format)
+
 import "../inference/ast.watim" as Checked
 
 import "./type.watim" as Type (
@@ -1180,6 +1183,9 @@ variant Intrinsic {
     case Store -> TypeId
     case Drop -> TypeId
     case SetStackSize
+    case ClosureSize
+    case ClosureFun
+    case ClosurePtr
 }
 fn Intrinsic-format(fmt: .Formatter, self: .Intrinsic) {
     $self match {
@@ -1208,6 +1214,9 @@ fn Intrinsic-format(fmt: .Formatter, self: .Intrinsic) {
         case Store -> { $fmt "(Store " Fmt:write $fmt flip TypeId-format $fmt ")" Fmt:write }
         case Drop -> { $fmt "(Drop " Fmt:write $fmt flip TypeId-format $fmt ")" Fmt:write }
         case SetStackSize -> { $fmt "SetStackSize" Fmt:write }
+        case ClosureSize -> { $fmt "ClosureSize" Fmt:write }
+        case ClosureFun -> { $fmt "ClosureFun" Fmt:write }
+        case ClosurePtr -> { $fmt "ClosurePtr" Fmt:write }
     }
 }
 
@@ -1496,7 +1505,7 @@ fn Flip-format(fmt: .Formatter, self: .Flip) {
 struct Closure {
     token: Token
     environment: TypeId
-    captured: Array<LocalId>
+    captured: Map<LocalId, CaptureKind>
     parameters: Array<TypeId>
     returns: Array<TypeId>
     function: FunctionHandle
@@ -1516,7 +1525,7 @@ fn Closure-format(fmt: .Formatter, self: .Closure) {
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "captured=" Fmt:write
-    $fmt \LocalId-format &self.captured Array:format
+    $fmt \LocalId-format \CaptureKind-format &self.captured Map:format-multi-line
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "parameters=" Fmt:write
@@ -1734,6 +1743,9 @@ fn monomize-intrinsic(ctx: .Ctx, word: .Checked:IntrinsicWord, generic-arguments
         case Checked:Intrinsic.Store -> { $generic-arguments monomize-type make Intrinsic.Store }
         case Checked:Intrinsic.Drop -> { $generic-arguments monomize-type make Intrinsic.Drop }
         case Checked:Intrinsic.SetStackSize -> { drop make Intrinsic.SetStackSize }
+        case Checked:Intrinsic.ClosureSize -> { drop make Intrinsic.ClosureSize }
+        case Checked:Intrinsic.ClosureFun -> { drop make Intrinsic.ClosureFun }
+        case Checked:Intrinsic.ClosurePtr -> { drop make Intrinsic.ClosurePtr }
         case Checked:Intrinsic.Uninit -> {
             $generic-arguments monomize-type 0 not make Uninit make Word.Uninit break
         }
@@ -1941,14 +1953,19 @@ fn monomize-closure(ctx: .WordCtx, word: .Checked:Closure, generic-arguments: .A
     $word.function.module $word.function.index $instance make FunctionHandle @function-handle
 
     0 loop {
-        @i $i $word.captured.len = if { break }
-        $ctx &word.captured $i Array:get ~ make VarId.Local & mark-var-reffed
+        @i $i $word.captured.keys.len = if { break }
+        &word.captured.values $i Array:get ~ match {
+            case CaptureKind.ByReference -> {
+                $ctx &word.captured.keys $i Array:get ~ make VarId.Local & mark-var-reffed
+            }
+            case _ -> { drop }
+        }
         $i 1 +
     }
 
     $word.token
     $ctx.ctx &word.environment $generic-arguments monomize-custom-type'
-    $ctx.ctx.arena \LocalId-clone &word.captured Array:clone-deep
+    $ctx.ctx.arena \LocalId-clone \copy-clone &word.captured Map:clone-deep
     $ctx.ctx &word.parameters $generic-arguments monomize-types
     $ctx.ctx &word.returns $generic-arguments monomize-types
     $function-handle
@@ -1956,6 +1973,8 @@ fn monomize-closure(ctx: .WordCtx, word: .Checked:Closure, generic-arguments: .A
     0 not
     make Closure make Word.Closure
 }
+
+fn copy-clone<T>(arena: .Arena, ptr: .T) -> T { $ptr ~ }
 
 fn monomize-word(ctx: .WordCtx, word: .Checked:Word, generic-arguments: .Array<TypeId>) -> Word {
     $word match {

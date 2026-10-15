@@ -83,13 +83,27 @@ fn NextClosureFieldAccess-format(fmt: .Formatter, self: .NextClosureFieldAccess)
     }
 }
 
+variant CaptureKind {
+    case ByValue
+    case ByReference
+}
+fn CaptureKind-format(fmt: .Formatter, self: .CaptureKind) {
+    $fmt $self match {
+        case ByValue -> { "ByValue" }
+        case ByReference -> { "ByReference" }
+    } Fmt:write
+}
+
 struct EnvironmentFields {
     environment-local: LocalId
+    capture-kind: CaptureKind
     path: ClosureFieldAccess
 }
 fn EnvironmentFields-format(fmt: .Formatter, self: .EnvironmentFields) {
     $fmt "(EnvironmentFields " Fmt:write
     $fmt &self.environment-local LocalId-format
+    $fmt " " Fmt:write
+    $fmt &self.capture-kind CaptureKind-format
     $fmt " " Fmt:write
     $fmt &self.path ClosureFieldAccess-format
     $fmt ")" Fmt:write
@@ -146,6 +160,7 @@ fn RefLocal-format(fmt: .Formatter, self: .RefLocal) {
 struct StoreLocal {
     name: Token
     var: LocalId
+    environment-fields: Maybe<EnvironmentFields>
     fields: Array<FieldAccess>
     field-type: InferenceHole
 }
@@ -154,6 +169,8 @@ fn StoreLocal-format(fmt: .Formatter, self: .StoreLocal) {
     $fmt &self.name Token-format
     $fmt " " Fmt:write
     $fmt &self.var LocalId-format
+    $fmt " " Fmt:write
+    $fmt \EnvironmentFields-format &self.environment-fields Maybe:format
     $fmt " " Fmt:write
     $fmt \FieldAccess-format &self.fields Array:format-multi-line<FieldAccess>
     $fmt " " Fmt:write
@@ -495,6 +512,9 @@ variant Intrinsic {
     case MemGrow -> Token
     case Not -> Not
     case SetStackSize -> Token
+    case ClosureSize -> Token
+    case ClosureFun -> Token
+    case ClosurePtr -> Token
 }
 fn Intrinsic-format(fmt: .Formatter, self: .Intrinsic) {
     $fmt $self match {
@@ -525,6 +545,9 @@ fn Intrinsic-format(fmt: .Formatter, self: .Intrinsic) {
         case MemGrow -> { $fmt "(MemGrow " Fmt:write Token-format $fmt ")" Fmt:write }
         case Not -> { Not-format }
         case SetStackSize -> { $fmt "(SetStackSize " Fmt:write Token-format $fmt ")" Fmt:write }
+        case ClosureSize -> { $fmt "(ClosureSize " Fmt:write Token-format $fmt ")" Fmt:write }
+        case ClosureFun -> { $fmt "(ClosureFun " Fmt:write Token-format $fmt ")" Fmt:write }
+        case ClosurePtr -> { $fmt "(ClosurePtr " Fmt:write Token-format $fmt ")" Fmt:write }
     }
 }
 

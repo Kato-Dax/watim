@@ -569,12 +569,15 @@ fn IndirectCall-format(fmt: .Formatter, self: .IndirectCall) {
 struct Closure {
     token: Token
     body: Words
+    by-reference: bool
 }
 fn Closure-format(fmt: .Formatter, self: .Closure) {
     $fmt "(Closure " Fmt:write
     $fmt &self.token Token-format
     $fmt " " Fmt:write
     $fmt &self.body Words-format
+    $fmt " " Fmt:write
+    $fmt $self.by-reference bool-format
     $fmt ")" Fmt:write
 }
 
@@ -1380,7 +1383,7 @@ fn word(parser: .Parser, token: .Token) -> Result<Word, ParseError> { block {
         case TOKEN_IDENT -> { $parser $token call match { case Error -> { make Result<Word, ParseError>.Error } case Success -> { make Word.Call make Result<Word, ParseError>.Success } } break }
         case TOKEN_STRING -> { $parser $token string break }
         case TOKEN_AT -> { $parser $token init-locl break }
-        case TOKEN_AMPERSAND -> { $parser $token ref-or-ref-locl break }
+        case TOKEN_AMPERSAND -> { $parser $token ref-or-ref-locl-or-closure break }
         case TOKEN_DOLLAR -> { $parser $token get-locl break }
         case TOKEN_HASH -> { $parser $token set-locl break }
         case TOKEN_NUMBER -> { $token ~ make Word.Number }
@@ -1398,7 +1401,7 @@ fn word(parser: .Parser, token: .Token) -> Result<Word, ParseError> { block {
         case TOKEN_DOUBLE_ARROW -> { $parser $token stor break }
         case TOKEN_COLON -> { $parser $token stack-annotation break }
         case TOKEN_LEFT_PAREN -> { $parser $token 0 1 = indirect-call break }
-        case TOKEN_LEFT_BRACE -> { $parser $token anon-fun break }
+        case TOKEN_LEFT_BRACE -> { $parser $token closure break }
         case _ -> {
             drop
             $parser "expected a word" abort<Word> break
@@ -1406,12 +1409,19 @@ fn word(parser: .Parser, token: .Token) -> Result<Word, ParseError> { block {
     } make Result<Word, ParseError>.Success
 } }
 
-fn anon-fun(parser: .Parser, token: .Token) -> Result<Word, ParseError> { block {
+fn closure(parser: .Parser, token: .Token) -> Result<Word, ParseError> { block {
+    $token Token-ty match {
+        case TOKEN_AMPERSAND -> {
+            $parser advance-immediate Maybe:assert-some
+            1 1 =
+        }
+        case _ -> { drop $token 0 1 = }
+    } @by-reference @token
     $parser words match {
         case Success -> {}
         case Error -> { make Result.Error break }
     }
-    $token ~ flip make Closure make Word.Closure make Result.Success
+    $token ~ flip $by-reference make Closure make Word.Closure make Result.Success
 } }
 
 fn indirect-call(parser: .Parser, token: .Token, closure: bool) -> Result<Word, ParseError> {
@@ -2014,12 +2024,13 @@ fn get-field(parser: .Parser, token: .Token) -> Result<Word, ParseError> { block
     }
 } }
 
-fn ref-or-ref-locl(parser: .Parser, token: .Token) -> Result<Word, ParseError> { block {
+fn ref-or-ref-locl-or-closure(parser: .Parser, token: .Token) -> Result<Word, ParseError> { block {
     $parser peek-immediate match {
         case None -> {}
         case Some -> {
             Token-ty match {
                 case TOKEN_IDENT -> { $parser $token ref-locl break }
+                case TOKEN_LEFT_BRACE -> { $parser $token closure break }
                 case _ -> { drop }
             }
         }

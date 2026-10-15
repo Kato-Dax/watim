@@ -17,7 +17,7 @@ fn main "_start" () {
 	(export "memory" (memory 0))
 	(table funcref (elem $intrinsic:flip
 		$0:mul2))
-	(global $stac:k (mut i32) (i32.const 0))
+	(global $stac:k (mut i32) (i32.const 4))
 	(data (i32.const 0) "")
 	(func $0:mul2 (param i32) (result i32)
 		local.get 0

@@ -18,7 +18,7 @@ fn main "_start" () {
 	(table funcref (elem))
 	(global $B:0 (mut i32) (i32.const 0))
 	(global $A:0 (mut i32) (i32.const 0))
-	(global $stac:k (mut i32) (i32.const 0))
+	(global $stac:k (mut i32) (i32.const 4))
 	(data (i32.const 0) "")
 	(func $0:main (export "_start")
 		i32.const 3

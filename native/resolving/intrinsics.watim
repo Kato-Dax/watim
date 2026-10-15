@@ -32,6 +32,9 @@ variant Intrinsic {
     case Load
     case Store
     case SetStackSize
+    case ClosureSize
+    case ClosurePtr
+    case ClosureFun
 }
 fn Intrinsic-eq(a: .Intrinsic, b: .Intrinsic) -> bool {
     $a !.i32 ~ $b !.i32 ~ =
@@ -65,6 +68,9 @@ fn Intrinsic-format(fmt: .Formatter, self: .Intrinsic) {
         case Load -> { "Load" }
         case Store -> { "Store" }
         case SetStackSize -> { "SetStackSize" }
+        case ClosureSize -> { "ClosureSize" }
+        case ClosurePtr -> { "ClosureFun" }
+        case ClosureFun -> { "ClosureFun" }
     } Fmt:write
 }
 
@@ -97,6 +103,10 @@ fn lookup(name: .Token) -> Maybe<Intrinsic> { block {
     $ptr $len "uninit"   Bytes:eq if { make Intrinsic.Uninit  make Maybe<Intrinsic>.Some break }
     $ptr $len "~"        Bytes:eq if { make Intrinsic.Load    make Maybe<Intrinsic>.Some break }
     $ptr $len "store"    Bytes:eq if { make Intrinsic.Store   make Maybe<Intrinsic>.Some break }
+
+    $ptr $len "closure-size" Bytes:eq if { make Intrinsic.ClosureSize make Maybe<Intrinsic>.Some break }
+    $ptr $len "closure-ptr"  Bytes:eq if { make Intrinsic.ClosurePtr  make Maybe<Intrinsic>.Some break }
+    $ptr $len "closure-fun"  Bytes:eq if { make Intrinsic.ClosureFun  make Maybe<Intrinsic>.Some break }
 
     $ptr $len "set-stack-size" Bytes:eq if { make Intrinsic.SetStackSize make Maybe<Intrinsic>.Some break }
     make Maybe<Intrinsic>.None

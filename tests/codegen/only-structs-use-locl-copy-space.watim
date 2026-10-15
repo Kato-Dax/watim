@@ -17,7 +17,7 @@ fn baz "baz" (foo: Foo, quox: .i32) {
 	(memory 1 65536)
 	(export "memory" (memory 0))
 	(table funcref (elem))
-	(global $stac:k (mut i32) (i32.const 0))
+	(global $stac:k (mut i32) (i32.const 4))
 	(data (i32.const 0) "")
 	(func $0:baz (export "baz") (param i32) (param i32)
 		(local $i i32)

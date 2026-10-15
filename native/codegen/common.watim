@@ -177,6 +177,9 @@ fn generate-name(fmt: .Formatter, name: .Name) {
         case Name.ClosureParam -> {
             drop $fmt "c:losure" Fmt:write
         }
+        case Name.ClosureSizeFieldName -> {
+            drop $fmt "closure:size" Fmt:write
+        }
     }
 }
 

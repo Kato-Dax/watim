@@ -31,6 +31,8 @@ import "../resolving/type-without-holes.watim" as Type (
     FunType-format,
 )
 
+import "../unstacking/word.watim" as Unstacked (CaptureKind, CaptureKind-format)
+
 struct Local {
     name: Name
     type: Type
@@ -247,6 +249,9 @@ variant Intrinsic {
     case Drop -> Type
     case Flip -> Flip
     case SetStackSize
+    case ClosureSize
+    case ClosureFun
+    case ClosurePtr
 }
 fn Intrinsic-format(fmt: .Formatter, self: .Intrinsic) {
     $self match {
@@ -277,6 +282,9 @@ fn Intrinsic-format(fmt: .Formatter, self: .Intrinsic) {
         case SetStackSize -> { $fmt "SetStackSize" Fmt:write }
         case Uninit -> { $fmt "(Uninit " Fmt:write $fmt flip Type:format $fmt ")" Fmt:write }
         case Flip -> { $fmt flip Flip-format }
+        case ClosureSize -> { $fmt "ClosureSize" Fmt:write }
+        case ClosurePtr -> { $fmt "ClosurePtr" Fmt:write }
+        case ClosureFun -> { $fmt "ClosureFun" Fmt:write }
     }
 }
 
@@ -624,7 +632,7 @@ struct Closure {
     returns: Array<Type>
     function: FunctionHandle
     environment: CustomTypeType
-    captured: Array<LocalId>
+    captured: Map<LocalId, CaptureKind>
 }
 fn Closure-format(fmt: .Formatter, self: .Closure) {
     $fmt "(Closure\n" Fmt:write
@@ -651,7 +659,7 @@ fn Closure-format(fmt: .Formatter, self: .Closure) {
     $fmt ",\n" Fmt:write
     $fmt Fmt:write-indent
     $fmt "captured=" Fmt:write
-    $fmt \LocalId-format &self.captured Array:format
+    $fmt \LocalId-format \CaptureKind-format &self.captured Map:format-multi-line
     $fmt Fmt:dedent
     $fmt ")" Fmt:write
 }
