@@ -1,0 +1,49 @@
+[== Stdin Compiler ==]
+fn main() -> \(i32, i64 ->) {
+    { @x @y }
+}
+[== Args Compiler ==]
+infer
+-
+main
+--quiet
+[== Status Compiler ==]
+0
+[== Stdout Compiler ==]
+[
+  (Function
+    name=(User (IDENT main 1 4)),
+    export=None,
+    signature=(Signature
+      generic-parameters=[],
+      parameters=[],
+      returns=[(ClosureType
+        token=(BACKSLASH \ 1 14)
+        parameters=[I32, I64]
+        returns=[])]),
+    locals=(Map),
+    body=(Scope 0 [
+      (Closure
+        token=(LEFT_BRACE { 2 5),
+        parameters=[I32, I64],
+        returns=[],
+        function=(FunctionHandle 0 1),
+        environment=(CustomType 0 0 []),
+        captured=(Map))])),
+  (Function
+    name=(AnonymousFunctionName 0 (IDENT main 1 4) (LEFT_BRACE { 2 5)),
+    export=None,
+    signature=(Signature
+      generic-parameters=[],
+      parameters=[
+        (Parameter (ClosureParam (LEFT_BRACE { 2 5)) 0 I32),
+        (Parameter (ClosureParam (LEFT_BRACE { 2 5)) 1 I64),
+        (Parameter (AnonymousFunctionName 0 (IDENT main 1 4) (LEFT_BRACE { 2 5)) 2 (Ptr (CustomType 0 0 [])))],
+      returns=[]),
+    locals=(Map
+      (LocalId "c;losure" 1 0)=(Local (ClosureParam (LEFT_BRACE { 2 5)) (Ptr (CustomType 0 0 [])) (Some 2)),
+      (LocalId "x" 2 0)=(Local (User (IDENT x 2 8)) I64 None),
+      (LocalId "y" 2 0)=(Local (User (IDENT y 2 11)) I32 None)),
+    body=(Scope 2 [
+      (InitLocal (IDENT x 2 8) I64 (LocalId "x" 2 0)),
+      (InitLocal (IDENT y 2 11) I32 (LocalId "y" 2 0))]))]

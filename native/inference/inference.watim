@@ -282,32 +282,17 @@ fn infer-function(
             case Some -> { make Result.Error break }
         }
 
+        &ctx &function.locals.values ensure-inferred-locals match {
+            case None -> {}
+            case Some -> { make Result.Error break }
+        }
         0 loop {
-            @i $i $function.locals.values.len = if { make Maybe<Error>.None break }
-            &function.locals.values $i Array:get<_> @local
-
-            &ctx $local.type lookup-hole match {
-                case Some -> { ~ }
-                case None -> {
-                    &ctx $local infer-local match {
-                        case InferenceResult.Error -> { make Maybe<Error>.Some break }
-                        case InferenceResult.Success -> {}
-                        case InferenceResult.Fail -> {
-                            &local.name Name-token ~ make TokenOrLiteral.Token
-                            "StackVoid.SetLocal failed to infer type of local" error make Maybe<Error>.Some break
-                        }
-                    }
-                }
-            } @local-type
-
-            &ctx $local make TypeWithOrigin {
-                $local-type.type @type
-                $ctx.temp &local.name Name-token ~ $local-type.type make Origin:FromLocal make Origin.FromLocal $local-type.origin List:cons Arena:push @origin
-            } & check-local-assignments match {
+            @i $i $function.closures.len = if { make Maybe<Error>.None break }
+            &function.closures $i Array:get<_> @closure
+            &ctx &closure.locals.values ensure-inferred-locals match {
                 case None -> {}
                 case _ -> { break }
             }
-
             $i 1 +
         } match {
             case None -> {}
@@ -438,6 +423,46 @@ fn infer-function(
     $temp $save Arena:restore
     &ctx logging if { $ctx.fmt Fmt:dedent }
 }
+
+fn ensure-inferred-locals(ctx: .Ctx, locals: .Array<Unstacked:Local>) -> Maybe<Error> {
+    0 loop {
+        @i $i $locals.len = if { make Maybe<Error>.None break }
+        $locals $i Array:get<_> @local
+        $ctx $local ensure-inferred-local match {
+            case None -> {}
+            case _ -> { break }
+        }
+        $i 1 +
+    }
+}
+
+fn ensure-inferred-local(ctx: .Ctx, local: .Unstacked:Local) -> Maybe<Error> { block {
+    $local.name match {
+        // The type of the local which holds the closure environment is filled in later.
+        case Name.ClosureParam -> { drop make Maybe.None break }
+
+        case _ -> { drop }
+    }
+
+    $ctx $local.type lookup-hole match {
+        case Some -> { ~ }
+        case None -> {
+            $ctx $local infer-local match {
+                case InferenceResult.Error -> { make Maybe.Some break }
+                case InferenceResult.Success -> {}
+                case InferenceResult.Fail -> {
+                    &local.name Name-token ~ make TokenOrLiteral.Token
+                    "StackVoid.SetLocal failed to infer type of local" error make Maybe.Some break
+                }
+            }
+        }
+    } @local-type
+
+    $ctx $local make TypeWithOrigin {
+        $local-type.type @type
+        $ctx.temp &local.name Name-token ~ $local-type.type make Origin:FromLocal make Origin.FromLocal $local-type.origin List:cons Arena:push @origin
+    } & check-local-assignments
+} }
 
 fn infer-stack-void(ctx: .Ctx, void: .StackVoid) -> Maybe<Error> {
     block {
@@ -3627,7 +3652,9 @@ fn infer-local(ctx: .Ctx, local: .Unstacked:Local) -> InferenceResult { block {
                     make TypeWithOrigin {
                         $local-type @type
                         $ctx.temp $assignment.token $local-type make Origin:FromLocal make Origin.FromLocal $inferred-type-of-assignment-value.origin List:cons Arena:push @origin
-                    } make InferenceResult.Success break
+                    } @local-type
+                    $ctx $local.type &local-type fill-hole-with-origin
+                    $local-type make InferenceResult.Success break
                 }
             }
         }
