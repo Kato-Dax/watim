@@ -2158,6 +2158,14 @@ fn word-measure-copy-space(word: .Word, ctx: .CopySpaceCtx, offset: .i32) { bloc
             } .returns $ctx $offset call-measure-copy-space #word.copy-space-offset
             break
         }
+        case Word.ClosureCall -> {
+            @word
+            $ctx.types $word.type.index Array:get<Maybe<Key>> Maybe:ref<Key> assert-some<.Key> Key-type match {
+                case Type.Closure -> {}
+                case _ -> { drop Core:unreachable }
+            } .returns $ctx $offset call-measure-copy-space #word.copy-space-offset
+            break
+        }
         case Word.Uninit -> { @word $word.type &word.copy-space-offset }
         case Word.MakeStruct -> { @word $word.type &word.copy-space-offset }
         case Word.MakeStructNamed -> {

@@ -80,7 +80,7 @@ monomize
                 function=(FunctionHandle 0 2 0),
                 table-index=0,
                 copy-space-offset=0),
-              (ClosureCall (TypeId 6) 4294967295)]))],
+              (ClosureCall (TypeId 6) 0)]))],
         [
           (Function
             name=(AnonymousFunctionName 0 (IDENT generic-function 5 4) (LEFT_BRACE { 6 8)),
