@@ -1526,7 +1526,9 @@ fn check(ctx: .Ctx, source: .Source, known: .TypeWithOrigin) -> Maybe<Error> { b
                     case InferenceResult.Error -> { make Maybe<Error>.Some break }
                     case InferenceResult.Success -> {}
                     case InferenceResult.Fail -> {
-                        $source.token make TokenOrLiteral.Token "check: FromGetField: failed to infer type of struct" error make Maybe<Error>.Some break
+                        $ctx $whole-source $known defer-check
+                        1 1 = #dont-mark-known
+                        make Maybe.None break
                     }
                 } .type @type
                 &type &known.type Type:eq not if {

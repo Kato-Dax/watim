@@ -1,0 +1,59 @@
+[== Stdin Compiler ==]
+fn find-map<T, O>(self: .T, pred: \(.T -> O)) -> O {
+    0 !O
+}
+
+struct Struct {
+    field: i32
+}
+
+fn load(ptr: .i32) -> i32 { $ptr ~ }
+
+fn main "_start" (closures: Struct) {
+    &closures { .field load } find-map<_, i32> drop
+}
+[== Args Compiler ==]
+infer
+-
+main
+--quiet
+[== Status Compiler ==]
+0
+[== Stdout Compiler ==]
+[
+  (Function
+    name=(User (IDENT main 11 4)),
+    export=(Some (STRING "_start" 11 9)),
+    signature=(Signature
+      generic-parameters=[],
+      parameters=[
+        (Parameter (User (IDENT closures 11 19)) 0 (CustomType 0 0 []))],
+      returns=[]),
+    locals=(Map
+      (LocalId "closures" 0 0)=(Local (User (IDENT closures 11 19)) (CustomType 0 0 []) (Some 0))),
+    body=(Scope 0 [
+      (RefLocal (IDENT closures 12 6) (LocalId "closures" 0 0) []),
+      (Closure
+        token=(LEFT_BRACE { 12 15),
+        parameters=[(Ptr (CustomType 0 0 []))],
+        returns=[I32],
+        function=(FunctionHandle 0 3),
+        environment=(CustomType 0 1 []),
+        captured=(Map)),
+      (Call (IDENT find-map 12 31) (FunctionHandle 0 0) [(CustomType 0 0 []), I32]),
+      (Intrinsic (IDENT drop 12 48) (Drop I32))])),
+  (Function
+    name=(AnonymousFunctionName 0 (IDENT main 11 4) (LEFT_BRACE { 12 15)),
+    export=None,
+    signature=(Signature
+      generic-parameters=[],
+      parameters=[
+        (Parameter (ClosureParam (LEFT_BRACE { 12 15)) 0 (Ptr (CustomType 0 0 []))),
+        (Parameter (AnonymousFunctionName 0 (IDENT main 11 4) (LEFT_BRACE { 12 15)) 1 (Ptr (CustomType 0 1 [])))],
+      returns=[I32]),
+    locals=(Map
+      (LocalId "c;losure" 1 0)=(Local (ClosureParam (LEFT_BRACE { 12 15)) (Ptr (CustomType 0 1 [])) (Some 1))),
+    body=(Scope 2 [
+      (GetField (DOT . 12 17) [
+        (FieldAccess (IDENT field 12 18) (Ptr (CustomType 0 0 [])) I32 0)] True),
+      (Call (IDENT load 12 24) (FunctionHandle 0 1) [])]))]
